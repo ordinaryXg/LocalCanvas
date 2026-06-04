@@ -5,6 +5,7 @@ import { Sidebar } from './components/sidebar/Sidebar'
 import { useCanvasStore } from './stores/canvasStore'
 import { useProjectStore } from './stores/projectStore'
 import { handleError, setToastHandler } from './utils/ErrorHandler'
+import { hydrateProjectNodes } from './utils/assetStorage'
 import type { Node, Edge } from '@xyflow/react'
 
 type AppView = 'start' | 'editor'
@@ -39,11 +40,8 @@ export default function App() {
     async (id: string, name: string) => {
       try {
         const data = await window.api.project.load(id)
-        loadProject(
-          data.nodes as Node[],
-          data.edges as Edge[],
-          data.viewport,
-        )
+        const nodes = await hydrateProjectNodes(id, data.nodes as Node[])
+        loadProject(nodes, data.edges as Edge[], data.viewport)
         setCurrentProject(id, name)
         setView('editor')
       } catch (error) {

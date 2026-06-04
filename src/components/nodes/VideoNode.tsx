@@ -2,20 +2,19 @@ import { memo, useRef, useCallback, useState } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { Handle, Position } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
-import { useCanvasStore } from '../../stores/canvasStore'
+import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 
 function VideoNodeComponent({ id, data, selected }: NodeProps) {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData)
+  const uploadMedia = useNodeMediaUpload(id, 'video')
   const [isPlaying, setIsPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadFile = useCallback(
     (file: File) => {
-      const url = URL.createObjectURL(file)
-      updateNodeData(id, { videoSrc: url, fileName: file.name })
+      void uploadMedia(file)
     },
-    [id, updateNodeData],
+    [uploadMedia],
   )
 
   return (

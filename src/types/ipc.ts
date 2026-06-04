@@ -13,6 +13,11 @@ export interface LocalCanvasAPI {
     writeAsset: (projectId: string, relativePath: string, data: ArrayBuffer) => Promise<{ success: boolean }>
     selectFile: (filters: Electron.FileFilter[]) => Promise<string | null>
     selectFolder: () => Promise<string | null>
+    saveWorkflow: (
+      projectId: string,
+      filename: string,
+      content: string,
+    ) => Promise<{ fileName: string }>
   }
   app: {
     getVersion: () => Promise<string>

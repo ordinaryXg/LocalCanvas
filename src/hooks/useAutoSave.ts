@@ -3,6 +3,26 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
 import { AUTO_SAVE_DELAY_MS } from '../utils/constants'
 import { handleError } from '../utils/ErrorHandler'
+import { ensureNodeAssetsOnDisk } from '../utils/assetStorage'
+import { buildProjectSavePayload } from '../utils/projectPayload'
+
+async function saveProjectToDisk(
+  projectId: string,
+  projectName: string,
+  nodes: ReturnType<typeof useCanvasStore.getState>['nodes'],
+  edges: ReturnType<typeof useCanvasStore.getState>['edges'],
+  viewport: ReturnType<typeof useCanvasStore.getState>['viewport'],
+): Promise<void> {
+  const nodesWithAssets = await ensureNodeAssetsOnDisk(projectId, nodes)
+  const payload = buildProjectSavePayload({
+    id: projectId,
+    name: projectName,
+    viewport,
+    nodes: nodesWithAssets,
+    edges,
+  })
+  await window.api.project.save(JSON.stringify(payload))
+}
 
 export function useAutoSave(): void {
   const nodes = useCanvasStore((s) => s.nodes)
@@ -17,16 +37,7 @@ export function useAutoSave(): void {
     if (!currentProjectId || !window.api) return
     startSave()
     try {
-      const payload = {
-        id: currentProjectId,
-        name: projectName,
-        viewport,
-        nodes,
-        edges,
-        groups: [],
-        updatedAt: new Date().toISOString(),
-      }
-      await window.api.project.save(JSON.stringify(payload))
+      await saveProjectToDisk(currentProjectId, projectName, nodes, edges, viewport)
       finishSave()
     } catch (error) {
       failSave(error instanceof Error ? error.message : '保存失败')
@@ -66,16 +77,7 @@ export function useManualSave(onSave?: () => void): () => Promise<void> {
     if (!currentProjectId) return
     startSave()
     try {
-      await window.api.project.save(
-        JSON.stringify({
-          id: currentProjectId,
-          name: projectName,
-          viewport,
-          nodes,
-          edges,
-          groups: [],
-        }),
-      )
+      await saveProjectToDisk(currentProjectId, projectName, nodes, edges, viewport)
       finishSave()
       onSave?.()
     } catch (error) {

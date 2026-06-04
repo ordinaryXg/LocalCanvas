@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getDatabase } from '../database'
 import { logger } from './logger'
@@ -262,4 +262,17 @@ export function deleteProject(projectId: string): void {
 
 export function getProjectAssetsPath(projectId: string): string {
   return projectAssetsDir(projectId)
+}
+
+export function saveWorkflowFile(
+  projectId: string,
+  filename: string,
+  content: string,
+): { fileName: string } {
+  const dir = join(projectsDir(), projectId, 'workflows')
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  const fileName = filename.endsWith('.json') ? filename : `${filename}.json`
+  writeFileSync(join(dir, fileName), content, 'utf-8')
+  logger.info('Workflow saved', projectId, fileName)
+  return { fileName }
 }

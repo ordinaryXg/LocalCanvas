@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isPortCompatible } from './portCompat'
+import { isPortCompatible, getNodeTypeFromId } from './portCompat'
 
 describe('isPortCompatible', () => {
   it('allows text prompt to image prompt', () => {
@@ -16,5 +16,16 @@ describe('isPortCompatible', () => {
 
   it('rejects missing handles', () => {
     expect(isPortCompatible('text', null, 'image', 'prompt')).toBe(false)
+  })
+
+  it('allows script to image prompt', () => {
+    expect(isPortCompatible('script', 'script', 'image', 'prompt')).toBe(true)
+  })
+})
+
+describe('getNodeTypeFromId', () => {
+  it('returns node type by id', () => {
+    expect(getNodeTypeFromId([{ id: 'a', type: 'video' }], 'a')).toBe('video')
+    expect(getNodeTypeFromId([{ id: 'a', type: 'video' }], 'b')).toBeUndefined()
   })
 })

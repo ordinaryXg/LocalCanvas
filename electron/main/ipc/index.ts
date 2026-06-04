@@ -6,6 +6,7 @@ import {
   listProjects,
   deleteProject,
   getProjectAssetsPath,
+  saveWorkflowFile,
   type ProjectData,
 } from '../services/project'
 import { logger } from '../services/logger'
@@ -108,6 +109,18 @@ export function registerFileIpc(): void {
     })
     return result.canceled ? null : result.filePaths[0]
   })
+
+  ipcMain.handle(
+    'file:saveWorkflow',
+    (_e, projectId: string, filename: string, content: string) => {
+      try {
+        return saveWorkflowFile(projectId, filename, content)
+      } catch (error) {
+        logger.error('file:saveWorkflow failed', error)
+        throw error
+      }
+    },
+  )
 }
 
 export function registerIpcHandlers(): void {

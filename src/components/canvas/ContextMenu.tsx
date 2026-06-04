@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import type { Node, Edge } from '@xyflow/react'
 import { useCanvasStore } from '../../stores/canvasStore'
+import { useProjectStore } from '../../stores/projectStore'
 import { NODE_TYPE_META } from '../../types/node'
 import { generateNodeId } from '../../utils/id'
+import { extractWorkflowSnapshot } from '../../utils/workflow'
+import { handleError } from '../../utils/ErrorHandler'
 
 export interface ContextMenuState {
   x: number
@@ -20,8 +23,9 @@ interface ContextMenuProps {
 
 export function ContextMenu({ menu, onClose }: ContextMenuProps) {
   const reactFlow = useReactFlow()
-  const { addNode, removeNodes, removeEdge, groupNodes, duplicateNode, selectedNodeIds } =
+  const { nodes, edges, addNode, removeNodes, removeEdge, groupNodes, duplicateNode, selectedNodeIds } =
     useCanvasStore()
+  const currentProjectId = useProjectStore((s) => s.currentProjectId)
 
   useEffect(() => {
     if (!menu) return
@@ -99,6 +103,34 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
             }}
           >
             📦 打组
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+            onClick={() => {
+              void (async () => {
+                if (!currentProjectId || !window.api?.file?.saveWorkflow) {
+                  handleError(new Error('请先打开项目'), 'saveWorkflow')
+                  return
+                }
+                const ids =
+                  selectedNodeIds.length > 0 ? selectedNodeIds : [menu.nodeId!]
+                try {
+                  const snapshot = extractWorkflowSnapshot(nodes, edges, ids)
+                  const fileName = `workflow-${Date.now()}.json`
+                  await window.api.file.saveWorkflow(
+                    currentProjectId,
+                    fileName,
+                    JSON.stringify(snapshot, null, 2),
+                  )
+                  onClose()
+                } catch (error) {
+                  handleError(error, 'saveWorkflow')
+                }
+              })()
+            }}
+          >
+            💾 保存为工作流
           </button>
         </>
       )}

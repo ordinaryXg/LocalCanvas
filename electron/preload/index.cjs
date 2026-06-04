@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.invoke('file:writeAsset', projectId, relativePath, data),
     selectFile: (filters) => ipcRenderer.invoke('file:selectFile', filters),
     selectFolder: () => ipcRenderer.invoke('file:selectFolder'),
+    saveWorkflow: (projectId, filename, content) =>
+      ipcRenderer.invoke('file:saveWorkflow', projectId, filename, content),
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),

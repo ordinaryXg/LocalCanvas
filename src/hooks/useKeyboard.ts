@@ -2,12 +2,38 @@ import { useCallback, useEffect } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import type { Node, Edge } from '@xyflow/react'
 import { useCanvasStore } from '../stores/canvasStore'
+import { useProjectStore } from '../stores/projectStore'
 import { undo, redo } from '../stores/historyStore'
 import { generateNodeId } from '../utils/id'
+import { persistMediaFile, type MediaKind } from '../utils/assetStorage'
+import { handleError } from '../utils/ErrorHandler'
+
+function fileToMediaKind(file: File): MediaKind | null {
+  if (file.type.startsWith('image/')) return 'image'
+  if (file.type.startsWith('video/')) return 'video'
+  if (file.type.startsWith('audio/')) return 'audio'
+  return null
+}
+
+function mediaDataFromFile(
+  kind: MediaKind,
+  relativePath: string,
+  blobUrl: string,
+  fileName: string,
+): Record<string, unknown> {
+  if (kind === 'image') {
+    return { imageAssetPath: relativePath, imageSrc: blobUrl, fileName }
+  }
+  if (kind === 'video') {
+    return { videoAssetPath: relativePath, videoSrc: blobUrl, fileName }
+  }
+  return { audioAssetPath: relativePath, audioSrc: blobUrl, fileName }
+}
 
 export function useFileDrop() {
   const reactFlow = useReactFlow()
   const addNode = useCanvasStore((s) => s.addNode)
+  const currentProjectId = useProjectStore((s) => s.currentProjectId)
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -24,35 +50,42 @@ export function useFileDrop() {
       })
 
       const files = event.dataTransfer.files
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const offset = i * 40
-        let nodeType: string | null = null
-        let dataKey = ''
+      void (async () => {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          const offset = i * 40
+          const kind = fileToMediaKind(file)
+          if (!kind) continue
 
-        if (file.type.startsWith('image/')) {
-          nodeType = 'image'
-          dataKey = 'imageSrc'
-        } else if (file.type.startsWith('video/')) {
-          nodeType = 'video'
-          dataKey = 'videoSrc'
-        } else if (file.type.startsWith('audio/')) {
-          nodeType = 'audio'
-          dataKey = 'audioSrc'
-        }
+          const nodeType = kind
+          let data: Record<string, unknown> = {
+            fileName: file.name,
+            [`${kind}Src`]: URL.createObjectURL(file),
+          }
 
-        if (nodeType && dataKey) {
-          const url = URL.createObjectURL(file)
+          if (currentProjectId && window.api?.file?.writeAsset) {
+            try {
+              const { relativePath, blobUrl } = await persistMediaFile(
+                currentProjectId,
+                kind,
+                file,
+              )
+              data = mediaDataFromFile(kind, relativePath, blobUrl, file.name)
+            } catch (error) {
+              handleError(error, 'fileDrop')
+            }
+          }
+
           addNode({
             id: generateNodeId(nodeType),
             type: nodeType,
             position: { x: position.x + offset, y: position.y + offset },
-            data: { [dataKey]: url, fileName: file.name },
+            data,
           })
         }
-      }
+      })()
     },
-    [reactFlow, addNode],
+    [reactFlow, addNode, currentProjectId],
   )
 
   return { onDragOver, onDrop }

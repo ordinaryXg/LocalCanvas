@@ -10,6 +10,9 @@ export interface TextNodeData {
 
 export interface ImageNodeData {
   imageSrc?: string
+  imageAssetPath?: string
+  referenceSrc?: string
+  referenceAssetPath?: string
   fileName?: string
   prompt?: string
   negativePrompt?: string
@@ -22,12 +25,17 @@ export interface ImageNodeData {
 
 export interface VideoNodeData {
   videoSrc?: string
+  videoAssetPath?: string
   fileName?: string
   prompt?: string
   modelId?: string
   duration?: number
   firstFrameSrc?: string
+  firstFrameAssetPath?: string
   lastFrameSrc?: string
+  lastFrameAssetPath?: string
+  audioSrc?: string
+  audioAssetPath?: string
   camera?: string
   isGenerating?: boolean
   progress?: number
@@ -36,6 +44,7 @@ export interface VideoNodeData {
 
 export interface AudioNodeData {
   audioSrc?: string
+  audioAssetPath?: string
   fileName?: string
   [key: string]: unknown
 }

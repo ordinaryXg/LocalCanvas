@@ -7,5 +7,21 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: [
+        'src/utils/projectPayload.ts',
+        'src/utils/dataFlow.ts',
+        'src/utils/workflow.ts',
+        'src/utils/portCompat.ts',
+      ],
+      exclude: ['**/*.test.ts'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 74,
+        statements: 80,
+      },
+    },
   },
 })

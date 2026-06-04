@@ -2,21 +2,17 @@ import { memo, useRef, useCallback } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { Handle, Position } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
-import { useCanvasStore } from '../../stores/canvasStore'
+import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 
 function ImageNodeComponent({ id, data, selected }: NodeProps) {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData)
+  const uploadMedia = useNodeMediaUpload(id, 'image')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadFile = useCallback(
     (file: File) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        updateNodeData(id, { imageSrc: reader.result as string, fileName: file.name })
-      }
-      reader.readAsDataURL(file)
+      void uploadMedia(file)
     },
-    [id, updateNodeData],
+    [uploadMedia],
   )
 
   const handleFileDrop = useCallback(
@@ -59,6 +55,17 @@ function ImageNodeComponent({ id, data, selected }: NodeProps) {
 
       {typeof data.prompt === 'string' && data.prompt.length > 0 && (
         <p className="mt-1 text-[10px] text-text-muted truncate">提示: {data.prompt}</p>
+      )}
+
+      {typeof data.referenceSrc === 'string' && data.referenceSrc.length > 0 && (
+        <div className="mt-1 flex items-center gap-1">
+          <span className="text-[10px] text-text-muted">参考图</span>
+          <img
+            src={data.referenceSrc}
+            alt=""
+            className="w-8 h-8 object-cover rounded border border-border"
+          />
+        </div>
       )}
 
       <button

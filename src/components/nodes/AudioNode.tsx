@@ -2,18 +2,17 @@ import { memo, useCallback, useRef } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { Handle, Position } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
-import { useCanvasStore } from '../../stores/canvasStore'
+import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 
 function AudioNodeComponent({ id, data, selected }: NodeProps) {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData)
+  const uploadMedia = useNodeMediaUpload(id, 'audio')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadFile = useCallback(
     (file: File) => {
-      const url = URL.createObjectURL(file)
-      updateNodeData(id, { audioSrc: url, fileName: file.name })
+      void uploadMedia(file)
     },
-    [id, updateNodeData],
+    [uploadMedia],
   )
 
   return (
