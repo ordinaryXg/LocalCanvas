@@ -7,6 +7,8 @@ const validChannels = [
   'model:complete',
   'model:error',
   'model:batchItemComplete',
+  'compose:progress',
+  'ffmpeg:progress',
 ]
 
 const listeners = new Map()
@@ -18,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
     save: (data) => ipcRenderer.invoke('project:save', data),
     list: () => ipcRenderer.invoke('project:list'),
     delete: (projectId) => ipcRenderer.invoke('project:delete', projectId),
+    reorder: (orderedIds) => ipcRenderer.invoke('project:reorder', orderedIds),
+    readThumbnail: (projectId) => ipcRenderer.invoke('project:readThumbnail', projectId),
   },
   file: {
     readAsset: (projectId, relativePath) =>
@@ -30,6 +34,8 @@ contextBridge.exposeInMainWorld('api', {
     selectFolder: () => ipcRenderer.invoke('file:selectFolder'),
     saveWorkflow: (projectId, filename, content) =>
       ipcRenderer.invoke('file:saveWorkflow', projectId, filename, content),
+    resolveAssetPath: (projectId, relativePath) =>
+      ipcRenderer.invoke('file:resolveAssetPath', projectId, relativePath),
   },
   config: {
     read: () => ipcRenderer.invoke('config:read'),
@@ -40,9 +46,13 @@ contextBridge.exposeInMainWorld('api', {
     needsOnboarding: () => ipcRenderer.invoke('config:needsOnboarding'),
   },
   model: {
+    beginGenerateImage: (payload) => ipcRenderer.invoke('model:beginGenerateImage', payload),
     generateImage: (payload) => ipcRenderer.invoke('model:generateImage', payload),
+    beginGenerateVideo: (payload) => ipcRenderer.invoke('model:beginGenerateVideo', payload),
     generateVideo: (payload) => ipcRenderer.invoke('model:generateVideo', payload),
+    beginGenerateText: (payload) => ipcRenderer.invoke('model:beginGenerateText', payload),
     generateText: (payload) => ipcRenderer.invoke('model:generateText', payload),
+    beginGenerateAudio: (payload) => ipcRenderer.invoke('model:beginGenerateAudio', payload),
     generateAudio: (payload) => ipcRenderer.invoke('model:generateAudio', payload),
     generateScript: (payload) => ipcRenderer.invoke('model:generateScript', payload),
     batchGenerateImages: (payload) => ipcRenderer.invoke('model:batchGenerateImages', payload),
@@ -53,6 +63,27 @@ contextBridge.exposeInMainWorld('api', {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getDataPath: () => ipcRenderer.invoke('app:getDataPath'),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+  },
+  asset: {
+    list: (projectId) => ipcRenderer.invoke('asset:list', projectId),
+    import: (projectId, filePath) => ipcRenderer.invoke('asset:import', projectId, filePath),
+    thumbnail: (filePath) => ipcRenderer.invoke('asset:thumbnail', filePath),
+  },
+  ffmpeg: {
+    detect: (userPath) => ipcRenderer.invoke('ffmpeg:detect', userPath),
+    download: () => ipcRenderer.invoke('ffmpeg:download'),
+    ensure: () => ipcRenderer.invoke('ffmpeg:ensure'),
+    trim: (payload) => ipcRenderer.invoke('ffmpeg:trim', payload),
+    getVideoInfo: (input) => ipcRenderer.invoke('ffmpeg:getVideoInfo', input),
+  },
+  compose: {
+    start: (payload) => ipcRenderer.invoke('compose:start', payload),
+    cancel: () => ipcRenderer.invoke('compose:cancel'),
+    openOutputDir: () => ipcRenderer.invoke('compose:openOutputDir'),
+  },
+  projectExtra: {
+    rename: (projectId, name) => ipcRenderer.invoke('project:rename', projectId, name),
+    openDir: (projectId) => ipcRenderer.invoke('project:openDir', projectId),
   },
   on: (channel, callback) => {
     if (!validChannels.includes(channel)) return () => {}

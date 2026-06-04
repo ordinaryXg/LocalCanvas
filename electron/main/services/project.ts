@@ -1,14 +1,18 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getDatabase } from '../database'
+import { listAssets } from './asset'
+import { getThumbnail } from './thumbnail'
 import { logger } from './logger'
 
 export interface ProjectSummary {
   id: string
   name: string
+  createdAt: string
   updatedAt: string
+  hasThumbnail?: boolean
 }
 
 export interface ProjectData {
@@ -87,10 +91,14 @@ export function createProject(name: string): ProjectData {
     groups: [],
   }
 
+  const maxOrder = db
+    .prepare('SELECT COALESCE(MAX(list_order), -1) AS m FROM projects')
+    .get() as { m: number }
+
   db.prepare(
-    `INSERT INTO projects (id, name, created_at, updated_at, viewport_x, viewport_y, viewport_zoom)
-     VALUES (?, ?, ?, ?, 0, 0, 1)`,
-  ).run(id, name, now, now)
+    `INSERT INTO projects (id, name, created_at, updated_at, viewport_x, viewport_y, viewport_zoom, list_order)
+     VALUES (?, ?, ?, ?, 0, 0, 1, ?)`,
+  ).run(id, name, now, now, maxOrder.m + 1)
 
   logger.info('Project created', id, name)
   return project
@@ -239,14 +247,70 @@ export function saveProject(data: ProjectData): void {
 export function listProjects(): ProjectSummary[] {
   const db = getDatabase()
   const rows = db
-    .prepare('SELECT id, name, updated_at FROM projects ORDER BY updated_at DESC')
-    .all() as Array<{ id: string; name: string; updated_at: string }>
+    .prepare(
+      'SELECT id, name, created_at, updated_at FROM projects ORDER BY list_order ASC, updated_at DESC',
+    )
+    .all() as Array<{ id: string; name: string; created_at: string; updated_at: string }>
 
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
+    createdAt: r.created_at,
     updatedAt: r.updated_at,
+    hasThumbnail: existsSync(getProjectThumbnailPath(r.id)),
   }))
+}
+
+export function reorderProjects(orderedIds: string[]): void {
+  const db = getDatabase()
+  const update = db.prepare('UPDATE projects SET list_order = ? WHERE id = ?')
+  db.transaction(() => {
+    orderedIds.forEach((id, index) => update.run(index, id))
+  })()
+  logger.debug('Projects reordered', orderedIds.length)
+}
+
+export function getProjectThumbnailPath(projectId: string): string {
+  return join(projectsDir(), projectId, 'thumbnail.jpg')
+}
+
+export async function refreshProjectThumbnail(
+  projectId: string,
+  nodes: ProjectNode[],
+): Promise<void> {
+  const thumbPath = getProjectThumbnailPath(projectId)
+  const assetsBase = getProjectAssetsPath(projectId)
+
+  const tryImage = (relativePath: string | undefined): boolean => {
+    if (!relativePath) return false
+    const src = join(assetsBase, relativePath)
+    if (!existsSync(src)) return false
+    copyFileSync(src, thumbPath)
+    return true
+  }
+
+  for (const node of nodes) {
+    const data = node.data
+    if (node.type === 'image' && tryImage(data.imageAssetPath as string | undefined)) return
+    if (node.type === 'video' && data.videoAssetPath) {
+      const src = join(assetsBase, data.videoAssetPath as string)
+      if (existsSync(src)) {
+        const generated = await getThumbnail(src)
+        copyFileSync(generated, thumbPath)
+        return
+      }
+    }
+  }
+
+  const assets = listAssets(projectId)
+  const firstImage = assets.find((a) => a.type === 'image')
+  if (firstImage && tryImage(firstImage.path)) return
+
+  const firstVideo = assets.find((a) => a.type === 'video')
+  if (firstVideo) {
+    const generated = await getThumbnail(firstVideo.absolutePath)
+    copyFileSync(generated, thumbPath)
+  }
 }
 
 export function deleteProject(projectId: string): void {

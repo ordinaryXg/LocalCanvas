@@ -1,0 +1,13 @@
+:root[data-theme='light'] {
+  --color-bg-primary: #f8fafc;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #e2e8f0;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-accent: #6366f1;
+  --color-accent-hover: #5254d4;
+  --color-border: #e2e8f0;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+}

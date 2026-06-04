@@ -4,7 +4,7 @@ import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { handleError } from '../../utils/ErrorHandler'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
-import type { ModelProgressEvent } from '../../types/ipc'
+import { useModelGeneration } from '../../hooks/useModelGeneration'
 
 interface ImageGeneratorProps {
   nodeId: string
@@ -30,9 +30,10 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
   const [modelId, setModelId] = useState((data.modelId as string) || '')
   const [ratio, setRatio] = useState((data.ratio as string) || '16:9')
   const [batchSize, setBatchSize] = useState(1)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([])
+  const { isGenerating, progress, run, cancel } = useModelGeneration(nodeId, (pct) => {
+    updateNodeData(nodeId, { progress: pct })
+  })
 
   useEffect(() => {
     void window.api.config.read().then((config) => {
@@ -44,31 +45,23 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
   }, [modelId])
 
   const handleGenerate = async () => {
-    if (!modelId || !prompt) return
-    setIsGenerating(true)
-    setProgress(0)
+    if (!modelId || !prompt || !currentProjectId) return
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
 
     const [width, height] = RATIO_MAP[ratio] || [1024, 1024]
 
-    const unsub = window.api.on('model:progress', (...args: unknown[]) => {
-      const p = args[0] as ModelProgressEvent
-      if (p.nodeId === nodeId) {
-        setProgress(p.percentage)
-        updateNodeData(nodeId, { progress: p.percentage })
-      }
-    })
-
     try {
-      const resultPath = await window.api.model.generateImage({
-        modelId,
-        nodeId,
-        prompt,
-        negativePrompt,
-        width,
-        height,
-        batchSize,
-      })
+      const resultPath = await run(() =>
+        window.api.model.beginGenerateImage({
+          modelId,
+          nodeId,
+          prompt,
+          negativePrompt,
+          width,
+          height,
+          batchSize,
+        }),
+      )
 
       const { src, assetPath, fileName } = await importGeneratedMedia(
         currentProjectId,
@@ -87,13 +80,9 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
         isGenerating: false,
         progress: 100,
       })
-      setProgress(100)
     } catch (err) {
       handleError(err, 'imageGenerate')
       updateNodeData(nodeId, { isGenerating: false, error: String(err) })
-    } finally {
-      unsub()
-      setIsGenerating(false)
     }
   }
 
@@ -175,6 +164,15 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
           >
             {isGenerating ? `生成中 ${progress}%` : '✨ 生成'}
           </button>
+          {isGenerating && (
+            <button
+              type="button"
+              onClick={() => void cancel()}
+              className="px-2 text-xs text-danger border border-danger/40 rounded hover:bg-danger/10"
+            >
+              取消
+            </button>
+          )}
         </div>
         {isGenerating && (
           <div className="w-full bg-bg-tertiary rounded-full h-1.5">

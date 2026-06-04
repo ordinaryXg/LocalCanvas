@@ -29,9 +29,17 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
 
   useEffect(() => {
     if (!menu) return
-    const close = () => onClose()
-    window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
+    const close = (e: MouseEvent) => {
+      if (e.button === 2) return
+      onClose()
+    }
+    const timer = window.setTimeout(() => {
+      window.addEventListener('mousedown', close)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('mousedown', close)
+    }
   }, [menu, onClose])
 
   if (!menu) return null
@@ -43,6 +51,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       type,
       position,
       data: {},
+      selected: true,
     })
     onClose()
   }
@@ -51,6 +60,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
     <div
       className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-xl py-1 min-w-[168px]"
       style={{ left: menu.x, top: menu.y }}
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       {menu.type === 'pane' && (
@@ -139,7 +149,9 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
         <button
           type="button"
           className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
-          onClick={() => {
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
             removeEdge(menu.edgeId!)
             onClose()
           }}
@@ -160,15 +172,24 @@ interface NodePickerProps {
 
 export function NodePicker({ x, y, onSelect, onClose }: NodePickerProps) {
   useEffect(() => {
-    const close = () => onClose()
-    window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
+    const close = (e: MouseEvent) => {
+      if (e.button === 2) return
+      onClose()
+    }
+    const timer = window.setTimeout(() => {
+      window.addEventListener('mousedown', close)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('mousedown', close)
+    }
   }, [onClose])
 
   return (
     <div
       className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-xl py-1 min-w-[160px]"
       style={{ left: x, top: y }}
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="px-3 py-1 text-xs text-text-muted">选择节点类型</div>

@@ -20,8 +20,25 @@ export function getDatabase(): Database.Database {
   db.pragma('foreign_keys = ON')
 
   initSchema(db)
+  migrateSchema(db)
   logger.info('Database initialized at', dbPath)
   return db
+}
+
+function migrateSchema(database: Database.Database): void {
+  const cols = database.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>
+  const names = new Set(cols.map((c) => c.name))
+
+  if (!names.has('list_order')) {
+    database.exec('ALTER TABLE projects ADD COLUMN list_order INTEGER DEFAULT 0')
+    const rows = database
+      .prepare('SELECT id FROM projects ORDER BY updated_at DESC')
+      .all() as Array<{ id: string }>
+    const update = database.prepare('UPDATE projects SET list_order = ? WHERE id = ?')
+    database.transaction(() => {
+      rows.forEach((row, index) => update.run(index, row.id))
+    })()
+  }
 }
 
 function initSchema(database: Database.Database): void {

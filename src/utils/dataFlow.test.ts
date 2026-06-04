@@ -21,6 +21,40 @@ describe('computeDataFlowPatches', () => {
     expect(patches).toEqual([{ nodeId: 'i1', data: { prompt: 'sunset' } }])
   })
 
+  it('prefers generatedContent over inputContent for text to image', () => {
+    const nodes: Node[] = [
+      {
+        id: 't1',
+        type: 'text',
+        position: { x: 0, y: 0 },
+        data: { inputContent: 'raw story draft', generatedContent: 'polished prompt for image' },
+      },
+      { id: 'i1', type: 'image', position: { x: 0, y: 0 }, data: { prompt: '' } },
+    ]
+    const edges: Edge[] = [
+      { id: 'e1', source: 't1', target: 'i1', sourceHandle: 'prompt', targetHandle: 'prompt' },
+    ]
+    const patches = computeDataFlowPatches(nodes, edges)
+    expect(patches[0].data.prompt).toBe('polished prompt for image')
+  })
+
+  it('falls back to inputContent when no generated text', () => {
+    const nodes: Node[] = [
+      {
+        id: 't1',
+        type: 'text',
+        position: { x: 0, y: 0 },
+        data: { inputContent: 'direct prompt only' },
+      },
+      { id: 'i1', type: 'image', position: { x: 0, y: 0 }, data: {} },
+    ]
+    const edges: Edge[] = [
+      { id: 'e1', source: 't1', target: 'i1', sourceHandle: 'prompt', targetHandle: 'prompt' },
+    ]
+    const patches = computeDataFlowPatches(nodes, edges)
+    expect(patches[0].data.prompt).toBe('direct prompt only')
+  })
+
   it('falls back to storyInput for script prompt', () => {
     const nodes: Node[] = [
       { id: 's1', type: 'script', position: { x: 0, y: 0 }, data: { storyInput: 'epic tale' } },
@@ -206,5 +240,24 @@ describe('computeDataFlowPatches', () => {
     const video = simulateDataFlowUntilStable(nodes, edges).nodes.find((n) => n.id === 'v1')
     expect(video?.data.firstFrameSrc).toBe('blob:a')
     expect(video?.data.lastFrameSrc).toBe('blob:b')
+  })
+
+  it('clears firstFrame on video when edge removed', () => {
+    const nodes: Node[] = [
+      { id: 'i1', type: 'image', position: { x: 0, y: 0 }, data: { imageSrc: 'blob:a', imageAssetPath: 'images/a.png' } },
+      {
+        id: 'v1',
+        type: 'video',
+        position: { x: 0, y: 0 },
+        data: { firstFrameSrc: 'blob:a', firstFrameAssetPath: 'images/a.png' },
+      },
+    ]
+    const patches = computeDataFlowPatches(nodes, [])
+    expect(patches).toEqual([
+      {
+        nodeId: 'v1',
+        data: { firstFrameSrc: undefined, firstFrameAssetPath: undefined },
+      },
+    ])
   })
 })

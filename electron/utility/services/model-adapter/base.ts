@@ -13,6 +13,7 @@ export interface GenerateImageParams {
   referenceStrength?: number
   batchSize?: number
   nodeId?: string
+  taskId?: string
 }
 
 export interface GenerateVideoParams {
@@ -34,6 +35,7 @@ export interface GenerateVideoParams {
   resolution?: string
   /** Seedance 2.0：是否生成同步音频 */
   generateAudio?: boolean
+  taskId?: string
 }
 
 export interface GenerateTextParams {
@@ -44,6 +46,7 @@ export interface GenerateTextParams {
   temperature?: number
   stream?: boolean
   nodeId?: string
+  taskId?: string
 }
 
 export interface GenerateAudioParams {
@@ -51,6 +54,7 @@ export interface GenerateAudioParams {
   voice?: string
   model: string
   nodeId?: string
+  taskId?: string
 }
 
 export interface AdapterStatus {

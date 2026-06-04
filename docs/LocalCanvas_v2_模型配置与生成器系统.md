@@ -25,6 +25,8 @@
 | 批量分镜图 / 批量视频 | ✅ 已完成 | `electron/utility/services/batch-generator.ts` |
 | 配置热重载 | ✅ 已完成 | `electron/utility/services/config-watcher.ts` |
 | 设置面板「添加模型」表单 | ✅ 已完成 | `SettingsPanel.tsx` |
+| TTS 配置 Tab + 音频生成器 | ✅ 已完成 | `SettingsPanel.tsx` / `AudioGenerator.tsx` |
+| 生成器取消按钮 | ✅ 已完成 | `useModelGeneration.ts` |
 
 ---
 
@@ -36,6 +38,7 @@
 | 2 | 配置系统 | 首次引导流程（LLM + ARK API Key） | P0 | ✅ |
 | 3 | 配置系统 | 模型配置 UI 面板 | P0 | ✅ |
 | 4 | 配置系统 | 连通性测试 | P1 | ✅ |
+| 4b | 配置系统 | TTS 模型配置 Tab + 默认 TTS | P0 | ✅ |
 | 5 | 适配器 | ModelAdapter 基类 | P0 | ✅ |
 | 6 | 适配器 | RemoteApiAdapter（OpenAI 兼容） | P0 | ✅ |
 | 7 | 适配器 | **SeedanceAdapter（Doubao Seedance 2.0）** | P0 | ✅ |
@@ -43,13 +46,13 @@
 | 9 | 生成器 | 生成器面板框架 | P0 | ✅ |
 | 10 | 生成器 | 图像生成器面板 | P0 | ✅ |
 | 11 | 生成器 | **视频生成器面板（Seedance 核心）** | P0 | ✅ |
-| 12 | 生成器 | 文本 / 音频生成 | P0 | ✅ |
+| 12 | 生成器 | 文本生成 + TTS 音频生成（音频节点面板） | P0 | ✅ |
 | 13 | 生成器 | 生成进度（轮询 + IPC 推送） | P0 | ✅ |
 | 14 | 生成器 | 生成结果下载与本地保存 | P0 | ✅ |
-| 15 | 生成器 | 取消生成 | P1 | ✅ |
-| 16 | 脚本节点 | LLM 脚本生成 | P0 | ⏳ |
-| 17 | 脚本节点 | 批量分镜图生成 | P0 | ⏳ |
-| 18 | 脚本节点 | 批量视频生成（Seedance） | P0 | ⏳ |
+| 15 | 生成器 | 取消生成（队列标记 + 轮询中断；Seedance 远端任务可能仍在计费） | P1 | ✅ |
+| 16 | 脚本节点 | LLM 脚本生成 | P0 | ✅ |
+| 17 | 脚本节点 | 批量分镜图生成 | P0 | ✅ |
+| 18 | 脚本节点 | 批量视频生成（Seedance） | P0 | ✅ |
 | 19 | 生成队列 | SQLite 持久化 + 并发控制 | P1 | ✅ |
 
 ---
@@ -120,6 +123,8 @@ src/
     ├── ImageGenerator.tsx
     ├── VideoGenerator.tsx     # ★ Seedance 专用 UI
     ├── TextGenerator.tsx
+    ├── AudioGenerator.tsx
+    ├── ScriptGenerator.tsx
     ├── SettingsPanel.tsx
     └── OnboardingGuide.tsx
 ```
@@ -389,7 +394,7 @@ export interface VideoModelConfig {
 
 ## 七、生成器面板
 
-选中 **text / image / video** 节点时，画布底部弹出 `GeneratorPanel`。
+选中 **text / image / video / audio / script** 节点时，画布底部弹出 `GeneratorPanel`。
 
 | 组件 | 文件 | 能力 |
 |------|------|------|
@@ -397,6 +402,8 @@ export interface VideoModelConfig {
 | 视频 ★ | `VideoGenerator.tsx` | Seedance：比例/分辨率/时长/运镜/原生音频/首尾帧预览 |
 | 图像 | `ImageGenerator.tsx` | 提示词、模型、比例、批量 |
 | 文本 | `TextGenerator.tsx` | 提示词、系统提示、LLM 选择 |
+| 音频 | `AudioGenerator.tsx` | TTS 文本、音色、模型选择（`model:generateAudio`） |
+| 脚本 | `ScriptGenerator.tsx` | 故事梗概、生成脚本、批量分镜图/视频 |
 
 **VideoGenerator 默认行为：**
 - 默认选中 `settings.default_video_model`（`seedance-2-0`）

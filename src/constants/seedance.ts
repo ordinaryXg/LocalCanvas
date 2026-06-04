@@ -24,7 +24,10 @@ export const SEEDANCE_MODEL_FAST = 'doubao-seedance-2-0-fast-260128'
 export type SeedanceRatio = '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '1:1' | 'adaptive'
 export type SeedanceResolution = '480p' | '720p' | '1080p' | '2K'
 
-export const SEEDANCE_RATIOS: SeedanceRatio[] = ['16:9', '9:16', '4:3', '3:4', '21:9', '1:1', 'adaptive']
+/** 文生视频（t2v）可用比例 — adaptive 仅用于图生视频 */
+export const SEEDANCE_T2V_RATIOS: SeedanceRatio[] = ['16:9', '9:16', '4:3', '3:4', '21:9', '1:1']
+
+export const SEEDANCE_RATIOS: SeedanceRatio[] = [...SEEDANCE_T2V_RATIOS, 'adaptive']
 export const SEEDANCE_RESOLUTIONS: SeedanceResolution[] = ['480p', '720p', '1080p', '2K']
 export const SEEDANCE_DURATIONS_V2 = [4, 5, 8, 10, 15] as const
 export const SEEDANCE_DURATIONS_V1 = [2, 3, 4, 5, 8, 10, 12] as const

@@ -49,6 +49,21 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    logger.error('Renderer failed to load', { errorCode, errorDescription, validatedURL })
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.error('Renderer process gone', details)
+    if (details.reason === 'crashed' || details.reason === 'oom') {
+      mainWindow?.loadURL(
+        `data:text/html;charset=utf-8,${encodeURIComponent(
+          '<html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;padding:2rem"><h2>界面进程已崩溃</h2><p>可能是视频解码或内存不足导致。请关闭后重新打开，或减少同时预览的视频数量。</p></body></html>',
+        )}`,
+      )
+    }
+  })
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {

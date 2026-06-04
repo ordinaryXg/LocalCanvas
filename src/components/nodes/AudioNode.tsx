@@ -1,12 +1,27 @@
-import { memo, useCallback, useRef } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
 import { PortHandle } from './PortHandle'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
+import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
+import { useProjectStore } from '../../stores/projectStore'
 
 function AudioNodeComponent({ id, data, selected }: NodeProps) {
   const uploadMedia = useNodeMediaUpload(id, 'audio')
+  const projectId = useProjectStore((s) => s.currentProjectId)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showPlayer, setShowPlayer] = useState(false)
+
+  const audioAssetPath =
+    typeof data.audioAssetPath === 'string' ? data.audioAssetPath : undefined
+  const inlineAudioSrc = typeof data.audioSrc === 'string' ? data.audioSrc : undefined
+  const hasAudio = !!(inlineAudioSrc || audioAssetPath)
+
+  const { src: mediaSrc, loading, load: loadMedia } = useLazyAssetBlob(
+    projectId,
+    audioAssetPath,
+    inlineAudioSrc,
+  )
 
   const loadFile = useCallback(
     (file: File) => {
@@ -14,6 +29,15 @@ function AudioNodeComponent({ id, data, selected }: NodeProps) {
     },
     [uploadMedia],
   )
+
+  const handleShowPlayer = useCallback(async () => {
+    if (mediaSrc) {
+      setShowPlayer(true)
+      return
+    }
+    const src = await loadMedia()
+    if (src) setShowPlayer(true)
+  }, [mediaSrc, loadMedia])
 
   return (
     <BaseNode
@@ -25,20 +49,25 @@ function AudioNodeComponent({ id, data, selected }: NodeProps) {
     >
       <div
         className="w-[160px] h-[60px] bg-bg-tertiary rounded flex items-center justify-center cursor-pointer"
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (hasAudio) void handleShowPlayer()
+          else fileInputRef.current?.click()
+        }}
       >
-        {data.audioSrc ? (
+        {hasAudio ? (
           <div className="flex items-center gap-2 text-green-300 text-xs px-2">
             <span>🎵</span>
-            <span className="truncate max-w-[100px]">{String(data.fileName || '音频')}</span>
+            <span className="truncate max-w-[100px]">
+              {loading ? '加载中…' : String(data.fileName || '点击播放')}
+            </span>
           </div>
         ) : (
           <div className="text-text-muted text-xs text-center">点击上传音频</div>
         )}
       </div>
 
-      {data.audioSrc && (
-        <audio src={data.audioSrc as string} controls className="mt-2 w-full h-8 nodrag" />
+      {showPlayer && mediaSrc && (
+        <audio src={mediaSrc} controls autoPlay className="mt-2 w-full h-8 nodrag" preload="none" />
       )}
 
       <input

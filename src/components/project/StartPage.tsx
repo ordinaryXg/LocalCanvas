@@ -13,6 +13,7 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
   const loadProjects = useCallback(async () => {
     try {
@@ -49,6 +50,42 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
       await loadProjects()
     } catch (error) {
       handleError(error, 'deleteProject')
+    }
+  }
+
+  const handleRename = async (id: string, name: string) => {
+    try {
+      await window.api.projectExtra.rename(id, name)
+      await loadProjects()
+    } catch (error) {
+      handleError(error, 'renameProject')
+    }
+  }
+
+  const handleOpenDir = async (id: string) => {
+    try {
+      await window.api.projectExtra.openDir(id)
+    } catch (error) {
+      handleError(error, 'openProjectDir')
+    }
+  }
+
+  const reorderProjects = async (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return
+    const next = [...projects]
+    const fromIndex = next.findIndex((p) => p.id === sourceId)
+    const toIndex = next.findIndex((p) => p.id === targetId)
+    if (fromIndex < 0 || toIndex < 0) return
+
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    setProjects(next)
+
+    try {
+      await window.api.project.reorder(next.map((p) => p.id))
+    } catch (error) {
+      handleError(error, 'reorderProjects')
+      await loadProjects()
     }
   }
 
@@ -90,6 +127,7 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
         </div>
 
         <h2 className="text-sm text-text-primary/90 mb-3">最近项目</h2>
+        <p className="text-[10px] text-text-muted mb-2">拖拽卡片可调整排序</p>
 
         {loading ? (
           <div className="text-center text-text-muted py-8">加载中...</div>
@@ -98,12 +136,26 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {projects.map((p) => (
-              <ProjectCard
+              <div
                 key={p.id}
-                project={p}
-                onOpen={(id) => onOpenProject(id, p.name)}
-                onDelete={handleDelete}
-              />
+                draggable
+                onDragStart={() => setDraggingId(p.id)}
+                onDragEnd={() => setDraggingId(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (draggingId) void reorderProjects(draggingId, p.id)
+                  setDraggingId(null)
+                }}
+                className={draggingId === p.id ? 'opacity-50' : ''}
+              >
+                <ProjectCard
+                  project={p}
+                  onOpen={(id) => onOpenProject(id, p.name)}
+                  onDelete={handleDelete}
+                  onRename={handleRename}
+                  onOpenDir={handleOpenDir}
+                />
+              </div>
             ))}
           </div>
         )}

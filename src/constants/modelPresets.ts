@@ -203,8 +203,9 @@ export function presetToModelConfig(
   }
 }
 
-export function getPresetsForTab(tab: 'image' | 'video' | 'llm'): ModelPreset[] {
+export function getPresetsForTab(tab: 'image' | 'video' | 'llm' | 'tts'): ModelPreset[] {
   if (tab === 'image') return IMAGE_PRESETS
   if (tab === 'video') return VIDEO_PRESETS
+  if (tab === 'tts') return TTS_PRESETS
   return LLM_PRESETS
 }

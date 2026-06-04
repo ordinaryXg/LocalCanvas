@@ -9,7 +9,9 @@ function dataFlowSourceSignature(
     .filter((n) => n.type === 'text' || n.type === 'script' || n.type === 'image' || n.type === 'audio')
     .map((n) => {
       const d = n.data
-      if (n.type === 'text') return `${n.id}:${d.content ?? ''}`
+      if (n.type === 'text') {
+        return `${n.id}:${d.inputContent ?? ''}:${d.generatedContent ?? d.content ?? ''}`
+      }
       if (n.type === 'script') {
         const rows = (d.scriptRows as Array<{ prompt?: string }> | undefined) ?? []
         const prompts = rows.map((r) => r.prompt ?? '').join('|')

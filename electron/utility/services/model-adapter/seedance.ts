@@ -20,6 +20,7 @@ import {
   type SeedanceRatio,
   type SeedanceResolution,
 } from '../../../../src/constants/seedance'
+import { isTaskCancelled, cancelledError } from '../task-cancellation'
 
 export interface SeedanceAdapterOptions {
   apiKey: string
@@ -78,10 +79,9 @@ export class SeedanceAdapter extends ModelAdapter {
     }
 
     const caps = getSeedanceCapabilities(this.model)
-    const ratio = (params.ratio ?? this.defaultParams.ratio ?? '16:9') as SeedanceRatio
     const resolution = (params.resolution ??
       this.defaultParams.resolution ??
-      '1080p') as SeedanceResolution
+      (isSeedanceV2Model(this.model) ? '1080p' : '720p')) as SeedanceResolution
     const generateAudio = caps.supportsGenerateAudio
       ? (params.generateAudio ?? this.defaultParams.generate_audio ?? true)
       : false
@@ -103,10 +103,12 @@ export class SeedanceAdapter extends ModelAdapter {
       })
     }
 
+    const ratio = this.resolveRatio(params, content)
+
     const body: Record<string, unknown> = {
       model: this.model,
       content,
-      ratio: params.firstFrame || params.lastFrame ? 'adaptive' : ratio,
+      ratio,
       resolution,
       duration: Math.min(Math.max(params.duration, caps.minDuration), caps.maxDuration),
     }
@@ -133,7 +135,7 @@ export class SeedanceAdapter extends ModelAdapter {
         )
       }
 
-      return this.pollUntilDone(taskId, params.nodeId)
+      return this.pollUntilDone(taskId, params.nodeId, params.taskId)
     } catch (err) {
       if (err instanceof AdapterError) throw err
       throw this.wrapError(err)
@@ -163,6 +165,22 @@ export class SeedanceAdapter extends ModelAdapter {
 
   cancel(_taskId: string): void {
     // Seedance 暂不支持客户端取消
+  }
+
+  private resolveRatio(
+    params: GenerateVideoParams,
+    content: SeedanceContentItem[],
+  ): SeedanceRatio {
+    const hasImage = content.some((item) => item.type === 'image_url')
+    if (hasImage) return 'adaptive'
+
+    let ratio = (params.ratio ?? this.defaultParams.ratio ?? '16:9') as SeedanceRatio
+    if (ratio === 'adaptive') ratio = '16:9'
+
+    const allowed: SeedanceRatio[] = ['16:9', '9:16', '4:3', '3:4', '21:9', '1:1']
+    if (!allowed.includes(ratio)) ratio = '16:9'
+
+    return ratio
   }
 
   private buildPrompt(prompt: string, camera?: string): string {
@@ -201,12 +219,20 @@ export class SeedanceAdapter extends ModelAdapter {
     }
   }
 
-  private async pollUntilDone(taskId: string, nodeId?: string): Promise<string> {
+  private async pollUntilDone(
+    taskId: string,
+    nodeId?: string,
+    clientTaskId?: string,
+  ): Promise<string> {
     const pollUrl = this.pollEndpoint.replace('{task_id}', taskId)
     let waitMs = 5000
     const maxAttempts = 60
 
     for (let i = 0; i < maxAttempts; i++) {
+      if (clientTaskId && isTaskCancelled(clientTaskId)) {
+        throw cancelledError()
+      }
+
       const res = await axios.get(pollUrl, { headers: this.headers, timeout: 30000 })
       const status = (res.data.status as string) || ''
 
@@ -256,6 +282,9 @@ export class SeedanceAdapter extends ModelAdapter {
 
       await new Promise((r) => setTimeout(r, waitMs))
       waitMs = Math.min(waitMs * 1.5, 15000)
+      if (clientTaskId && isTaskCancelled(clientTaskId)) {
+        throw cancelledError()
+      }
     }
 
     throw new AdapterError(
@@ -364,6 +393,20 @@ export class SeedanceAdapter extends ModelAdapter {
         AdapterErrorCode.MODEL_NOT_FOUND,
         false,
         'Seedance 模型不存在或未开通，请检查方舟控制台中的模型 ID',
+        err instanceof Error ? err : undefined,
+      )
+    }
+    if (
+      detail.includes('比例') ||
+      detail.toLowerCase().includes('ratio') ||
+      detail.toLowerCase().includes('aspect')
+    ) {
+      return new AdapterError(
+        detail,
+        'openai',
+        AdapterErrorCode.INVALID_PARAMS,
+        false,
+        '视频比例参数无效：文生视频请使用 16:9 / 9:16 等固定比例；连接首帧/尾帧时会自动使用 adaptive',
         err instanceof Error ? err : undefined,
       )
     }

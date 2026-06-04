@@ -5,12 +5,17 @@ import {
   saveProject,
   listProjects,
   deleteProject,
+  reorderProjects,
+  refreshProjectThumbnail,
+  getProjectThumbnailPath,
   getProjectAssetsPath,
   saveWorkflowFile,
   type ProjectData,
 } from '../services/project'
+import { join } from 'path'
 import { registerConfigIpc } from './config'
 import { registerModelIpc } from './model'
+import { registerMediaIpc } from './media'
 import { logger } from '../services/logger'
 
 export function registerProjectIpc(): void {
@@ -32,10 +37,13 @@ export function registerProjectIpc(): void {
     }
   })
 
-  ipcMain.handle('project:save', (_e, data: string) => {
+  ipcMain.handle('project:save', async (_e, data: string) => {
     try {
       const project = JSON.parse(data) as ProjectData
       saveProject(project)
+      void refreshProjectThumbnail(project.id, project.nodes).catch((err) => {
+        logger.warn('refreshProjectThumbnail failed', err)
+      })
       BrowserWindow.getAllWindows().forEach((win) => {
         win.webContents.send('project:autoSaved', {
           id: project.id,
@@ -64,6 +72,30 @@ export function registerProjectIpc(): void {
       return { success: true }
     } catch (error) {
       logger.error('project:delete failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('project:reorder', (_e, orderedIds: string[]) => {
+    try {
+      reorderProjects(orderedIds)
+      return { success: true }
+    } catch (error) {
+      logger.error('project:reorder failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('project:readThumbnail', async (_e, projectId: string) => {
+    try {
+      const { readFile } = await import('fs/promises')
+      const path = getProjectThumbnailPath(projectId)
+      const { existsSync } = await import('fs')
+      if (!existsSync(path)) return null
+      const content = await readFile(path)
+      return content.buffer
+    } catch (error) {
+      logger.error('project:readThumbnail failed', error)
       throw error
     }
   })
@@ -143,6 +175,10 @@ export function registerFileIpc(): void {
       }
     },
   )
+
+  ipcMain.handle('file:resolveAssetPath', (_e, projectId: string, relativePath: string) => {
+    return join(getProjectAssetsPath(projectId), relativePath)
+  })
 }
 
 export function registerIpcHandlers(): void {
@@ -150,4 +186,5 @@ export function registerIpcHandlers(): void {
   registerFileIpc()
   registerConfigIpc()
   registerModelIpc()
+  registerMediaIpc()
 }

@@ -11,6 +11,7 @@ import {
 } from './base'
 import { AdapterError, AdapterErrorCode, ADAPTER_USER_MESSAGES } from '../../../../src/types/adapter-errors'
 import { isSeedreamModel, mapSizeForSeedream } from '../../../../src/constants/seedream'
+import { isTaskCancelled, cancelledError } from '../task-cancellation'
 
 export interface RemoteApiAdapterOptions {
   endpoint: string
@@ -71,7 +72,7 @@ export class RemoteApiAdapter extends ModelAdapter {
 
       const taskId = this.extractTaskId(res.data)
       if (taskId && this.pollEndpoint) {
-        return this.pollTask(taskId, params.nodeId, '.png')
+        return this.pollTask(taskId, params.nodeId, '.png', params.taskId)
       }
 
       const url = this.extractMediaUrl(res.data)
@@ -123,7 +124,7 @@ export class RemoteApiAdapter extends ModelAdapter {
 
       const taskId = this.extractTaskId(res.data)
       if (taskId && this.pollEndpoint) {
-        return this.pollTask(taskId, params.nodeId, '.mp4')
+        return this.pollTask(taskId, params.nodeId, '.mp4', params.taskId)
       }
 
       const url = this.extractMediaUrl(res.data)
@@ -182,7 +183,7 @@ export class RemoteApiAdapter extends ModelAdapter {
       const json = JSON.parse(Buffer.from(res.data).toString()) as Record<string, unknown>
       const taskId = this.extractTaskId(json)
       if (taskId && this.pollEndpoint) {
-        return this.pollTask(taskId, params.nodeId, '.mp3')
+        return this.pollTask(taskId, params.nodeId, '.mp3', params.taskId)
       }
 
       const url = this.extractMediaUrl(json)
@@ -252,6 +253,7 @@ export class RemoteApiAdapter extends ModelAdapter {
     taskId: string,
     nodeId: string | undefined,
     ext: string,
+    clientTaskId?: string,
   ): Promise<string> {
     const pollUrl = (this.pollEndpoint || '').replace('{task_id}', taskId)
     if (!pollUrl) {
@@ -266,6 +268,10 @@ export class RemoteApiAdapter extends ModelAdapter {
 
     const maxAttempts = 120
     for (let i = 0; i < maxAttempts; i++) {
+      if (clientTaskId && isTaskCancelled(clientTaskId)) {
+        throw cancelledError()
+      }
+
       const res = await axios.get(pollUrl, { headers: this.headers, timeout: 30000 })
       const status =
         (res.data.output?.task_status as string) ||
@@ -295,6 +301,9 @@ export class RemoteApiAdapter extends ModelAdapter {
       }
 
       await new Promise((r) => setTimeout(r, 3000))
+      if (clientTaskId && isTaskCancelled(clientTaskId)) {
+        throw cancelledError()
+      }
     }
 
     throw new AdapterError(

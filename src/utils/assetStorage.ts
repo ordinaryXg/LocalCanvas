@@ -156,6 +156,8 @@ export async function hydrateProjectNodes(
       const { pathKey, srcKey } = MEDIA_CONFIG[kind]
       const path = data[pathKey] as string | undefined
       if (!path) continue
+      // 视频/音频体积大，打开项目时不预加载 Blob，由节点按需加载
+      if (kind === 'video' || kind === 'audio') continue
       try {
         data[srcKey] = await assetPathToBlobUrl(projectId, path)
       } catch {

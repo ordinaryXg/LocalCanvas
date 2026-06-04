@@ -16,12 +16,28 @@ import type {
   GenerateTextParams,
   GenerateAudioParams,
 } from './services/model-adapter/base'
+import { detectFFmpeg, initFfmpegPaths, downloadFFmpeg } from './services/ffmpeg'
+import {
+  trimVideo,
+  getVideoInfo,
+  generateThumbnail,
+  mergeAudioVideo,
+  extractAudio,
+  initFfmpegService,
+} from './services/ffmpeg-service'
+import {
+  compose,
+  cancelCompose,
+  initComposeService,
+  type ComposeOptions,
+} from './services/compose-service'
 
 interface InitMessage {
   type: 'init'
   dbPath: string
   configPath: string
   outputDir: string
+  userDataPath: string
 }
 
 interface UtilityRequest {
@@ -34,6 +50,7 @@ let taskQueue: TaskQueue | null = null
 let adapters: AdapterRegistry | null = null
 let configWatcher: ConfigWatcher | null = null
 let currentConfig: AppConfig | null = null
+let utilityUserDataPath = ''
 
 function createDefaultUtilityConfig(outputDir = ''): AppConfig {
   return {
@@ -105,8 +122,12 @@ function initUtility(msg: InitMessage): void {
     CREATE INDEX IF NOT EXISTS idx_task_queue_status ON task_queue(status);
   `)
 
+  utilityUserDataPath = msg.userDataPath
   const config = loadConfigFromPath(msg.configPath, msg.outputDir)
   currentConfig = config
+  initFfmpegPaths(msg.userDataPath, config.settings.ffmpeg_path)
+  initFfmpegService(msg.userDataPath)
+  initComposeService(msg.userDataPath)
   adapters = new AdapterRegistry({ outputDir: msg.outputDir })
   adapters.reloadFromConfig(config)
 
@@ -161,7 +182,119 @@ function initUtility(msg: InitMessage): void {
   post('utility:ready', {})
 }
 
+async function handleFfmpegRequest(req: UtilityRequest): Promise<void> {
+  try {
+    if (req.channel === 'ffmpeg:download') {
+      const path = await downloadFFmpeg((percentage) =>
+        post('ffmpeg:progress', { percentage, requestId: req.id }),
+      )
+      post('ffmpeg:downloadResult', { path }, req.id)
+      return
+    }
+
+    await detectFFmpeg(currentConfig?.settings.ffmpeg_path)
+
+    switch (req.channel) {
+      case 'ffmpeg:detect': {
+        const path = await detectFFmpeg(req.data.userPath as string | undefined)
+        post('ffmpeg:detectResult', { path }, req.id)
+        break
+      }
+      case 'ffmpeg:trim': {
+        const output = await trimVideo(
+          req.data.input as string,
+          req.data.startTime as number,
+          req.data.endTime as number,
+          req.data.output as string,
+          (percentage) => post('ffmpeg:progress', { percentage, requestId: req.id }),
+        )
+        post('ffmpeg:trimResult', { output }, req.id)
+        break
+      }
+      case 'ffmpeg:getVideoInfo': {
+        const info = await getVideoInfo(req.data.input as string)
+        post('ffmpeg:videoInfo', { info }, req.id)
+        break
+      }
+      case 'ffmpeg:generateThumbnail': {
+        const thumb = await generateThumbnail(
+          req.data.input as string,
+          (req.data.time as number) ?? 0.5,
+          req.data.output as string | undefined,
+        )
+        post('ffmpeg:thumbnailResult', { path: thumb }, req.id)
+        break
+      }
+      case 'ffmpeg:mergeAudio': {
+        const output = await mergeAudioVideo(
+          req.data.videoPath as string,
+          req.data.audioPath as string,
+          req.data.output as string,
+          (percentage) => post('ffmpeg:progress', { percentage, requestId: req.id }),
+        )
+        post('ffmpeg:mergeResult', { output }, req.id)
+        break
+      }
+      case 'ffmpeg:extractAudio': {
+        const output = await extractAudio(
+          req.data.input as string,
+          req.data.output as string,
+        )
+        post('ffmpeg:extractResult', { output }, req.id)
+        break
+      }
+      default:
+        post('ffmpeg:error', { error: `Unknown ffmpeg channel: ${req.channel}` }, req.id)
+    }
+  } catch (error) {
+    post(
+      'ffmpeg:error',
+      { error: error instanceof Error ? error.message : String(error) },
+      req.id,
+    )
+  }
+}
+
+async function handleComposeRequest(req: UtilityRequest): Promise<void> {
+  try {
+    await detectFFmpeg(currentConfig?.settings.ffmpeg_path)
+
+    switch (req.channel) {
+      case 'compose:start': {
+        const options = req.data.options as ComposeOptions
+        const outputPath = await compose(options, (percentage) => {
+          post('compose:progress', { percentage, requestId: req.id })
+        })
+        post('compose:complete', { outputPath }, req.id)
+        break
+      }
+      case 'compose:cancel': {
+        cancelCompose()
+        post('compose:cancelled', {}, req.id)
+        break
+      }
+      default:
+        post('compose:error', { error: `Unknown compose channel: ${req.channel}` }, req.id)
+    }
+  } catch (error) {
+    post(
+      'compose:error',
+      { error: error instanceof Error ? error.message : String(error) },
+      req.id,
+    )
+  }
+}
+
 function handleRequest(req: UtilityRequest): void {
+  if (req.channel.startsWith('ffmpeg:')) {
+    void handleFfmpegRequest(req)
+    return
+  }
+  if (req.channel.startsWith('compose:')) {
+    void handleComposeRequest(req)
+    return
+  }
+
   if (!taskQueue || !adapters) {
     post('model:error', { error: 'Utility process not initialized' }, req.id)
     return
@@ -172,6 +305,7 @@ function handleRequest(req: UtilityRequest): void {
       const configPath = req.data.configPath as string
       const reloaded = loadConfigFromPath(configPath, currentConfig?.settings.output_dir ?? '')
       currentConfig = reloaded
+      initFfmpegPaths(utilityUserDataPath, reloaded.settings.ffmpeg_path)
       adapters.reloadFromConfig(reloaded)
       taskQueue.setMaxConcurrent(reloaded.settings.max_concurrent_tasks || 3)
       post('config:reloaded', {}, req.id)

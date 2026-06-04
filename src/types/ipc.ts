@@ -120,6 +120,48 @@ export interface ScriptGenerateResult {
   }>
 }
 
+export interface VideoInfo {
+  duration: number
+  width: number
+  height: number
+  fps: number
+  bitrate: number
+  codec: string
+}
+
+export interface AssetItem {
+  id: string
+  name: string
+  path: string
+  absolutePath: string
+  type: 'image' | 'video' | 'audio'
+  size: number
+  modifiedAt: string
+  thumbnail?: string
+  duration?: number
+}
+
+export interface ComposeClip {
+  id: string
+  path: string
+  startTime: number
+  duration: number
+}
+
+export interface ComposeProgressEvent {
+  percentage: number
+  requestId?: string
+}
+
+export interface TrimResult {
+  output: string
+  relativePath: string
+}
+
+export interface EnsureFfmpegResult =
+  | { ok: true; path: string }
+  | { ok: false; reason: 'cancelled' | 'not_found' | 'invalid' | 'download_failed' }
+
 export interface LocalCanvasAPI {
   project: {
     create: (name: string) => Promise<ProjectData>
@@ -127,6 +169,8 @@ export interface LocalCanvasAPI {
     save: (data: string) => Promise<{ success: boolean }>
     list: () => Promise<ProjectSummary[]>
     delete: (projectId: string) => Promise<{ success: boolean }>
+    reorder: (orderedIds: string[]) => Promise<{ success: boolean }>
+    readThumbnail: (projectId: string) => Promise<ArrayBuffer | null>
   }
   file: {
     readAsset: (projectId: string, relativePath: string) => Promise<ArrayBuffer>
@@ -139,6 +183,7 @@ export interface LocalCanvasAPI {
       filename: string,
       content: string,
     ) => Promise<{ fileName: string }>
+    resolveAssetPath: (projectId: string, relativePath: string) => Promise<string>
   }
   config: {
     read: () => Promise<AppConfig>
@@ -148,9 +193,13 @@ export interface LocalCanvasAPI {
     needsOnboarding: () => Promise<boolean>
   }
   model: {
+    beginGenerateImage: (payload: GenerateImageRequest) => Promise<{ taskId: string }>
     generateImage: (payload: GenerateImageRequest) => Promise<string>
+    beginGenerateVideo: (payload: GenerateVideoRequest) => Promise<{ taskId: string }>
     generateVideo: (payload: GenerateVideoRequest) => Promise<string>
+    beginGenerateText: (payload: GenerateTextRequest) => Promise<{ taskId: string }>
     generateText: (payload: GenerateTextRequest) => Promise<string>
+    beginGenerateAudio: (payload: GenerateAudioRequest) => Promise<{ taskId: string }>
     generateAudio: (payload: GenerateAudioRequest) => Promise<string>
     generateScript: (payload: GenerateScriptRequest) => Promise<ScriptGenerateResult>
     batchGenerateImages: (payload: {
@@ -169,6 +218,38 @@ export interface LocalCanvasAPI {
     getVersion: () => Promise<string>
     getDataPath: () => Promise<string>
     openExternal: (url: string) => Promise<{ success: boolean }>
+  }
+  asset: {
+    list: (projectId: string) => Promise<AssetItem[]>
+    import: (projectId: string, filePath: string) => Promise<AssetItem>
+    thumbnail: (filePath: string) => Promise<string>
+  }
+  ffmpeg: {
+    detect: (userPath?: string) => Promise<{ path: string }>
+    download: () => Promise<{ path: string }>
+    ensure: () => Promise<EnsureFfmpegResult>
+    trim: (payload: {
+      input: string
+      startTime: number
+      endTime: number
+      projectId: string
+      fileName?: string
+    }) => Promise<TrimResult>
+    getVideoInfo: (input: string) => Promise<VideoInfo>
+  }
+  compose: {
+    start: (payload: {
+      clips: ComposeClip[]
+      audioPath?: string
+      outputName?: string
+      reencode?: boolean
+    }) => Promise<{ outputPath: string }>
+    cancel: () => Promise<{ success: boolean }>
+    openOutputDir: () => Promise<{ success: boolean }>
+  }
+  projectExtra: {
+    rename: (projectId: string, name: string) => Promise<{ success: boolean }>
+    openDir: (projectId: string) => Promise<{ success: boolean }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
   off: (channel: string, callback: (...args: unknown[]) => void) => void

@@ -34,13 +34,33 @@ export const PORT_META: Record<string, PortMeta> = {
   },
   video: {
     icon: '🎥',
-    inputHint: '接入：视频',
-    outputHint: '输出至：下游',
+    inputHint: '接入：视频 / 合成成片',
+    outputHint: '输出至：合成 / 视频',
   },
   script: {
     icon: '🎬',
     inputHint: '接入：脚本',
     outputHint: '输出至：图片 / 视频',
+  },
+  composed: {
+    icon: '▶',
+    inputHint: '成片输出',
+    outputHint: '输出至：视频节点',
+  },
+  video1: {
+    icon: '1',
+    inputHint: '接入：视频片段1',
+    outputHint: '视频输入1',
+  },
+  video2: {
+    icon: '2',
+    inputHint: '接入：视频片段2',
+    outputHint: '视频输入2',
+  },
+  video3: {
+    icon: '3',
+    inputHint: '接入：视频片段3',
+    outputHint: '视频输入3',
   },
 }
 

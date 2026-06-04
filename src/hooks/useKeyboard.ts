@@ -116,7 +116,61 @@ export function useSidebarNodeDrop() {
         type: nodeType,
         position,
         data: {},
+        selected: true,
       })
+    },
+    [reactFlow, addNode],
+  )
+
+  return { onDragOver, onDrop }
+}
+
+export function useAssetDrop() {
+  const reactFlow = useReactFlow()
+  const addNode = useCanvasStore((s) => s.addNode)
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    if (event.dataTransfer.types.includes('application/localcanvas')) {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'copy'
+    }
+  }, [])
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      const raw = event.dataTransfer.getData('application/localcanvas')
+      if (!raw) return
+      event.preventDefault()
+
+      try {
+        const asset = JSON.parse(raw) as {
+          type: MediaKind
+          path: string
+          name: string
+          blobUrl?: string
+        }
+        const position = reactFlow.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        })
+
+        const nodeType = asset.type
+        const data = mediaDataFromFile(
+          asset.type,
+          asset.path,
+          asset.blobUrl || '',
+          asset.name,
+        )
+
+        addNode({
+          id: generateNodeId(nodeType),
+          type: nodeType,
+          position,
+          data,
+        })
+      } catch (error) {
+        handleError(error, 'assetDrop')
+      }
     },
     [reactFlow, addNode],
   )

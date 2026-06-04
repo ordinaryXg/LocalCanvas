@@ -1,7 +1,13 @@
 import { EventEmitter } from 'events'
 import { v4 as uuid } from 'uuid'
 import type Database from 'better-sqlite3'
-import { getAdapterErrorMessage } from '../../../src/types/adapter-errors'
+import { AdapterError, getAdapterErrorMessage } from '../../../src/types/adapter-errors'
+import {
+  markTaskCancelled,
+  isTaskCancelled,
+  clearTaskCancelled,
+  cancelledError,
+} from './task-cancellation'
 import type { ModelAdapter } from './model-adapter/base'
 import type {
   GenerateImageParams,
@@ -48,13 +54,29 @@ export class TaskQueue extends EventEmitter {
     this.getAdapter = options.getAdapter
     this.executors = {
       image: (task, adapter) =>
-        adapter.generateImage({ ...task.params, nodeId: task.nodeId } as GenerateImageParams),
+        adapter.generateImage({
+          ...task.params,
+          nodeId: task.nodeId,
+          taskId: task.id,
+        } as GenerateImageParams),
       video: (task, adapter) =>
-        adapter.generateVideo({ ...task.params, nodeId: task.nodeId } as GenerateVideoParams),
+        adapter.generateVideo({
+          ...task.params,
+          nodeId: task.nodeId,
+          taskId: task.id,
+        } as GenerateVideoParams),
       text: (task, adapter) =>
-        adapter.generateText({ ...task.params, nodeId: task.nodeId } as GenerateTextParams),
+        adapter.generateText({
+          ...task.params,
+          nodeId: task.nodeId,
+          taskId: task.id,
+        } as GenerateTextParams),
       audio: (task, adapter) =>
-        adapter.generateAudio({ ...task.params, nodeId: task.nodeId } as GenerateAudioParams),
+        adapter.generateAudio({
+          ...task.params,
+          nodeId: task.nodeId,
+          taskId: task.id,
+        } as GenerateAudioParams),
     }
     this.recoverInterruptedTasks()
   }
@@ -102,8 +124,17 @@ export class TaskQueue extends EventEmitter {
   }
 
   cancel(taskId: string): void {
+    markTaskCancelled(taskId)
+    const row = this.db
+      .prepare('SELECT node_id FROM task_queue WHERE id = ?')
+      .get(taskId) as { node_id: string } | undefined
+
     this.db.prepare("UPDATE task_queue SET status = 'cancelled' WHERE id = ?").run(taskId)
     this.running.delete(taskId)
+
+    if (row) {
+      this.emit('task:fail', { taskId, nodeId: row.node_id, error: '任务已取消' })
+    }
     this.emit('task:cancelled', { taskId })
     void this.process()
   }
@@ -156,6 +187,11 @@ export class TaskQueue extends EventEmitter {
   }
 
   private async runTask(task: GenerateTask): Promise<void> {
+    if (isTaskCancelled(task.id)) {
+      clearTaskCancelled(task.id)
+      return
+    }
+
     try {
       const adapter = this.getAdapter(task)
 
@@ -169,6 +205,11 @@ export class TaskQueue extends EventEmitter {
       const result = await this.executors[task.type](task, adapter)
       adapter.off('progress', progressHandler)
 
+      if (isTaskCancelled(task.id)) {
+        clearTaskCancelled(task.id)
+        return
+      }
+
       this.db
         .prepare(
           `UPDATE task_queue SET status = 'completed', result = ?, progress = 100, completed_at = datetime('now')
@@ -177,14 +218,24 @@ export class TaskQueue extends EventEmitter {
         .run(result, task.id)
       this.running.delete(task.id)
       this.emit('task:complete', { taskId: task.id, nodeId: task.nodeId, result })
+      clearTaskCancelled(task.id)
       void this.process()
     } catch (err) {
+      if (isTaskCancelled(task.id) || (err instanceof Error && err.message === '任务已取消')) {
+        clearTaskCancelled(task.id)
+        this.running.delete(task.id)
+        void this.process()
+        return
+      }
+
       const error = getAdapterErrorMessage(err)
       const current = this.db
         .prepare('SELECT retry_count, max_retries FROM task_queue WHERE id = ?')
         .get(task.id) as { retry_count: number; max_retries: number }
 
-      if (current.retry_count < current.max_retries) {
+      const canRetry = !(err instanceof AdapterError && !err.retryable)
+
+      if (canRetry && current.retry_count < current.max_retries) {
         this.db
           .prepare(
             `UPDATE task_queue SET status = 'pending', error = ?, retry_count = retry_count + 1 WHERE id = ?`,

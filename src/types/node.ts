@@ -1,9 +1,17 @@
 import type { Node, Edge } from '@xyflow/react'
 
-export type NodeType = 'text' | 'image' | 'video' | 'audio' | 'script' | 'group'
+export type NodeType = 'text' | 'image' | 'video' | 'audio' | 'script' | 'compose' | 'group'
 
 export interface TextNodeData {
-  content: string
+  /** 节点内直接编辑的输入内容 */
+  inputContent?: string
+  /** LLM 生成结果 */
+  generatedContent?: string
+  /** @deprecated 兼容旧项目，读取时回退到 generatedContent */
+  content?: string
+  prompt?: string
+  systemPrompt?: string
+  modelId?: string
   llmModel?: string
   [key: string]: unknown
 }
@@ -66,6 +74,26 @@ export interface ScriptNodeData {
   [key: string]: unknown
 }
 
+export interface ComposeClipItem {
+  id: string
+  name?: string
+  assetPath?: string
+  absolutePath?: string
+  duration: number
+  startTime?: number
+}
+
+export interface ComposeNodeData {
+  clips?: ComposeClipItem[]
+  audioAssetPath?: string
+  audioSrc?: string
+  outputPath?: string
+  showTimeline?: boolean
+  isComposing?: boolean
+  composeProgress?: number
+  [key: string]: unknown
+}
+
 export type PortType =
   | 'prompt'
   | 'reference'
@@ -92,4 +120,5 @@ export const NODE_TYPE_META: NodeTypeMeta[] = [
   { type: 'video', label: '视频', icon: '🎥', color: '#f43f5e' },
   { type: 'audio', label: '音频', icon: '🎵', color: '#22c55e' },
   { type: 'script', label: '脚本', icon: '🎬', color: '#f59e0b' },
+  { type: 'compose', label: '合成', icon: '🎞️', color: '#6366f1' },
 ]

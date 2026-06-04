@@ -1,4 +1,5 @@
 @import './theme.css';
+@import './theme-light.css';
 @import './nodes.css';
 @import 'tailwindcss';
 

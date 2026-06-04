@@ -6,6 +6,7 @@ import { OnboardingGuide } from './components/panels/OnboardingGuide'
 import { SettingsPanel } from './components/panels/SettingsPanel'
 import { useCanvasStore } from './stores/canvasStore'
 import { useProjectStore } from './stores/projectStore'
+import { useThemeStore } from './stores/themeStore'
 import { handleError, setToastHandler } from './utils/ErrorHandler'
 import { hydrateProjectNodes } from './utils/assetStorage'
 import type { Node, Edge } from '@xyflow/react'
@@ -32,6 +33,11 @@ export default function App() {
 
   const loadProject = useCanvasStore((s) => s.loadProject)
   const { setCurrentProject, clearProject } = useProjectStore()
+  const { theme, toggleTheme } = useThemeStore()
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     setToastHandler((message, type) => {
@@ -91,13 +97,21 @@ export default function App() {
         >
           ← 返回项目列表
         </button>
-        <span className="text-xs text-text-muted flex-1">LocalCanvas v0.2</span>
+        <span className="text-xs text-text-muted flex-1">LocalCanvas v0.3</span>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="text-xs text-text-muted hover:text-white mr-3"
+          title="切换主题"
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
         <button
           type="button"
           onClick={() => setShowSettings(true)}
           className="text-xs text-text-muted hover:text-white"
         >
-          ⚙️ 模型配置
+          ⚙️ 设置
         </button>
       </header>
       <div className="flex flex-1 min-h-0">

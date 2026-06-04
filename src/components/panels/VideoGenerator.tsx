@@ -5,9 +5,11 @@ import { useProjectStore } from '../../stores/projectStore'
 import { handleError } from '../../utils/ErrorHandler'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
 import { resolveImageRefFromNodeId } from '../../utils/resolveImageRefForApi'
-import type { ModelProgressEvent } from '../../types/ipc'
+import { resolveVideoFrameRefForApi } from '../../utils/resolveVideoFrameRef'
+import { NodeImageThumb } from '../common/NodeImageThumb'
+import { useModelGeneration } from '../../hooks/useModelGeneration'
 import {
-  SEEDANCE_RATIOS,
+  SEEDANCE_T2V_RATIOS,
   SEEDANCE_CAMERA_PROMPTS,
   DEFAULT_SEEDANCE_VIDEO_MODEL,
   getSeedanceCapabilities,
@@ -29,17 +31,23 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
   const [modelId, setModelId] = useState((data.modelId as string) || DEFAULT_SEEDANCE_VIDEO_MODEL.id)
   const [duration, setDuration] = useState((data.duration as number) || 5)
   const [ratio, setRatio] = useState((data.ratio as string) || '16:9')
-  const [resolution, setResolution] = useState((data.resolution as string) || '1080p')
+  const [resolution, setResolution] = useState(
+    (data.resolution as string) ||
+      DEFAULT_SEEDANCE_VIDEO_MODEL.default_params.resolution,
+  )
   const [generateAudio, setGenerateAudio] = useState(data.generateAudio !== false)
   const [camera, setCamera] = useState((data.camera as string) || '静止')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [progress, setProgress] = useState(0)
   const [videoModels, setVideoModels] = useState<VideoModelConfig[]>([])
+  const { isGenerating, progress, lastError, run, cancel } = useModelGeneration(nodeId, (pct) => {
+    updateNodeData(nodeId, { progress: pct })
+  })
 
   const cameraPresets = Object.keys(SEEDANCE_CAMERA_PROMPTS)
 
   const firstFrameEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'firstFrame')
   const lastFrameEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'lastFrame')
+  const hasSyncedFirstFrame = typeof data.firstFrameAssetPath === 'string' || typeof data.firstFrameSrc === 'string'
+  const hasSyncedLastFrame = typeof data.lastFrameAssetPath === 'string' || typeof data.lastFrameSrc === 'string'
 
   useEffect(() => {
     void window.api.config.read().then((config) => {
@@ -55,36 +63,44 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
   const caps = getSeedanceCapabilities(selectedModel?.model ?? DEFAULT_SEEDANCE_VIDEO_MODEL.model)
   const resolutionOptions = caps.resolutions
   const durationOptions = caps.durations
+  const hasFrameInput =
+    !!firstFrameEdge || !!lastFrameEdge || hasSyncedFirstFrame || hasSyncedLastFrame
+  const ratioOptions = hasFrameInput ? (['adaptive'] as const) : SEEDANCE_T2V_RATIOS
 
-  const getNodeImageSrc = (id: string): string | undefined => {
-    const n = nodes.find((node) => node.id === id)
-    const src = n?.data?.imageSrc
-    return typeof src === 'string' ? src : undefined
-  }
+  useEffect(() => {
+    if (hasFrameInput) {
+      setRatio('adaptive')
+      return
+    }
+    if (ratio === 'adaptive' || !SEEDANCE_T2V_RATIOS.includes(ratio as (typeof SEEDANCE_T2V_RATIOS)[number])) {
+      setRatio('16:9')
+    }
+  }, [hasFrameInput, ratio])
+
+  useEffect(() => {
+    if (!selectedModel) return
+    const modelDefaultRes =
+      (selectedModel.default_params?.resolution as string) ||
+      (caps.version === '1.0' ? '720p' : '1080p')
+    if (!resolutionOptions.includes(resolution as (typeof resolutionOptions)[number])) {
+      setResolution(modelDefaultRes)
+    }
+  }, [selectedModel, caps.version, resolution, resolutionOptions])
 
   const handleGenerate = async () => {
-    if (!modelId || !prompt) return
-    setIsGenerating(true)
-    setProgress(0)
+    if (!modelId || !prompt || !currentProjectId) return
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
-
-    const unsub = window.api.on('model:progress', (...args: unknown[]) => {
-      const p = args[0] as ModelProgressEvent
-      if (p.nodeId === nodeId) {
-        setProgress(p.percentage)
-        updateNodeData(nodeId, { progress: p.percentage })
-      }
-    })
 
     try {
       const firstFrame = firstFrameEdge
         ? await resolveImageRefFromNodeId(firstFrameEdge.source, nodes, currentProjectId)
-        : undefined
+        : await resolveVideoFrameRefForApi(data, 'first', currentProjectId)
       const lastFrame = lastFrameEdge
         ? await resolveImageRefFromNodeId(lastFrameEdge.source, nodes, currentProjectId)
-        : undefined
+        : await resolveVideoFrameRefForApi(data, 'last', currentProjectId)
 
-      const resultPath = await window.api.model.generateVideo({
+      const resultPath = await run(() =>
+        window.api.model.beginGenerateVideo({
         modelId,
         nodeId,
         prompt,
@@ -97,7 +113,8 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         firstFrame,
         lastFrame,
         camera,
-      })
+        }),
+      )
 
       const { src, assetPath, fileName } = await importGeneratedMedia(
         currentProjectId,
@@ -119,13 +136,10 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         isGenerating: false,
         progress: 100,
       })
-      setProgress(100)
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
       handleError(err, 'videoGenerate')
-      updateNodeData(nodeId, { isGenerating: false, error: String(err) })
-    } finally {
-      unsub()
-      setIsGenerating(false)
+      updateNodeData(nodeId, { isGenerating: false, error: message })
     }
   }
 
@@ -150,27 +164,33 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             className="w-full h-16 bg-bg-tertiary text-text-primary text-xs p-2 rounded resize-none outline-none"
           />
         </div>
-        <div className="flex gap-2">
-          {firstFrameEdge && (
-            <div className="w-16 h-10 rounded overflow-hidden border border-border" title="首帧">
-              <img
-                src={getNodeImageSrc(firstFrameEdge.source)}
-                className="w-full h-full object-cover"
+        <div className="flex gap-2 items-center flex-wrap">
+          {(firstFrameEdge || hasSyncedFirstFrame) && (
+            <div className="w-16 h-10 rounded overflow-hidden border border-border" title="首帧（分镜图）">
+              <NodeImageThumb
+                projectId={currentProjectId}
+                nodeId={firstFrameEdge?.source}
+                src={data.firstFrameSrc as string | undefined}
+                assetPath={data.firstFrameAssetPath as string | undefined}
                 alt="首帧"
               />
             </div>
           )}
-          {lastFrameEdge && (
+          {(lastFrameEdge || hasSyncedLastFrame) && (
             <div className="w-16 h-10 rounded overflow-hidden border border-border" title="尾帧">
-              <img
-                src={getNodeImageSrc(lastFrameEdge.source)}
-                className="w-full h-full object-cover"
+              <NodeImageThumb
+                projectId={currentProjectId}
+                nodeId={lastFrameEdge?.source}
+                src={data.lastFrameSrc as string | undefined}
+                assetPath={data.lastFrameAssetPath as string | undefined}
                 alt="尾帧"
               />
             </div>
           )}
-          {(firstFrameEdge || lastFrameEdge) && (
-            <span className="text-[10px] text-text-muted self-center">首尾帧已连接，将自动使用 adaptive 比例</span>
+          {hasFrameInput && (
+            <span className="text-[10px] text-text-muted self-center">
+              已接入分镜图，将使用 adaptive 比例（图生视频）
+            </span>
           )}
         </div>
       </div>
@@ -199,10 +219,10 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             <select
               value={ratio}
               onChange={(e) => setRatio(e.target.value)}
-              disabled={!!firstFrameEdge || !!lastFrameEdge}
+              disabled={hasFrameInput}
               className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none disabled:opacity-50"
             >
-              {SEEDANCE_RATIOS.filter((r) => r !== 'adaptive' || caps.supportsLastFrame).map((r) => (
+              {ratioOptions.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>
@@ -265,14 +285,25 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             生成同步音频（对白 / 音效 / 背景音乐）
           </label>
         )}
-        <button
-          type="button"
-          onClick={() => void handleGenerate()}
-          disabled={isGenerating || !modelId || !prompt}
-          className="w-full bg-rose-500 text-white text-sm py-1.5 rounded hover:bg-rose-600 disabled:opacity-50 transition"
-        >
-          {isGenerating ? `Seedance 生成中 ${progress}%` : '✨ Seedance 生成视频'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => void handleGenerate()}
+            disabled={isGenerating || !modelId || !prompt}
+            className="flex-1 bg-rose-500 text-white text-sm py-1.5 rounded hover:bg-rose-600 disabled:opacity-50 transition"
+          >
+            {isGenerating ? `Seedance 生成中 ${progress}%` : '✨ Seedance 生成视频'}
+          </button>
+          {isGenerating && (
+            <button
+              type="button"
+              onClick={() => void cancel()}
+              className="px-2 text-xs text-danger border border-danger/40 rounded hover:bg-danger/10"
+            >
+              取消
+            </button>
+          )}
+        </div>
         {isGenerating && (
           <div className="w-full bg-bg-tertiary rounded-full h-1.5">
             <div
@@ -280,6 +311,11 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
               style={{ width: `${progress}%` }}
             />
           </div>
+        )}
+        {(lastError || (typeof data.error === 'string' && data.error)) && !isGenerating && (
+          <p className="text-[10px] text-danger leading-snug break-words">
+            {lastError || (data.error as string)}
+          </p>
         )}
       </div>
     </div>

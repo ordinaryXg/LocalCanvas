@@ -1,7 +1,8 @@
-import { utilityProcess, BrowserWindow } from 'electron'
+import { utilityProcess, BrowserWindow, app } from 'electron'
 import { join } from 'path'
 import { v4 as uuid } from 'uuid'
 import { getConfigPath, ensureConfigFile } from './config'
+import { getDbPath } from '../ipc/model'
 import { logger } from './logger'
 
 interface PendingRequest {
@@ -13,6 +14,8 @@ interface PendingRequest {
 export class UtilityClient {
   private process: Electron.UtilityProcess | null = null
   private ready = false
+  private dbPath: string | null = null
+  private starting: Promise<void> | null = null
   private pending = new Map<string, PendingRequest>()
   private taskResolvers = new Map<
     string,
@@ -24,6 +27,19 @@ export class UtilityClient {
   }
 
   async start(dbPath: string): Promise<void> {
+    if (this.process && this.ready) return
+    if (this.starting) return this.starting
+
+    this.dbPath = dbPath
+    this.starting = this.launchUtility(dbPath)
+    try {
+      await this.starting
+    } finally {
+      this.starting = null
+    }
+  }
+
+  private async launchUtility(dbPath: string): Promise<void> {
     if (this.process) return
 
     const utilityPath = this.getUtilityPath()
@@ -39,6 +55,9 @@ export class UtilityClient {
       logger.warn('Utility process exited', code)
       this.ready = false
       this.process = null
+      if (code !== 0 && code !== null) {
+        logger.warn('Utility process crashed, will restart on next request')
+      }
     })
 
     await new Promise<void>((resolve, reject) => {
@@ -52,6 +71,7 @@ export class UtilityClient {
               dbPath,
               configPath: getConfigPath(),
               outputDir: config.settings.output_dir,
+              userDataPath: app.getPath('userData'),
             })
           })()
         }
@@ -118,36 +138,68 @@ export class UtilityClient {
         })
         break
       }
+      case 'compose:progress': {
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send('compose:progress', data)
+        })
+        break
+      }
+      case 'ffmpeg:progress': {
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send('ffmpeg:progress', data)
+        })
+        break
+      }
     }
+  }
+
+  private async ensureReady(): Promise<void> {
+    if (this.process && this.ready) return
+    const dbPath = this.dbPath ?? getDbPath()
+    await this.start(dbPath)
   }
 
   private send(channel: string, data: Record<string, unknown>, timeoutMs = 120000): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      if (!this.process || !this.ready) {
-        reject(new Error('Utility process not ready'))
-        return
-      }
-
-      const id = uuid()
-      const timeout = setTimeout(() => {
-        this.pending.delete(id)
-        reject(new Error(`Utility request timeout: ${channel}`))
-      }, timeoutMs)
-
-      this.pending.set(id, {
-        resolve: (value) => {
-          const payload = value as { error?: string }
-          if (payload?.error) {
-            reject(new Error(payload.error))
-          } else {
-            resolve(value)
+      void this.ensureReady()
+        .then(() => {
+          if (!this.process || !this.ready) {
+            reject(new Error('Utility process not ready'))
+            return
           }
-        },
-        reject,
-        timeout,
-      })
-      this.process.postMessage({ id, channel, data })
+
+          const id = uuid()
+          const timeout = setTimeout(() => {
+            this.pending.delete(id)
+            reject(new Error(`Utility request timeout: ${channel}`))
+          }, timeoutMs)
+
+          this.pending.set(id, {
+            resolve: (value) => {
+              const payload = value as { error?: string }
+              if (payload?.error) {
+                reject(new Error(payload.error))
+              } else {
+                resolve(value)
+              }
+            },
+            reject,
+            timeout,
+          })
+          this.process.postMessage({ id, channel, data })
+        })
+        .catch(reject)
     })
+  }
+
+  async beginGenerateImage(
+    modelId: string,
+    nodeId: string,
+    params: Record<string, unknown>,
+  ): Promise<{ taskId: string }> {
+    return (await this.send('model:generateImage', { modelId, nodeId, params })) as {
+      taskId: string
+    }
   }
 
   async generateImage(
@@ -155,10 +207,18 @@ export class UtilityClient {
     nodeId: string,
     params: Record<string, unknown>,
   ): Promise<string> {
-    const response = (await this.send('model:generateImage', { modelId, nodeId, params })) as {
+    const { taskId } = await this.beginGenerateImage(modelId, nodeId, params)
+    return this.waitForTask(taskId, nodeId)
+  }
+
+  async beginGenerateVideo(
+    modelId: string,
+    nodeId: string,
+    params: Record<string, unknown>,
+  ): Promise<{ taskId: string }> {
+    return (await this.send('model:generateVideo', { modelId, nodeId, params })) as {
       taskId: string
     }
-    return this.waitForTask(response.taskId, nodeId)
   }
 
   async generateVideo(
@@ -166,10 +226,18 @@ export class UtilityClient {
     nodeId: string,
     params: Record<string, unknown>,
   ): Promise<string> {
-    const response = (await this.send('model:generateVideo', { modelId, nodeId, params })) as {
+    const { taskId } = await this.beginGenerateVideo(modelId, nodeId, params)
+    return this.waitForTask(taskId, nodeId)
+  }
+
+  async beginGenerateText(
+    modelId: string,
+    nodeId: string,
+    params: Record<string, unknown>,
+  ): Promise<{ taskId: string }> {
+    return (await this.send('model:generateText', { modelId, nodeId, params })) as {
       taskId: string
     }
-    return this.waitForTask(response.taskId, nodeId)
   }
 
   async generateText(
@@ -177,10 +245,18 @@ export class UtilityClient {
     nodeId: string,
     params: Record<string, unknown>,
   ): Promise<string> {
-    const response = (await this.send('model:generateText', { modelId, nodeId, params })) as {
+    const { taskId } = await this.beginGenerateText(modelId, nodeId, params)
+    return this.waitForTask(taskId, nodeId)
+  }
+
+  async beginGenerateAudio(
+    modelId: string,
+    nodeId: string,
+    params: Record<string, unknown>,
+  ): Promise<{ taskId: string }> {
+    return (await this.send('model:generateAudio', { modelId, nodeId, params })) as {
       taskId: string
     }
-    return this.waitForTask(response.taskId, nodeId)
   }
 
   async generateAudio(
@@ -188,13 +264,16 @@ export class UtilityClient {
     nodeId: string,
     params: Record<string, unknown>,
   ): Promise<string> {
-    const response = (await this.send('model:generateAudio', { modelId, nodeId, params })) as {
-      taskId: string
-    }
-    return this.waitForTask(response.taskId, nodeId)
+    const { taskId } = await this.beginGenerateAudio(modelId, nodeId, params)
+    return this.waitForTask(taskId, nodeId)
   }
 
   async cancel(taskId: string): Promise<void> {
+    const resolver = this.taskResolvers.get(taskId)
+    if (resolver) {
+      this.taskResolvers.delete(taskId)
+      resolver.reject(new Error('任务已取消'))
+    }
     await this.send('model:cancel', { taskId })
   }
 
@@ -245,6 +324,76 @@ export class UtilityClient {
   reloadConfig(): Promise<void> {
     if (!this.process || !this.ready) return Promise.resolve()
     return this.send('config:reload', { configPath: getConfigPath() }, 10000).then(() => undefined)
+  }
+
+  async detectFFmpeg(userPath?: string): Promise<{ path: string }> {
+    return (await this.send('ffmpeg:detect', { userPath }, 30000)) as { path: string }
+  }
+
+  async downloadFFmpeg(): Promise<{ path: string }> {
+    return (await this.send('ffmpeg:download', {}, 600000)) as { path: string }
+  }
+
+  async trimVideo(
+    input: string,
+    startTime: number,
+    endTime: number,
+    output: string,
+  ): Promise<string> {
+    const result = (await this.send(
+      'ffmpeg:trim',
+      { input, startTime, endTime, output },
+      600000,
+    )) as { output: string }
+    return result.output
+  }
+
+  async getVideoInfo(input: string): Promise<{
+    duration: number
+    width: number
+    height: number
+    fps: number
+    bitrate: number
+    codec: string
+  }> {
+    const result = (await this.send('ffmpeg:getVideoInfo', { input }, 30000)) as {
+      info: {
+        duration: number
+        width: number
+        height: number
+        fps: number
+        bitrate: number
+        codec: string
+      }
+    }
+    return result.info
+  }
+
+  async generateThumbnail(input: string, time: number, output?: string): Promise<string> {
+    const result = (await this.send(
+      'ffmpeg:generateThumbnail',
+      { input, time, output },
+      60000,
+    )) as { path: string }
+    return result.path
+  }
+
+  async compose(payload: {
+    clips: Array<{ id: string; path: string; startTime: number; duration: number }>
+    audioPath?: string
+    outputName?: string
+    reencode?: boolean
+  }): Promise<string> {
+    const result = (await this.send(
+      'compose:start',
+      { options: payload },
+      600000,
+    )) as { outputPath: string }
+    return result.outputPath
+  }
+
+  async cancelCompose(): Promise<void> {
+    await this.send('compose:cancel', {}, 10000)
   }
 
   private waitForTask(taskId: string, nodeId: string): Promise<string> {

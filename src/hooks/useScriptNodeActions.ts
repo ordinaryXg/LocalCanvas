@@ -324,7 +324,10 @@ export function useScriptNodeActions(nodeId: string) {
       return
     }
 
-    const rowAssets = (data.rowAssets as Record<number, { imageNodeId?: string }>) || {}
+    const rowAssetsSnapshot =
+      (useCanvasStore.getState().nodes.find((n) => n.id === nodeId)?.data.rowAssets as
+        | Record<number, { imageNodeId?: string }>
+        | undefined) ?? (data.rowAssets as Record<number, { imageNodeId?: string }>) ?? {}
     const nodes = useCanvasStore.getState().nodes
 
     setGenerating('videos')
@@ -345,7 +348,11 @@ export function useScriptNodeActions(nodeId: string) {
     try {
       const tasks = await Promise.all(
         rows.map(async (row) => {
-          const imageNodeId = rowAssets[row.sequence]?.imageNodeId
+          const latestRowAssets =
+            (useCanvasStore.getState().nodes.find((n) => n.id === nodeId)?.data.rowAssets as
+              | Record<number, { imageNodeId?: string }>
+              | undefined) ?? rowAssetsSnapshot
+          const imageNodeId = latestRowAssets[row.sequence]?.imageNodeId
           const imageNode = imageNodeId ? nodes.find((n) => n.id === imageNodeId) : undefined
           const firstFrame = imageNode
             ? await resolveImageRefForApi(imageNode.data as Record<string, unknown>, currentProjectId)

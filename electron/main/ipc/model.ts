@@ -6,6 +6,35 @@ import { logger } from '../services/logger'
 
 export function registerModelIpc(): void {
   ipcMain.handle(
+    'model:beginGenerateImage',
+    async (
+      _e,
+      payload: {
+        modelId: string
+        nodeId: string
+        prompt: string
+        negativePrompt?: string
+        width: number
+        height: number
+        batchSize?: number
+      },
+    ) => {
+      try {
+        return await getUtilityClient().beginGenerateImage(payload.modelId, payload.nodeId, {
+          prompt: payload.prompt,
+          negativePrompt: payload.negativePrompt,
+          width: payload.width,
+          height: payload.height,
+          batchSize: payload.batchSize,
+        })
+      } catch (error) {
+        logger.error('model:beginGenerateImage failed', error)
+        throw error
+      }
+    },
+  )
+
+  ipcMain.handle(
     'model:generateImage',
     async (
       _e,
@@ -29,6 +58,45 @@ export function registerModelIpc(): void {
         })
       } catch (error) {
         logger.error('model:generateImage failed', error)
+        throw error
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'model:beginGenerateVideo',
+    async (
+      _e,
+      payload: {
+        modelId: string
+        nodeId: string
+        prompt: string
+        width: number
+        height: number
+        duration: number
+        firstFrame?: string
+        lastFrame?: string
+        camera?: string
+        ratio?: string
+        resolution?: string
+        generateAudio?: boolean
+      },
+    ) => {
+      try {
+        return await getUtilityClient().beginGenerateVideo(payload.modelId, payload.nodeId, {
+          prompt: payload.prompt,
+          width: payload.width,
+          height: payload.height,
+          duration: payload.duration,
+          firstFrame: payload.firstFrame,
+          lastFrame: payload.lastFrame,
+          camera: payload.camera,
+          ratio: payload.ratio,
+          resolution: payload.resolution,
+          generateAudio: payload.generateAudio,
+        })
+      } catch (error) {
+        logger.error('model:beginGenerateVideo failed', error)
         throw error
       }
     },
@@ -74,6 +142,33 @@ export function registerModelIpc(): void {
   )
 
   ipcMain.handle(
+    'model:beginGenerateText',
+    async (
+      _e,
+      payload: {
+        modelId: string
+        nodeId: string
+        prompt: string
+        systemPrompt?: string
+        maxTokens?: number
+        temperature?: number
+      },
+    ) => {
+      try {
+        return await getUtilityClient().beginGenerateText(payload.modelId, payload.nodeId, {
+          prompt: payload.prompt,
+          systemPrompt: payload.systemPrompt,
+          maxTokens: payload.maxTokens,
+          temperature: payload.temperature,
+        })
+      } catch (error) {
+        logger.error('model:beginGenerateText failed', error)
+        throw error
+      }
+    },
+  )
+
+  ipcMain.handle(
     'model:generateText',
     async (
       _e,
@@ -95,6 +190,29 @@ export function registerModelIpc(): void {
         })
       } catch (error) {
         logger.error('model:generateText failed', error)
+        throw error
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'model:beginGenerateAudio',
+    async (
+      _e,
+      payload: {
+        modelId: string
+        nodeId: string
+        text: string
+        voice?: string
+      },
+    ) => {
+      try {
+        return await getUtilityClient().beginGenerateAudio(payload.modelId, payload.nodeId, {
+          text: payload.text,
+          voice: payload.voice,
+        })
+      } catch (error) {
+        logger.error('model:beginGenerateAudio failed', error)
         throw error
       }
     },

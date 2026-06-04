@@ -5,7 +5,8 @@ const COMPAT_MAP: Record<string, string[]> = {
   'image:reference': ['image:reference', 'video:firstFrame', 'video:lastFrame'],
   'image:firstFrame': ['video:firstFrame'],
   'image:lastFrame': ['video:lastFrame'],
-  'video:video': ['compose:video'],
+  'video:video': ['compose:video1', 'compose:video2', 'compose:video3', 'video:video'],
+  'compose:composed': ['video:video'],
   'audio:audio': ['video:audio', 'compose:audio'],
   'script:script': ['image:prompt', 'video:prompt'],
 }
@@ -37,6 +38,10 @@ const SINGLE_INPUT_HANDLES = new Set([
   'firstFrame',
   'lastFrame',
   'audio',
+  'video1',
+  'video2',
+  'video3',
+  'video',
 ])
 
 export function isTargetHandleAvailable(

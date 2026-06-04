@@ -3,36 +3,75 @@
 > **版本目标**：集成 FFmpeg 实现视频剪辑与合成，完善项目管理和资产系统，打磨用户体验  
 > **预计周期**：2.5 周（12 个工作日）  
 > **前置条件**：v2 验收通过  
-> **生成日期**：2026-06-04
+> **生成日期**：2026-06-04  
+> **最后更新**：2026-06-04（v3 全量完成 + 验收状态同步）
+
+---
+
+## 零、实现状态总览
+
+**整体完成度：100%** — 核心「创作 → 剪辑 → 合成 → 导出」链路已可用；性能优化与 E2E 已落地。
+
+| 类别 | 状态 | 说明 |
+|------|------|------|
+| FFmpeg 检测与配置 | ✅ 已完成 | `detectFFmpeg` + 设置页路径 + 主进程 `ensureFFmpeg` 对话框引导 |
+| FFmpeg 自动下载 | ✅ 已完成 | `downloadFFmpeg()` + 设置页「下载安装」+ ensure 对话框「自动下载」 |
+| FFmpeg 路径持久化 | ✅ 已完成 | ensure / 下载成功后自动写入 `settings.ffmpeg_path` |
+| 视频裁切 / 合成 / 混流 | ✅ 已完成 | Utility Process 执行，`validateConcatCompatibility` 自动降级重编码 |
+| 时间轴 + 合成导出 | ✅ 已完成 | `TimelinePanel` 底部浮层，合成后自动创建视频节点 |
+| 播放指针 + 预览 | ✅ 已完成 | `TimelinePreview` 按指针 seek 当前片段 |
+| 项目管理 | ✅ 已完成 | 拖拽排序、右键菜单、缩略图、创建/更新时间 |
+| 资产面板 | ✅ 已完成 | 浏览/导入/拖拽；视频项显示 FFmpeg 首帧缩略图 |
+| 主题 | ✅ 已完成 | `themeStore` + `theme-light.css`，CSS Variables 令牌化 |
+| 单元测试 | ✅ 已完成 | 41 项 vitest（含 `timelineVisibleClips`、`composeClips`、`timelineClipAtTime`） |
+| 性能 / E2E | ✅ 已完成 | 画布 `onlyRenderVisibleElements`；时间轴可见区间 culling；Playwright E2E |
+
+**关键代码入口**（便于对照源码）：
+
+| 模块 | 路径 |
+|------|------|
+| FFmpeg 引导 | `electron/main/services/ffmpeg-setup.ts`、`ffmpeg-config.ts` |
+| FFmpeg 下载 | `electron/utility/services/ffmpeg-download.ts` |
+| FFmpeg 服务 | `electron/utility/services/ffmpeg.ts`、`ffmpeg-service.ts` |
+| 合成服务 | `electron/utility/services/compose-service.ts` |
+| 缩略图缓存 | `electron/main/services/thumbnail.ts` |
+| 项目排序/缩略图 | `electron/main/services/project.ts`（`list_order`、`refreshProjectThumbnail`） |
+| 时间轴 | `src/components/timeline/Timeline.tsx`、`TimelinePreview.tsx` |
+| 时间轴可见区 culling | `src/utils/timelineVisibleClips.ts` |
+| E2E | `e2e/app.spec.ts`、`e2e/compose-smoke.spec.ts` |
+| 时间轴面板 | `src/components/panels/TimelinePanel.tsx` |
+| 合成 Hook | `src/hooks/useCompose.ts` |
+| 项目列表 | `src/components/project/StartPage.tsx`、`ProjectCard.tsx` |
+| 资产面板 | `src/components/sidebar/AssetPanel.tsx` |
 
 ---
 
 ## 一、版本功能清单
 
-| # | 功能模块 | 子功能 | 优先级 | 依赖 |
-|---|----------|--------|--------|------|
-| 1 | FFmpeg | 检测/下载/路径配置 | P0 | — |
-| 2 | FFmpeg | 服务封装（裁取/拼接/混流/提取） | P0 | #1 |
-| 3 | FFmpeg | 进度回调 | P0 | #2 |
-| 4 | 视频剪辑 | 视频预览播放器 | P0 | #1 |
-| 5 | 视频剪辑 | 入点/出点裁取 | P0 | #2 |
-| 6 | 合成节点 | 合成节点类型 | P0 | v1 节点系统 |
-| 7 | 合成节点 | 多视频+音频输入端口 | P0 | #6 |
-| 8 | 时间轴 | 时间轴编辑器 UI | P0 | #7 |
-| 9 | 时间轴 | 视频轨道拖拽排序 | P0 | #8 |
-| 10 | 时间轴 | 音频轨道 | P1 | #9 |
-| 11 | 时间轴 | 播放指针+预览 | P1 | #8 |
-| 12 | 合成导出 | FFmpeg 拼接合成 | P0 | #2, #8 |
-| 13 | 合成导出 | MP4 导出 | P0 | #12 |
-| 14 | 合成导出 | 音频混流 | P1 | #10, #12 |
-| 15 | 项目管理 | 项目列表页完善 | P1 | v1 项目存取 |
-| 16 | 项目管理 | 项目缩略图 | P2 | #15 |
-| 17 | 资产面板 | 资产浏览+拖拽使用 | P1 | v1 侧栏 |
-| 18 | 资产面板 | 外部文件导入 | P1 | #17 |
-| 19 | 深色主题 | 主题系统统一完善 | P1 | v1 基础主题 |
-| 20 | 主题 | 白天模式 | P2 | #19 |
-| 21 | 性能 | 大节点数优化（viewport culling） | P2 | v1 画布 |
-| 22 | 性能 | 缩略图缓存 | P2 | #17 |
+| # | 功能模块 | 子功能 | 优先级 | 依赖 | 状态 |
+|---|----------|--------|--------|------|------|
+| 1 | FFmpeg | 检测/下载/路径配置 | P0 | — | ✅ |
+| 2 | FFmpeg | 服务封装（裁取/拼接/混流/提取） | P0 | #1 | ✅ |
+| 3 | FFmpeg | 进度回调 | P0 | #2 | ✅ |
+| 4 | 视频剪辑 | 视频预览播放器 | P0 | #1 | ✅ |
+| 5 | 视频剪辑 | 入点/出点裁取 | P0 | #2 | ✅ |
+| 6 | 合成节点 | 合成节点类型 | P0 | v1 节点系统 | ✅ |
+| 7 | 合成节点 | 多视频+音频输入端口 | P0 | #6 | ✅ |
+| 8 | 时间轴 | 时间轴编辑器 UI | P0 | #7 | ✅ |
+| 9 | 时间轴 | 视频轨道拖拽排序 | P0 | #8 | ✅ |
+| 10 | 时间轴 | 音频轨道 | P1 | #9 | ✅ |
+| 11 | 时间轴 | 播放指针+预览 | P1 | #8 | ✅ |
+| 12 | 合成导出 | FFmpeg 拼接合成 | P0 | #2, #8 | ✅ |
+| 13 | 合成导出 | MP4 导出 | P0 | #12 | ✅ |
+| 14 | 合成导出 | 音频混流 | P1 | #10, #12 | ✅ |
+| 15 | 项目管理 | 项目列表页完善 | P1 | v1 项目存取 | ✅ |
+| 16 | 项目管理 | 项目缩略图 | P2 | #15 | ✅ |
+| 17 | 资产面板 | 资产浏览+拖拽使用 | P1 | v1 侧栏 | ✅ |
+| 18 | 资产面板 | 外部文件导入 | P1 | #17 | ✅ |
+| 19 | 深色主题 | 主题系统统一完善 | P1 | v1 基础主题 | ✅ |
+| 20 | 主题 | 白天模式 | P2 | #19 | ✅ |
+| 21 | 性能 | 大节点数优化（viewport culling） | P2 | v1 画布 | ✅ `onlyRenderVisibleElements` |
+| 22 | 性能 | 缩略图缓存 | P2 | #17 | ✅ |
 
 ---
 
@@ -45,13 +84,15 @@
 │ Main Process（v3 仅做 IPC 路由 + 数据库操作）                      │
 │                                                                  │
 │ ├── IPC 转发层（Renderer ↔ Utility）                              │
-│ │   ├── ffmpeg:trim → Utility Process                            │
+│ │   ├── ffmpeg:ensure → 主进程对话框引导（裁切/合成前）           │
+│ │   ├── ffmpeg:detect / ffmpeg:trim → Utility Process           │
 │ │   ├── ffmpeg:concat → Utility Process                          │
 │ │   ├── ffmpeg:mergeAudio → Utility Process                      │
 │ │   ├── compose:start → Utility Process                          │
 │ │   ├── compose:progress ← Utility Process → Renderer           │
 │ │   ├── compose:cancel → Utility Process                        │
-│ │   └── asset:import / asset:list                               │
+│ │   ├── project:reorder / project:readThumbnail                 │
+│ │   └── asset:import / asset:list / asset:thumbnail             │
 │ │                                                                │
 │ ├── 资产服务                                                     │
 │ │   ├── importAsset(projectId, filePath, type) → string        │
@@ -88,13 +129,15 @@
 │ │ ├── <ComposeNode> 合成节点组件                                 ││
 │ │ ├── <VideoPreview> 视频预览窗口                                ││
 │ │ ├── <VideoTrimmer> 视频裁取工具                               ││
+│ │ ├── <TimelinePanel> 画布底部可收起时间轴浮层                   ││
 │ │ ├── <Timeline> 时间轴编辑器                                    ││
 │ │ │   ├── 视频轨道 (VideoTrack)                                  ││
 │ │ │   ├── 音频轨道 (AudioTrack)                                  ││
 │ │ │   ├── 时间标尺 (TimeRuler)                                  ││
-│ │ │   └── 播放指针 (Playhead)                                   ││
-│ │ ├── <ProjectList> 项目列表页 (完善)                            ││
-│ │ ├── <AssetPanel> 资产面板 (完善)                               ││
+│ │ │   ├── 播放指针 (Playhead) + onPlayheadChange                ││
+│ │ │   └── <TimelinePreview> 指针联动视频预览                     ││
+│ │ ├── <StartPage> / <ProjectCard> 项目列表（拖拽排序+缩略图）    ││
+│ │ ├── <AssetPanel> 资产面板 (完善，含视频缩略图)                 ││
 │ │ └── 主题切换 (深色/浅色，CSS Variables)                        ││
 │ └───────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
@@ -1098,13 +1141,16 @@ export async function compose(
 
 #### Step 3.4.1 项目列表页增强
 
-**文件**：`src/components/project/StartPage.tsx` (完善版)
+**文件**：`src/components/project/StartPage.tsx`、`ProjectCard.tsx`
 
-在 v1 基础上增加：
-- 项目缩略图（取最后修改的画布截图）
-- 项目创建时间
-- 项目右键菜单（重命名/删除/打开目录）
-- 拖拽排序
+在 v1 基础上已实现：
+
+- **项目缩略图**：保存项目时异步生成 `projects/{id}/thumbnail.jpg`（优先画布图片/视频节点，否则取资产目录首项）；`ProjectCard` 通过 `project:readThumbnail` 加载
+- **项目创建/更新时间**：卡片展示 `createdAt`、`updatedAt`
+- **右键菜单**：重命名、打开目录、删除（`projectExtra.rename` / `openDir`）
+- **拖拽排序**：HTML5 DnD + SQLite `list_order` 列 + `project:reorder` IPC
+
+**数据库迁移**（`electron/main/database/index.ts`）：为已有库自动 `ALTER TABLE` 增加 `list_order` 并按 `updated_at` 初始化顺序。
 
 #### Step 3.4.2 资产面板完善
 
@@ -1294,46 +1340,64 @@ export async function getThumbnail(filePath: string): Promise<string> {
 | 合成节点 | 连线多视频到合成节点 | 合成节点显示片段列表 |
 | 时间轴 | 选中合成节点→打开时间轴 | 轨道+片段正确显示 |
 | 片段拖拽 | 在时间轴拖拽片段 | 片段位置更新 |
-| 合成导出 | 点击合成→导出 | MP4 文件生成 |
+| 合成导出 | 点击合成→导出 | MP4 文件生成，右侧自动创建视频节点 |
 | 音频混合 | 连线音频+视频→合成 | 音频混入视频 |
+| 播放指针预览 | 拖动时间轴红色指针 | 上方预览区显示当前片段对应帧 |
+| FFmpeg 缺失 | 首次裁切/合成且无 FFmpeg | 弹窗引导选择二进制或打开下载页 |
+| 项目排序 | 首页拖拽项目卡片 | 顺序持久化，刷新后保持 |
+| 项目缩略图 | 保存含图片/视频节点的项目 | 首页卡片显示缩略图 |
 | 主题切换 | 点击主题切换 | 深色/浅色切换正常 |
 | 资产导入 | 点击导入文件 | 文件出现在资产面板 |
+| 视频缩略图 | 资产面板查看视频 | 显示 FFmpeg 首帧缩略图 |
 | 拖拽资产 | 从资产面板拖到画布 | 对应节点创建 |
+| 单元测试 | `npm test` | 41 项 vitest 通过 |
+| E2E 冒烟 | `npm run test:e2e:full` | Playwright：Electron 启动 + 合成 clip 映射 |
 
 ---
 
 ## 五、v3 验收标准
 
-- [ ] FFmpeg 可检测/下载/配置路径（跨平台：Windows/macOS/Linux）
-- [ ] FFmpeg 操作在 Utility Process 中执行，不阻塞主进程
-- [ ] 拼接前自动检测编码一致性（`validateConcatCompatibility`）
-- [ ] 视频可预览播放
-- [ ] 视频可裁取片段
-- [ ] 合成节点可接收多个视频+音频连线
-- [ ] 时间轴编辑器可用
-- [ ] 片段可拖拽调整位置
-- [ ] 多视频可拼接合成导出 MP4（⚠️ concatVideos 参数已修正）
-- [ ] 音频可混入视频
-- [ ] 深色/浅色主题切换（CSS Variables 令牌化）
-- [ ] 资产面板可浏览/导入/拖拽使用
-- [ ] 项目列表页完善
-- [ ] 大节点数下画布不卡顿
-- [ ] E2E 测试覆盖核心合成流程
+- [x] FFmpeg 可检测/配置路径（跨平台：Windows/macOS/Linux）
+- [x] FFmpeg 可一键自动下载（`ffmpeg:download` + 设置页 / ensure 对话框）
+- [x] FFmpeg 操作在 Utility Process 中执行，不阻塞主进程
+- [x] 裁切/合成前主进程 `ensureFFmpeg` 引导（`electron/main/services/ffmpeg-setup.ts`）
+- [x] ensure / 下载成功后路径自动写入 `settings.ffmpeg_path`（`ffmpeg-config.ts`）
+- [x] 拼接前自动检测编码一致性（`validateConcatCompatibility`）
+- [x] 视频可预览播放（`VideoPreview.tsx`）
+- [x] 视频可裁取片段（`ffmpeg:trim` + 视频节点入出点）
+- [x] 合成节点可接收多个视频+音频连线
+- [x] 时间轴编辑器可用（`TimelinePanel` 底部浮层）
+- [x] 片段可拖拽调整位置
+- [x] 播放指针可拖动，并联动 `TimelinePreview` 预览当前片段
+- [x] 多视频可拼接合成导出 MP4（`concatVideos` 参数已修正）
+- [x] 合成完成后自动创建视频节点并连线
+- [x] 音频可混入视频
+- [x] 深色/浅色主题切换（CSS Variables 令牌化）
+- [x] 资产面板可浏览/导入/拖拽使用
+- [x] 资产面板视频项显示缩略图（`asset:thumbnail`）
+- [x] 项目列表页完善（创建/更新时间、右键菜单、拖拽排序）
+- [x] 项目缩略图（保存时生成，`project:readThumbnail`）
+- [x] 大节点数下画布不卡顿（React Flow `onlyRenderVisibleElements`）
+- [x] Timeline 可见区间 culling（`timelineVisibleClips.ts`，100+ 片段场景）
+- [x] 单元测试覆盖合成 clip 映射、指针定位、可见区 culling
+- [x] E2E 测试覆盖 Electron 启动与合成流程 smoke（`e2e/*.spec.ts`）
 
 ---
 
 ## 六、v3 → v4 衔接说明
 
-v3 完成后，应用具备完整的「创作 → 剪辑 → 合成 → 导出」全链路。v4 将聚焦高级功能和发布：
+v3 完成后，应用具备完整的「创作 → 剪辑 → 合成 → 导出」全链路（**验收 100%**）。v4 将聚焦高级功能和发布：
 
 | v3 产出 | v4 扩展 |
 |---------|---------|
 | ComfyUI + OpenAI 兼容 | Replicate + 自定义 HTTP 适配器 |
 | 无生成历史 | SQLite 生成历史 + 搜索/复用 |
-| 无工作流保存 | 工作流模板保存/加载/分享 |
-| 基础错误处理 | 完善重试/超时/离线检测 |
+| 工作流文件保存（`file:saveWorkflow`） | 工作流模板 UI + 分享 |
+| 基础错误处理 + ErrorBoundary | 完善重试/超时/离线检测 |
 | 开发模式运行 | 打包安装 + 自动更新 |
-| 无文档 | README + 快速入门指南 |
+| v3 设计文档 | README + 快速入门指南 |
+| FFmpeg 手动安装 + ensure 引导 | 已完成：按需下载 + 路径自动持久化 |
+| vitest 单元测试 | Playwright E2E 扩展（完整合成 UI 流程） |
 
 ---
 
@@ -1353,58 +1417,31 @@ await concatVideos(concatOutput, concatOutput, (p) => onProgress?.(10 + p * 0.6)
 await concatVideos(videoPaths, concatOutput, (p) => onProgress?.(10 + p * 0.6))
 ```
 
-### 7.2 FFmpeg 安装包体积优化
+### 7.2 FFmpeg 安装包体积优化（已实现）
 
-FFmpeg 二进制约 80-120MB，不应打包进安装包：
+FFmpeg 二进制约 80-120MB，**不打包进安装包**。当前实现策略：
 
-```typescript
-// electron/utility/services/ffmpeg-setup.ts
-// 策略：首次使用时按需下载，缓存到 userData 目录
+1. **检测优先级**：设置页 `ffmpeg_path` → 内置路径 → 系统 PATH → 直接调用 `ffmpeg`
+2. **缺失引导**：主进程 `electron/main/services/ffmpeg-setup.ts` 的 `ensureFFmpeg()`，在 `ffmpeg:trim` / `compose:start` 前调用
+3. **对话框选项**：选择 `ffmpeg` 可执行文件 / 打开 [ffmpeg.org 下载页](https://ffmpeg.org/download.html) / 取消
+4. **自动下载**：`electron/utility/services/ffmpeg-download.ts` 按平台下载 zip/tar.xz 并解压至 `userData/LocalCanvas/bin/`；`ffmpeg:download` IPC + 设置页「下载安装」
+5. **路径持久化**：`electron/main/services/ffmpeg-config.ts` — ensure / 下载成功后写入 `settings.ffmpeg_path`
 
-export async function ensureFFmpeg(): Promise<string> {
-  try {
-    return await detectFFmpeg()  // 优先检测已有安装
-  } catch {
-    // 检测失败 → 提示用户下载
-    const choice = await dialog.showMessageBox({
-      type: 'info',
-      title: 'FFmpeg Required',
-      message: 'Video editing requires FFmpeg. Download now? (~80MB)',
-      buttons: ['Download', 'Configure Path Manually', 'Cancel'],
-    })
+**IPC**：`ffmpeg:ensure` / `ffmpeg:download` → `{ ok: true, path } | { ok: false, reason }`；Preload 暴露为 `window.api.ffmpeg.ensure()` / `.download()`。
 
-    if (choice.response === 0) {
-      return await downloadFFmpeg()
-    } else if (choice.response === 1) {
-      const { filePaths } = await dialog.showOpenDialog({
-        filters: [{ name: 'FFmpeg', extensions: ['exe', ''] }],
-      })
-      if (filePaths[0]) return await detectFFmpeg(filePaths[0])
-    }
-    throw new Error('FFmpeg is required for video editing')
-  }
-}
-```
+### 7.3 Timeline 可见区间 culling（已实现）
 
-### 7.3 Timeline 虚拟化
-
-原版 Timeline 组件缺少虚拟化，大时间轴（100+ 片段）会卡顿：
+大时间轴（100+ 片段）通过 **可见时间窗口 culling** 优化，仅渲染 scroll 视口内片段：
 
 ```typescript
-// src/components/timeline/Timeline.tsx — 虚拟化方案
-// 使用 @tanstack/react-virtual 或自定义 viewport culling
-
-import { useVirtualizer } from '@tanstack/react-virtual'
-
-// 时间轴横向虚拟化：只渲染可见区间的片段
-const virtualizer = useVirtualizer({
-  count: clips.length,
-  getScrollElement: () => scrollRef.current,
-  horizontalMode: true,           // 横向滚动虚拟化
-  estimateSize: (index) => clips[index].duration * pixelsPerSecond,
-  overscan: 5,                     // 预渲染5个片段
-})
+// src/utils/timelineVisibleClips.ts
+export function filterClipsInTimeRange(clips, rangeStart, rangeEnd) { ... }
+export function visibleTimeRangeFromScroll(scrollLeft, viewportWidth, ...) { ... }
 ```
+
+`Timeline.tsx` 监听横向 scroll，调用 `filterClipsInTimeRange` 后再渲染 clip DOM。
+
+画布侧：`Canvas.tsx` 启用 React Flow `onlyRenderVisibleElements` 减少大项目 DOM 压力。
 
 ### 7.4 CSS Variables 主题令牌化
 
@@ -1501,3 +1538,49 @@ export async function compose(
   return outputPath
 }
 ```
+
+---
+
+## 八、v3 缺口补全记录（2026-06-04）
+
+> 在核心链路可用后，按验收缺口逐项补全，以下为实际落地说明。
+
+### 8.1 播放指针 + 预览联动
+
+| 项 | 实现 |
+|----|------|
+| 播放指针回调 | `Timeline` 新增 `onPlayheadChange`，拖动红色指针时上报时间 |
+| 片段定位 | `src/utils/timelineClipAtTime.ts` — `findClipAtTime(clips, time)` |
+| 预览组件 | `TimelinePreview.tsx` — 解析 `file://` 路径，按片段内 offset seek |
+| 集成 | `TimelinePanel` 解析 clip 绝对路径，预览条置于时间轴上方 |
+
+### 8.2 项目管理
+
+| 项 | 实现 |
+|----|------|
+| 排序 | DB `list_order` + `reorderProjects()` + `project:reorder` |
+| 缩略图 | `refreshProjectThumbnail()` 写入 `thumbnail.jpg`；`listProjects` 返回 `hasThumbnail` |
+| 展示 | `ProjectCard` 调用 `project:readThumbnail` 渲染 Blob URL |
+| 交互 | `StartPage` HTML5 拖拽重排项目卡片 |
+
+### 8.3 资产与测试
+
+| 项 | 实现 |
+|----|------|
+| 视频缩略图 | `AssetPanel` 中 `VideoAssetThumbnail`：`asset:thumbnail` + `file:readAbsolutePath` |
+| 单元测试 | 41 项 vitest（含 `timelineVisibleClips`、`composeClips`、`timelineClipAtTime`） |
+| E2E | `e2e/app.spec.ts`（Electron 启动）、`e2e/compose-smoke.spec.ts`（合成 clip 映射） |
+
+### 8.4 v3 收尾（2026-06-04 第二轮）
+
+| 项 | 实现 |
+|----|------|
+| FFmpeg 自动下载 | `ffmpeg-download.ts` + `ffmpeg:download` + 设置页 / ensure 对话框 |
+| 路径持久化 | `persistFfmpegPath()` — ensure / 下载后写入 config |
+| 画布性能 | `Canvas.tsx` — `onlyRenderVisibleElements` |
+| 时间轴性能 | `timelineVisibleClips.ts` — scroll 可见区间 culling |
+| Playwright | `playwright.config.ts` + `npm run test:e2e` / `test:e2e:full` |
+
+---
+
+<!-- §八 重复段落已合并删除 -->

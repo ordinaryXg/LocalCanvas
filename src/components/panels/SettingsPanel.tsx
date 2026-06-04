@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react'
-import type { AppConfig, ImageModelConfig, VideoModelConfig, LLMModelConfig } from '../../types/config'
+import type {
+  AppConfig,
+  ImageModelConfig,
+  VideoModelConfig,
+  LLMModelConfig,
+  TTSModelConfig,
+} from '../../types/config'
 import { getPresetsForTab, presetToModelConfig, type ModelPreset } from '../../constants/modelPresets'
 
-type ModelEntry = ImageModelConfig | VideoModelConfig | LLMModelConfig
-type TabId = 'image' | 'video' | 'llm' | 'settings'
+type ModelEntry = ImageModelConfig | VideoModelConfig | LLMModelConfig | TTSModelConfig
+type TabId = 'image' | 'video' | 'llm' | 'tts' | 'settings'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -17,6 +23,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedPresetId, setSelectedPresetId] = useState('')
   const [newApiKey, setNewApiKey] = useState('')
+  const [ffmpegDownloading, setFfmpegDownloading] = useState(false)
+  const [ffmpegDownloadPct, setFfmpegDownloadPct] = useState(0)
 
   useEffect(() => {
     void window.api.config.read().then(setConfig)
@@ -37,7 +45,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         ? config.video_models
         : activeTab === 'llm'
           ? config.llm_models
-          : []
+          : activeTab === 'tts'
+            ? config.tts_models
+            : []
 
   const handleTest = async (model: ModelEntry) => {
     setTesting(model.id)
@@ -57,6 +67,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     }
     if (!settings.default_llm && config.llm_models.length > 0) {
       settings.default_llm = config.llm_models[0].id
+    }
+    if (!settings.default_tts && config.tts_models.length > 0) {
+      settings.default_tts = config.tts_models[0].id
     }
     const toSave = { ...config, settings }
     await window.api.config.write(toSave)
@@ -79,6 +92,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         ...config,
         llm_models: config.llm_models.filter((m) => m.id !== id),
       })
+    } else if (activeTab === 'tts') {
+      setConfig({
+        ...config,
+        tts_models: config.tts_models.filter((m) => m.id !== id),
+      })
     }
   }
 
@@ -90,7 +108,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         ? config.image_models.map((m) => m.id)
         : activeTab === 'video'
           ? config.video_models.map((m) => m.id)
-          : config.llm_models.map((m) => m.id)
+          : activeTab === 'llm'
+            ? config.llm_models.map((m) => m.id)
+            : config.tts_models.map((m) => m.id)
     return presets.filter((p) => !existingIds.includes(p.id))
   }
 
@@ -120,6 +140,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       setConfig({ ...config, video_models: [...config.video_models, entry as VideoModelConfig] })
     } else if (activeTab === 'llm') {
       setConfig({ ...config, llm_models: [...config.llm_models, entry as LLMModelConfig] })
+    } else if (activeTab === 'tts') {
+      setConfig({ ...config, tts_models: [...config.tts_models, entry as TTSModelConfig] })
     }
 
     setShowAddForm(false)
@@ -132,6 +154,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     image: '🖼️ 图像',
     video: '🎥 视频',
     llm: '🤖 LLM',
+    tts: '🎵 TTS',
     settings: '⚙️ 设置',
   }
 
@@ -146,7 +169,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </div>
 
         <div className="flex border-b border-border shrink-0">
-          {(['image', 'video', 'llm', 'settings'] as const).map((tab) => (
+          {(['image', 'video', 'llm', 'tts', 'settings'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -388,6 +411,26 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 </select>
               </div>
               <div>
+                <label className="text-xs text-text-muted block mb-1">默认 TTS</label>
+                <select
+                  value={config.settings.default_tts}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      settings: { ...config.settings, default_tts: e.target.value },
+                    })
+                  }
+                  className="w-full bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
+                >
+                  <option value="">未选择</option>
+                  {config.tts_models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs text-text-muted block mb-1">最大并发任务</label>
                 <input
                   type="number"
@@ -419,6 +462,81 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   }
                   className="w-full bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">FFmpeg 路径</label>
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    type="text"
+                    value={config.settings.ffmpeg_path}
+                    placeholder="留空则自动检测系统 PATH"
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        settings: { ...config.settings, ffmpeg_path: e.target.value },
+                      })
+                    }
+                    className="flex-1 min-w-[180px] bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void window.api.ffmpeg
+                        .detect(config.settings.ffmpeg_path || undefined)
+                        .then((r) =>
+                          setStatusMsg({ ok: true, text: `FFmpeg: ${r.path}` }),
+                        )
+                        .catch((err) =>
+                          setStatusMsg({
+                            ok: false,
+                            text: err instanceof Error ? err.message : '检测失败',
+                          }),
+                        )
+                    }}
+                    className="px-3 py-2 text-xs bg-bg-tertiary rounded hover:bg-bg-primary text-text-secondary"
+                  >
+                    检测
+                  </button>
+                  <button
+                    type="button"
+                    disabled={ffmpegDownloading}
+                    onClick={() => {
+                      void (async () => {
+                        setFfmpegDownloading(true)
+                        setFfmpegDownloadPct(0)
+                        const unsub = window.api.on('ffmpeg:progress', (...args: unknown[]) => {
+                          const payload = args[0] as { percentage?: number }
+                          if (typeof payload?.percentage === 'number') {
+                            setFfmpegDownloadPct(payload.percentage)
+                          }
+                        })
+                        try {
+                          const result = await window.api.ffmpeg.download()
+                          setConfig((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  settings: { ...prev.settings, ffmpeg_path: result.path },
+                                }
+                              : prev,
+                          )
+                          setStatusMsg({ ok: true, text: `已下载并配置 FFmpeg: ${result.path}` })
+                        } catch (err) {
+                          setStatusMsg({
+                            ok: false,
+                            text: err instanceof Error ? err.message : '下载失败',
+                          })
+                        } finally {
+                          unsub()
+                          setFfmpegDownloading(false)
+                        }
+                      })()
+                    }}
+                    className="px-3 py-2 text-xs bg-accent/20 text-accent rounded hover:bg-accent/30 disabled:opacity-50"
+                  >
+                    {ffmpegDownloading ? `下载中 ${ffmpegDownloadPct}%` : '下载安装'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

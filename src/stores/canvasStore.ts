@@ -34,6 +34,7 @@ interface CanvasState {
   duplicateNode: (nodeId: string) => void
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void
   applyDataFlowPatches: (patches: DataFlowPatch[]) => void
+  updateNodeSize: (nodeId: string, width: number, height: number) => void
   removeNodes: (ids: string[]) => void
   removeEdge: (edgeId: string) => void
   groupNodes: (ids: string[]) => void
@@ -80,9 +81,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   onEdgesChange: (changes: EdgeChange[]) => {
-    const shouldRecord = changes.some((c) => c.type === 'remove')
+    const shouldRecord =
+      changes.some((c) => c.type === 'remove') || changes.some((c) => c.type === 'add')
     if (shouldRecord) recordHistory(get)
     set({ edges: applyEdgeChanges(changes, get().edges) })
+    if (changes.some((c) => c.type === 'remove')) {
+      useProjectStore.getState().setDirty(true)
+    }
   },
 
   onConnect: (connection: Connection) => {
@@ -102,7 +107,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   addNode: (node) => {
     recordHistory(get)
-    set({ nodes: [...get().nodes, node] })
+    let nodes = get().nodes
+    if (node.selected) {
+      nodes = nodes.map((n) => ({ ...n, selected: false }))
+    }
+    nodes = [...nodes, node]
+    set({
+      nodes,
+      selectedNodeIds: node.selected ? [node.id] : nodes.filter((n) => n.selected).map((n) => n.id),
+    })
   },
 
   addConnection: (connection) => {
@@ -166,11 +179,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (!hasChange) return node
 
       changed = true
-      return { ...node, data: { ...node.data, ...patch.data } }
+      const nextData = { ...node.data, ...patch.data }
+      for (const [key, value] of Object.entries(patch.data)) {
+        if (value === undefined) delete nextData[key]
+      }
+      return { ...node, data: nextData }
     })
 
     if (!changed) return
     set({ nodes: nextNodes })
+    useProjectStore.getState().setDirty(true)
+  },
+
+  updateNodeSize: (nodeId, width, height) => {
+    const roundedW = Math.round(width)
+    const roundedH = Math.round(height)
+    const node = get().nodes.find((n) => n.id === nodeId)
+    if (!node || node.width === roundedW && node.height === roundedH) return
+
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === nodeId ? { ...n, width: roundedW, height: roundedH } : n,
+      ),
+    })
     useProjectStore.getState().setDirty(true)
   },
 
@@ -185,6 +216,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   removeEdge: (edgeId) => {
     recordHistory(get)
     set({ edges: get().edges.filter((e) => e.id !== edgeId) })
+    useProjectStore.getState().setDirty(true)
   },
 
   groupNodes: (ids) => {
