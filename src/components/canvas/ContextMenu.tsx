@@ -1,0 +1,203 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useReactFlow } from '@xyflow/react'
+import type { Node, Edge } from '@xyflow/react'
+import { useCanvasStore } from '../../stores/canvasStore'
+import { NODE_TYPE_META } from '../../types/node'
+import { generateNodeId } from '../../utils/id'
+
+export interface ContextMenuState {
+  x: number
+  y: number
+  type: 'pane' | 'node' | 'edge'
+  nodeId?: string
+  edgeId?: string
+}
+
+interface ContextMenuProps {
+  menu: ContextMenuState | null
+  onClose: () => void
+}
+
+export function ContextMenu({ menu, onClose }: ContextMenuProps) {
+  const reactFlow = useReactFlow()
+  const { addNode, removeNodes, removeEdge, groupNodes, duplicateNode, selectedNodeIds } =
+    useCanvasStore()
+
+  useEffect(() => {
+    if (!menu) return
+    const close = () => onClose()
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [menu, onClose])
+
+  if (!menu) return null
+
+  const createNode = (type: string) => {
+    const position = reactFlow.screenToFlowPosition({ x: menu.x, y: menu.y })
+    addNode({
+      id: generateNodeId(type),
+      type,
+      position,
+      data: {},
+    })
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-xl py-1 min-w-[168px]"
+      style={{ left: menu.x, top: menu.y }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {menu.type === 'pane' && (
+        <>
+          <div className="px-3 py-1 text-xs text-text-muted">新建节点</div>
+          {NODE_TYPE_META.map((nt) => (
+            <button
+              key={nt.type}
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary flex items-center gap-2"
+              onClick={() => createNode(nt.type)}
+            >
+              <span>{nt.icon}</span>
+              {nt.label}节点
+            </button>
+          ))}
+        </>
+      )}
+
+      {menu.type === 'node' && menu.nodeId && (
+        <>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+            onClick={() => {
+              duplicateNode(menu.nodeId!)
+              onClose()
+            }}
+          >
+            📋 复制
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+            onClick={() => {
+              removeNodes([menu.nodeId!])
+              onClose()
+            }}
+          >
+            🗑️ 删除
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+            onClick={() => {
+              const ids =
+                selectedNodeIds.length > 1 ? selectedNodeIds : [menu.nodeId!]
+              groupNodes(ids)
+              onClose()
+            }}
+          >
+            📦 打组
+          </button>
+        </>
+      )}
+
+      {menu.type === 'edge' && menu.edgeId && (
+        <button
+          type="button"
+          className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+          onClick={() => {
+            removeEdge(menu.edgeId!)
+            onClose()
+          }}
+        >
+          🗑️ 删除连线
+        </button>
+      )}
+    </div>
+  )
+}
+
+interface NodePickerProps {
+  x: number
+  y: number
+  onSelect: (type: string) => void
+  onClose: () => void
+}
+
+export function NodePicker({ x, y, onSelect, onClose }: NodePickerProps) {
+  useEffect(() => {
+    const close = () => onClose()
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-xl py-1 min-w-[160px]"
+      style={{ left: x, top: y }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="px-3 py-1 text-xs text-text-muted">选择节点类型</div>
+      {NODE_TYPE_META.map((nt) => (
+        <button
+          key={nt.type}
+          type="button"
+          className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary flex items-center gap-2"
+          onClick={() => {
+            onSelect(nt.type)
+            onClose()
+          }}
+        >
+          <span>{nt.icon}</span>
+          {nt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function useContextMenuHandlers(
+  setMenu: (menu: ContextMenuState | null) => void,
+) {
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent) => {
+      event.preventDefault()
+      setMenu({
+        x: 'clientX' in event ? event.clientX : 0,
+        y: 'clientY' in event ? event.clientY : 0,
+        type: 'pane',
+      })
+    },
+    [setMenu],
+  )
+
+  const onNodeContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent, node: Node) => {
+      event.preventDefault()
+      setMenu({
+        x: 'clientX' in event ? event.clientX : 0,
+        y: 'clientY' in event ? event.clientY : 0,
+        type: 'node',
+        nodeId: node.id,
+      })
+    },
+    [setMenu],
+  )
+
+  const onEdgeContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent, edge: Edge) => {
+      event.preventDefault()
+      setMenu({
+        x: 'clientX' in event ? event.clientX : 0,
+        y: 'clientY' in event ? event.clientY : 0,
+        type: 'edge',
+        edgeId: edge.id,
+      })
+    },
+    [setMenu],
+  )
+
+  return { onPaneContextMenu, onNodeContextMenu, onEdgeContextMenu }
+}

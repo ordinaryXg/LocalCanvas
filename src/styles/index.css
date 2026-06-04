@@ -1,0 +1,92 @@
+@import './theme.css';
+@import './nodes.css';
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+/* 全局浅白文字，避免 Tailwind 未命中时回退为黑色 */
+body,
+input,
+textarea,
+button,
+select,
+label,
+th,
+td,
+p,
+span,
+h1,
+h2,
+h3,
+h4 {
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  color: var(--color-text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.controls-dark {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.controls-dark button {
+  background: var(--color-bg-secondary) !important;
+  border-color: var(--color-border) !important;
+  fill: white !important;
+}
+
+.minimap-dark {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-accent);
+}
+
+.react-flow__handle {
+  border: 2px solid var(--color-bg-primary);
+}
+
+/* React Flow 深色模式文字 */
+.react-flow.dark,
+.react-flow.dark .react-flow__node,
+.react-flow.dark .react-flow__controls button {
+  color: var(--color-text-primary);
+}
+
+.react-flow.dark .react-flow__controls button {
+  fill: var(--color-text-primary);
+}
+
+.react-flow__attribution {
+  display: none;
+}

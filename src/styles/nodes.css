@@ -1,0 +1,15 @@
+.react-flow__node-group {
+  z-index: -1 !important;
+}
+
+.react-flow__node-group .react-flow__node {
+  z-index: 1;
+}
+
+.nodrag {
+  cursor: default;
+}
+
+.nowheel {
+  scroll-behavior: auto;
+}

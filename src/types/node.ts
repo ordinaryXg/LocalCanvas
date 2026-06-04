@@ -1,0 +1,86 @@
+import type { Node, Edge } from '@xyflow/react'
+
+export type NodeType = 'text' | 'image' | 'video' | 'audio' | 'script' | 'group'
+
+export interface TextNodeData {
+  content: string
+  llmModel?: string
+  [key: string]: unknown
+}
+
+export interface ImageNodeData {
+  imageSrc?: string
+  fileName?: string
+  prompt?: string
+  negativePrompt?: string
+  modelId?: string
+  ratio?: string
+  isGenerating?: boolean
+  progress?: number
+  [key: string]: unknown
+}
+
+export interface VideoNodeData {
+  videoSrc?: string
+  fileName?: string
+  prompt?: string
+  modelId?: string
+  duration?: number
+  firstFrameSrc?: string
+  lastFrameSrc?: string
+  camera?: string
+  isGenerating?: boolean
+  progress?: number
+  [key: string]: unknown
+}
+
+export interface AudioNodeData {
+  audioSrc?: string
+  fileName?: string
+  [key: string]: unknown
+}
+
+export interface ScriptRow {
+  id: string
+  sequence: number
+  description: string
+  prompt: string
+  duration: number
+  camera: string
+}
+
+export interface ScriptNodeData {
+  storyInput?: string
+  scriptRows?: ScriptRow[]
+  imageModelId?: string
+  videoModelId?: string
+  [key: string]: unknown
+}
+
+export type PortType =
+  | 'prompt'
+  | 'reference'
+  | 'firstFrame'
+  | 'lastFrame'
+  | 'audio'
+  | 'video'
+  | 'data'
+  | 'script'
+
+export type CanvasNode = Node
+export type CanvasEdge = Edge
+
+export interface NodeTypeMeta {
+  type: NodeType
+  label: string
+  icon: string
+  color: string
+}
+
+export const NODE_TYPE_META: NodeTypeMeta[] = [
+  { type: 'text', label: '文本', icon: '📝', color: '#8b5cf6' },
+  { type: 'image', label: '图片', icon: '🖼️', color: '#06b6d4' },
+  { type: 'video', label: '视频', icon: '🎥', color: '#f43f5e' },
+  { type: 'audio', label: '音频', icon: '🎵', color: '#22c55e' },
+  { type: 'script', label: '脚本', icon: '🎬', color: '#f59e0b' },
+]
