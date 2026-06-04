@@ -16,6 +16,8 @@ import { pushHistory, clearHistory } from './historyStore'
 import { useProjectStore } from './projectStore'
 import { generateNodeId } from '../utils/id'
 
+import type { DataFlowPatch } from '../utils/dataFlow'
+
 interface CanvasState {
   nodes: Node[]
   edges: Edge[]
@@ -28,8 +30,10 @@ interface CanvasState {
   onEdgesChange: OnEdgesChange
   onConnect: (connection: Connection) => void
   addNode: (node: Node) => void
+  addConnection: (connection: Connection) => void
   duplicateNode: (nodeId: string) => void
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void
+  applyDataFlowPatches: (patches: DataFlowPatch[]) => void
   removeNodes: (ids: string[]) => void
   removeEdge: (edgeId: string) => void
   groupNodes: (ids: string[]) => void
@@ -62,7 +66,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const shouldRecord =
       changes.some((c) => c.type === 'remove') ||
       changes.some((c) => c.type === 'add') ||
-      changes.some((c) => c.type === 'position' && c.dragging === false)
+      changes.some((c) => c.type === 'position' && c.dragging === false) ||
+      changes.some((c) => c.type === 'dimensions' && c.resizing === false)
 
     if (shouldRecord) recordHistory(get)
 
@@ -100,6 +105,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ nodes: [...get().nodes, node] })
   },
 
+  addConnection: (connection) => {
+    recordHistory(get)
+    set({
+      edges: addEdge(
+        {
+          ...connection,
+          type: 'smoothstep',
+          animated: true,
+          style: { stroke: 'var(--color-accent, #6366f1)', strokeWidth: 2 },
+        },
+        get().edges,
+      ),
+    })
+  },
+
   duplicateNode: (nodeId) => {
     const node = get().nodes.find((n) => n.id === nodeId)
     if (!node) return
@@ -128,6 +148,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n,
       ),
     })
+    useProjectStore.getState().setDirty(true)
+  },
+
+  applyDataFlowPatches: (patches) => {
+    if (patches.length === 0) return
+
+    const nodes = get().nodes
+    let changed = false
+    const nextNodes = nodes.map((node) => {
+      const patch = patches.find((p) => p.nodeId === node.id)
+      if (!patch) return node
+
+      const hasChange = Object.entries(patch.data).some(
+        ([key, value]) => node.data[key] !== value,
+      )
+      if (!hasChange) return node
+
+      changed = true
+      return { ...node, data: { ...node.data, ...patch.data } }
+    })
+
+    if (!changed) return
+    set({ nodes: nextNodes })
     useProjectStore.getState().setDirty(true)
   },
 

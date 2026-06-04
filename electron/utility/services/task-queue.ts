@@ -1,0 +1,214 @@
+import { EventEmitter } from 'events'
+import { v4 as uuid } from 'uuid'
+import type Database from 'better-sqlite3'
+import { getAdapterErrorMessage } from '../../../src/types/adapter-errors'
+import type { ModelAdapter } from './model-adapter/base'
+import type {
+  GenerateImageParams,
+  GenerateVideoParams,
+  GenerateTextParams,
+  GenerateAudioParams,
+} from './model-adapter/base'
+
+export interface GenerateTask {
+  id: string
+  type: 'image' | 'video' | 'text' | 'audio'
+  nodeId: string
+  modelId: string
+  params: Record<string, unknown>
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  result?: string
+  error?: string
+  progress: number
+  retryCount: number
+  maxRetries: number
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+}
+
+type TaskExecutor = (task: GenerateTask, adapter: ModelAdapter) => Promise<string>
+
+interface TaskQueueOptions {
+  maxConcurrent: number
+  getAdapter: (task: GenerateTask) => ModelAdapter
+}
+
+export class TaskQueue extends EventEmitter {
+  private db: Database.Database
+  private running = new Set<string>()
+  private maxConcurrent: number
+  private getAdapter: (task: GenerateTask) => ModelAdapter
+  private executors: Record<GenerateTask['type'], TaskExecutor>
+
+  constructor(db: Database.Database, options: TaskQueueOptions) {
+    super()
+    this.db = db
+    this.maxConcurrent = options.maxConcurrent
+    this.getAdapter = options.getAdapter
+    this.executors = {
+      image: (task, adapter) =>
+        adapter.generateImage({ ...task.params, nodeId: task.nodeId } as GenerateImageParams),
+      video: (task, adapter) =>
+        adapter.generateVideo({ ...task.params, nodeId: task.nodeId } as GenerateVideoParams),
+      text: (task, adapter) =>
+        adapter.generateText({ ...task.params, nodeId: task.nodeId } as GenerateTextParams),
+      audio: (task, adapter) =>
+        adapter.generateAudio({ ...task.params, nodeId: task.nodeId } as GenerateAudioParams),
+    }
+    this.recoverInterruptedTasks()
+  }
+
+  private recoverInterruptedTasks(): void {
+    const result = this.db
+      .prepare(
+        "UPDATE task_queue SET status = 'pending', retry_count = retry_count + 1 WHERE status = 'running'",
+      )
+      .run()
+    if (result.changes > 0) {
+      this.emit('log', `Recovered ${result.changes} interrupted tasks`)
+    }
+    void this.process()
+  }
+
+  enqueue(
+    task: Omit<GenerateTask, 'status' | 'progress' | 'retryCount' | 'maxRetries' | 'createdAt'>,
+  ): string {
+    const fullTask: GenerateTask = {
+      ...task,
+      status: 'pending',
+      progress: 0,
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: new Date().toISOString(),
+    }
+
+    this.db
+      .prepare(
+        `INSERT INTO task_queue (id, type, node_id, model_id, params, status, progress)
+         VALUES (?, ?, ?, ?, ?, 'pending', 0)`,
+      )
+      .run(
+        fullTask.id,
+        fullTask.type,
+        fullTask.nodeId,
+        fullTask.modelId,
+        JSON.stringify(fullTask.params),
+      )
+
+    this.emit('task:enqueued', fullTask)
+    void this.process()
+    return fullTask.id
+  }
+
+  cancel(taskId: string): void {
+    this.db.prepare("UPDATE task_queue SET status = 'cancelled' WHERE id = ?").run(taskId)
+    this.running.delete(taskId)
+    this.emit('task:cancelled', { taskId })
+    void this.process()
+  }
+
+  setMaxConcurrent(max: number): void {
+    this.maxConcurrent = Math.max(1, max)
+    void this.process()
+  }
+
+  private rowToTask(row: Record<string, unknown>): GenerateTask {
+    return {
+      id: row.id as string,
+      type: row.type as GenerateTask['type'],
+      nodeId: row.node_id as string,
+      modelId: row.model_id as string,
+      params: JSON.parse(row.params as string) as Record<string, unknown>,
+      status: row.status as GenerateTask['status'],
+      result: row.result as string | undefined,
+      error: row.error as string | undefined,
+      progress: row.progress as number,
+      retryCount: row.retry_count as number,
+      maxRetries: row.max_retries as number,
+      createdAt: row.created_at as string,
+      startedAt: row.started_at as string | undefined,
+      completedAt: row.completed_at as string | undefined,
+    }
+  }
+
+  private async process(): Promise<void> {
+    while (this.running.size < this.maxConcurrent) {
+      const row = this.db
+        .prepare(
+          "SELECT * FROM task_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1",
+        )
+        .get() as Record<string, unknown> | undefined
+
+      if (!row) break
+
+      const task = this.rowToTask(row)
+      this.running.add(task.id)
+      this.db
+        .prepare(
+          "UPDATE task_queue SET status = 'running', started_at = datetime('now') WHERE id = ?",
+        )
+        .run(task.id)
+      this.emit('task:start', task)
+
+      void this.runTask(task)
+    }
+  }
+
+  private async runTask(task: GenerateTask): Promise<void> {
+    try {
+      const adapter = this.getAdapter(task)
+
+      const progressHandler = (p: { nodeId?: string; percentage: number; taskId?: string }) => {
+        if (p.nodeId === task.nodeId || p.taskId) {
+          this.updateProgress(task.id, p.percentage, task.nodeId)
+        }
+      }
+      adapter.on('progress', progressHandler)
+
+      const result = await this.executors[task.type](task, adapter)
+      adapter.off('progress', progressHandler)
+
+      this.db
+        .prepare(
+          `UPDATE task_queue SET status = 'completed', result = ?, progress = 100, completed_at = datetime('now')
+           WHERE id = ?`,
+        )
+        .run(result, task.id)
+      this.running.delete(task.id)
+      this.emit('task:complete', { taskId: task.id, nodeId: task.nodeId, result })
+      void this.process()
+    } catch (err) {
+      const error = getAdapterErrorMessage(err)
+      const current = this.db
+        .prepare('SELECT retry_count, max_retries FROM task_queue WHERE id = ?')
+        .get(task.id) as { retry_count: number; max_retries: number }
+
+      if (current.retry_count < current.max_retries) {
+        this.db
+          .prepare(
+            `UPDATE task_queue SET status = 'pending', error = ?, retry_count = retry_count + 1 WHERE id = ?`,
+          )
+          .run(error, task.id)
+        this.emit('task:retry', { taskId: task.id, error })
+      } else {
+        this.db
+          .prepare("UPDATE task_queue SET status = 'failed', error = ? WHERE id = ?")
+          .run(error, task.id)
+        this.emit('task:fail', { taskId: task.id, nodeId: task.nodeId, error })
+      }
+
+      this.running.delete(task.id)
+      void this.process()
+    }
+  }
+
+  private updateProgress(taskId: string, progress: number, nodeId: string): void {
+    this.db.prepare('UPDATE task_queue SET progress = ? WHERE id = ?').run(progress, taskId)
+    this.emit('task:progress', { taskId, nodeId, progress })
+  }
+}
+
+export function createTaskId(): string {
+  return uuid()
+}

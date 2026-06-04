@@ -22,7 +22,10 @@ export default defineConfig({
     build: {
       outDir: 'out/main',
       rollupOptions: {
-        input: resolve(__dirname, 'electron/main/index.ts'),
+        input: {
+          index: resolve(__dirname, 'electron/main/index.ts'),
+          utility: resolve(__dirname, 'electron/utility/index.ts'),
+        },
         external: ['electron', 'better-sqlite3'],
       },
     },

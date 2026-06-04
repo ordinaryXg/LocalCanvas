@@ -1,9 +1,10 @@
+import { NodeResizer } from '@xyflow/react'
 import type { ReactNode } from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { PortHandle } from './PortHandle'
 
 interface PortDef {
   id: string
-  label?: string
+  top?: string
 }
 
 interface BaseNodeProps {
@@ -15,6 +16,15 @@ interface BaseNodeProps {
   outputs?: PortDef[]
   selected?: boolean
   width?: number
+  height?: number
+  defaultWidth?: number
+  resizable?: boolean
+  minWidth?: number
+  minHeight?: number
+}
+
+function portTop(index: number, explicit?: string): string {
+  return explicit ?? `${30 + index * 18}%`
 }
 
 export function BaseNode({
@@ -26,55 +36,68 @@ export function BaseNode({
   outputs = [],
   selected,
   width,
+  height,
+  defaultWidth = 220,
+  resizable = true,
+  minWidth = 180,
+  minHeight = 80,
 }: BaseNodeProps) {
+  const boxWidth = width ?? defaultWidth
+
   return (
-    <div
-      className="rounded-lg border-2 bg-bg-secondary shadow-lg transition-shadow duration-200"
-      style={{
-        borderColor: selected ? color : 'var(--color-border)',
-        minWidth: width ?? 200,
-        boxShadow: selected ? `0 0 20px ${color}40` : undefined,
-      }}
-    >
+    <>
+      {resizable && (
+        <NodeResizer
+          isVisible={!!selected}
+          minWidth={minWidth}
+          minHeight={minHeight}
+          lineClassName="border-accent"
+          handleClassName="h-2 w-2 bg-accent border border-white rounded-sm"
+        />
+      )}
       <div
-        className="flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium text-white"
-        style={{ backgroundColor: color }}
+        className="rounded-lg border-2 bg-bg-secondary shadow-lg transition-shadow duration-200 relative"
+        style={{
+          borderColor: selected ? color : 'var(--color-border)',
+          width: boxWidth,
+          maxWidth: boxWidth,
+          minWidth,
+          height: height ? `${height}px` : undefined,
+          minHeight,
+          overflow: 'visible',
+          boxShadow: selected ? `0 0 20px ${color}40` : undefined,
+        }}
       >
-        {icon}
-        <span>{title}</span>
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs font-medium text-white overflow-hidden"
+          style={{ backgroundColor: color }}
+        >
+          {icon}
+          <span className="truncate">{title}</span>
+        </div>
+
+        <div className="px-3 py-2 relative overflow-hidden">{children}</div>
+
+        {inputs.map((input, i) => (
+          <PortHandle
+            key={`in-${input.id}`}
+            id={input.id}
+            type="target"
+            color={color}
+            top={portTop(i, input.top)}
+          />
+        ))}
+
+        {outputs.map((output, i) => (
+          <PortHandle
+            key={`out-${output.id}`}
+            id={output.id}
+            type="source"
+            color={color}
+            top={portTop(i, output.top)}
+          />
+        ))}
       </div>
-
-      <div className="px-3 py-2 relative">{children}</div>
-
-      {inputs.map((input, i) => (
-        <Handle
-          key={`in-${input.id}`}
-          type="target"
-          position={Position.Left}
-          id={input.id}
-          style={{
-            top: `${30 + i * 18}%`,
-            background: color,
-            width: 10,
-            height: 10,
-          }}
-        />
-      ))}
-
-      {outputs.map((output, i) => (
-        <Handle
-          key={`out-${output.id}`}
-          type="source"
-          position={Position.Right}
-          id={output.id}
-          style={{
-            top: `${30 + i * 18}%`,
-            background: color,
-            width: 10,
-            height: 10,
-          }}
-        />
-      ))}
-    </div>
+    </>
   )
 }

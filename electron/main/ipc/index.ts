@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog, BrowserWindow } from 'electron'
+import { ipcMain, app, dialog, BrowserWindow, shell } from 'electron'
 import {
   createProject,
   loadProject,
@@ -9,6 +9,8 @@ import {
   saveWorkflowFile,
   type ProjectData,
 } from '../services/project'
+import { registerConfigIpc } from './config'
+import { registerModelIpc } from './model'
 import { logger } from '../services/logger'
 
 export function registerProjectIpc(): void {
@@ -68,6 +70,19 @@ export function registerProjectIpc(): void {
 
   ipcMain.handle('app:getVersion', () => app.getVersion())
   ipcMain.handle('app:getDataPath', () => app.getPath('userData'))
+  ipcMain.handle('app:openExternal', async (_e, url: string) => {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('Only http(s) URLs are allowed')
+      }
+      await shell.openExternal(url)
+      return { success: true }
+    } catch (error) {
+      logger.error('app:openExternal failed', error)
+      throw error
+    }
+  })
 }
 
 export function registerFileIpc(): void {
@@ -81,6 +96,13 @@ export function registerFileIpc(): void {
       return content.buffer
     },
   )
+
+  ipcMain.handle('file:readAbsolutePath', async (_e, absolutePath: string) => {
+    const { readFile } = await import('fs/promises')
+    const { normalize } = await import('path')
+    const content = await readFile(normalize(absolutePath))
+    return content.buffer
+  })
 
   ipcMain.handle(
     'file:writeAsset',
@@ -126,4 +148,6 @@ export function registerFileIpc(): void {
 export function registerIpcHandlers(): void {
   registerProjectIpc()
   registerFileIpc()
+  registerConfigIpc()
+  registerModelIpc()
 }

@@ -1,8 +1,10 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
 import { getDatabase, closeDatabase } from './database'
+import { getUtilityClient } from './services/utility-client'
+import { getDbPath } from './ipc/model'
 import './services/logger'
 import { logger } from './services/logger'
 
@@ -40,6 +42,13 @@ function createWindow(): void {
     mainWindow = null
   })
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      void shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -55,6 +64,9 @@ app.whenReady().then(() => {
 
   getDatabase()
   registerIpcHandlers()
+  void getUtilityClient()
+    .start(getDbPath())
+    .catch((err) => logger.error('Failed to start utility process', err))
   createWindow()
 
   app.on('activate', () => {
@@ -70,6 +82,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  getUtilityClient().stop()
   closeDatabase()
 })
 

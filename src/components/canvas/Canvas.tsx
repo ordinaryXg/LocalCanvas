@@ -22,7 +22,8 @@ import { AudioNode } from '../nodes/AudioNode'
 import { ScriptNode } from '../nodes/ScriptNode'
 import { ContextMenu, NodePicker, useContextMenuHandlers, type ContextMenuState } from './ContextMenu'
 import { CanvasToolbar } from './CanvasToolbar'
-import { isPortCompatible, getNodeTypeFromId } from '../../utils/portCompat'
+import { GeneratorPanel } from '../panels/GeneratorPanel'
+import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from '../../utils/portCompat'
 import { useDataFlow } from '../../hooks/useDataFlow'
 import { useFileDrop, useSidebarNodeDrop, useKeyboardShortcuts } from '../../hooks/useKeyboard'
 import { useAutoSave, useManualSave } from '../../hooks/useAutoSave'
@@ -68,14 +69,23 @@ function CanvasInner() {
     (connection) => {
       const sourceType = getNodeTypeFromId(nodes, connection.source)
       const targetType = getNodeTypeFromId(nodes, connection.target)
-      return isPortCompatible(
-        sourceType,
-        connection.sourceHandle,
-        targetType,
+      if (
+        !isPortCompatible(
+          sourceType,
+          connection.sourceHandle,
+          targetType,
+          connection.targetHandle,
+        )
+      ) {
+        return false
+      }
+      return isTargetHandleAvailable(
+        edges,
+        connection.target,
         connection.targetHandle,
       )
     },
-    [nodes],
+    [nodes, edges],
   )
 
   const handleConnect = useCallback(
@@ -181,6 +191,7 @@ function CanvasInner() {
       </div>
 
       <CanvasToolbar />
+      <GeneratorPanel />
       <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
 
       {nodePicker && (

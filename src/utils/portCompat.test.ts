@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isPortCompatible, getNodeTypeFromId } from './portCompat'
+import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from './portCompat'
 
 describe('isPortCompatible', () => {
   it('allows text prompt to image prompt', () => {
@@ -20,6 +20,26 @@ describe('isPortCompatible', () => {
 
   it('allows script to image prompt', () => {
     expect(isPortCompatible('script', 'script', 'image', 'prompt')).toBe(true)
+  })
+
+  it('allows script to video prompt', () => {
+    expect(isPortCompatible('script', 'script', 'video', 'prompt')).toBe(true)
+  })
+})
+
+describe('isTargetHandleAvailable', () => {
+  it('rejects duplicate target handle', () => {
+    const edges = [
+      {
+        id: 'e1',
+        source: 'i1',
+        target: 'v1',
+        sourceHandle: 'firstFrame',
+        targetHandle: 'firstFrame',
+      },
+    ]
+    expect(isTargetHandleAvailable(edges, 'v1', 'firstFrame')).toBe(false)
+    expect(isTargetHandleAvailable(edges, 'v1', 'lastFrame')).toBe(true)
   })
 })
 

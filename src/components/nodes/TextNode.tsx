@@ -3,7 +3,7 @@ import type { NodeProps } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
 import { useCanvasStore } from '../../stores/canvasStore'
 
-function TextNodeComponent({ id, data, selected }: NodeProps) {
+function TextNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const [isEditing, setIsEditing] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -19,8 +19,12 @@ function TextNodeComponent({ id, data, selected }: NodeProps) {
       icon={<span className="text-sm">📝</span>}
       title="文本"
       selected={selected}
-      outputs={[{ id: 'prompt' }]}
-      width={240}
+      width={width}
+      height={height}
+      defaultWidth={240}
+      minWidth={180}
+      minHeight={80}
+      outputs={[{ id: 'prompt', top: '50%' }]}
     >
       {isEditing ? (
         <textarea

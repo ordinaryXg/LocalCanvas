@@ -1,44 +1,41 @@
 import { memo } from 'react'
 import type { NodeProps } from '@xyflow/react'
-import { Handle, Position } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
-import { useCanvasStore } from '../../stores/canvasStore'
-import type { ScriptRow } from '../../types/node'
-import { generateId } from '../../utils/id'
+import { PortHandle } from './PortHandle'
+import { useScriptNodeActions } from '../../hooks/useScriptNodeActions'
 
-function ScriptNodeComponent({ id, data, selected }: NodeProps) {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData)
-  const rows = (data.scriptRows as ScriptRow[]) || []
-  const storyInput = (data.storyInput as string) || ''
-
-  const addRow = () => {
-    const newRow: ScriptRow = {
-      id: generateId('row'),
-      sequence: rows.length + 1,
-      description: '',
-      prompt: '',
-      duration: 5,
-      camera: '静止',
-    }
-    updateNodeData(id, { scriptRows: [...rows, newRow] })
-  }
-
-  const updateRow = (rowId: string, field: keyof ScriptRow, value: string | number) => {
-    const updated = rows.map((r) => (r.id === rowId ? { ...r, [field]: value } : r))
-    updateNodeData(id, { scriptRows: updated })
-  }
+function ScriptNodeComponent({ id, selected, width, height }: NodeProps) {
+  const {
+    rows,
+    storyInput,
+    scriptTitle,
+    generating,
+    progress,
+    isBusy,
+    setStoryInput,
+    addRow,
+    updateRow,
+    removeRow,
+    handleGenerateScript,
+    handleBatchImages,
+    handleBatchVideos,
+  } = useScriptNodeActions(id)
 
   return (
     <BaseNode
       color="var(--node-script)"
       icon={<span className="text-sm">🎬</span>}
-      title="脚本"
+      title={scriptTitle || '脚本'}
       selected={selected}
-      width={360}
+      width={width}
+      height={height}
+      defaultWidth={360}
+      minWidth={280}
+      minHeight={160}
     >
       <textarea
         value={storyInput}
-        onChange={(e) => updateNodeData(id, { storyInput: e.target.value })}
+        onChange={(e) => setStoryInput(e.target.value)}
         placeholder="输入故事梗概..."
         className="nodrag nowheel w-full h-16 bg-bg-tertiary text-white text-xs p-2 rounded resize-none outline-none border border-border focus:border-accent"
       />
@@ -46,23 +43,34 @@ function ScriptNodeComponent({ id, data, selected }: NodeProps) {
       <div className="flex gap-1 mt-2">
         <button
           type="button"
-          disabled
-          className="flex-1 text-xs bg-amber-600/30 text-amber-300 py-1 rounded opacity-50 cursor-not-allowed"
+          disabled={isBusy}
+          onClick={() => void handleGenerateScript()}
+          className="flex-1 text-xs bg-amber-600/30 text-amber-300 py-1 rounded hover:bg-amber-600/50 transition disabled:opacity-50 nodrag"
         >
-          🤖 生成脚本 (v2)
+          {generating === 'script' ? '🤖 生成中...' : '🤖 生成脚本'}
         </button>
       </div>
 
+      {isBusy && (
+        <div className="mt-2">
+          <div className="h-1 bg-bg-tertiary rounded overflow-hidden">
+            <div className="h-full bg-amber-500 transition-all" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="text-[10px] text-text-muted mt-1">{progress}%</p>
+        </div>
+      )}
+
       {rows.length > 0 && (
         <div className="mt-2 max-h-[200px] overflow-y-auto nowheel">
-          <table className="w-full text-[10px] text-text-primary">
+          <table className="w-full text-[10px] text-text-primary table-fixed">
             <thead>
               <tr className="text-text-secondary">
-                <th className="px-1 text-left">#</th>
+                <th className="px-1 text-left w-6">#</th>
                 <th className="px-1 text-left">画面</th>
                 <th className="px-1 text-left">提示词</th>
-                <th className="px-1">时长</th>
-                <th className="px-1">运镜</th>
+                <th className="px-1 w-8">时长</th>
+                <th className="px-1 w-10">运镜</th>
+                <th className="px-1 w-6" />
               </tr>
             </thead>
             <tbody>
@@ -73,18 +81,28 @@ function ScriptNodeComponent({ id, data, selected }: NodeProps) {
                     <input
                       value={row.description}
                       onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                      className="nodrag w-full bg-transparent outline-none text-text-primary"
+                      className="nodrag w-full bg-transparent outline-none text-text-primary truncate"
                     />
                   </td>
                   <td className="px-1 py-1">
                     <input
                       value={row.prompt}
                       onChange={(e) => updateRow(row.id, 'prompt', e.target.value)}
-                      className="nodrag w-full bg-transparent outline-none text-text-primary"
+                      className="nodrag w-full bg-transparent outline-none text-text-primary truncate"
                     />
                   </td>
                   <td className="px-1 py-1 text-center">{row.duration}s</td>
-                  <td className="px-1 py-1 text-center">{row.camera}</td>
+                  <td className="px-1 py-1 text-center truncate">{row.camera}</td>
+                  <td className="px-1 py-1 text-center">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      className="text-danger hover:text-red-400 nodrag"
+                      title="删除分镜"
+                    >
+                      ✕
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -96,16 +114,29 @@ function ScriptNodeComponent({ id, data, selected }: NodeProps) {
         <button type="button" onClick={addRow} className="text-[10px] text-amber-300 hover:underline nodrag">
           + 添加分镜
         </button>
-        <button type="button" disabled className="text-[10px] text-amber-300/50 ml-auto opacity-50">
-          生成分镜图 (v2)
+        <button
+          type="button"
+          disabled={isBusy || rows.length === 0}
+          onClick={() => void handleBatchImages()}
+          className="text-[10px] text-amber-300 ml-auto hover:underline disabled:opacity-50 nodrag"
+        >
+          {generating === 'images' ? '生成中...' : '生成分镜图'}
         </button>
-        <button type="button" disabled className="text-[10px] text-amber-300/50 opacity-50">
-          生成视频 (v2)
+        <button
+          type="button"
+          disabled={isBusy || rows.length === 0}
+          onClick={() => void handleBatchVideos()}
+          className="text-[10px] text-amber-300 hover:underline disabled:opacity-50 nodrag"
+        >
+          {generating === 'videos' ? '生成中...' : 'Seedance 视频'}
         </button>
       </div>
 
-      <Handle type="source" position={Position.Right} id="script"
-        style={{ top: '50%', background: 'var(--node-script)', width: 10, height: 10 }} />
+      {rows.length > 0 && (
+        <p className="text-[10px] text-text-muted mt-1">选中节点可在下方编辑面板操作</p>
+      )}
+
+      <PortHandle id="script" type="source" color="var(--node-script)" top="50%" />
     </BaseNode>
   )
 }

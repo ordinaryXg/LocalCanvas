@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Node, Edge } from '@xyflow/react'
-import { computeDataFlowPatches } from './dataFlow'
+import { computeDataFlowPatches, simulateDataFlowUntilStable } from './dataFlow'
 
 describe('computeDataFlowPatches', () => {
   it('syncs text content to image prompt', () => {
@@ -127,5 +127,84 @@ describe('computeDataFlowPatches', () => {
     const patches = computeDataFlowPatches(nodes, edges)
     expect(patches[0].data.referenceSrc).toBe('blob:a')
     expect(patches[0].data.referenceAssetPath).toBe('images/a.png')
+  })
+
+  it('converges when two images connect to the same video firstFrame port', () => {
+    const nodes: Node[] = [
+      {
+        id: 'i1',
+        type: 'image',
+        position: { x: 0, y: 0 },
+        data: { imageSrc: 'blob:a', imageAssetPath: 'images/a.png' },
+      },
+      {
+        id: 'i2',
+        type: 'image',
+        position: { x: 0, y: 0 },
+        data: { imageSrc: 'blob:b', imageAssetPath: 'images/b.png' },
+      },
+      { id: 'v1', type: 'video', position: { x: 0, y: 0 }, data: {} },
+    ]
+    const edges: Edge[] = [
+      {
+        id: 'e1',
+        source: 'i1',
+        target: 'v1',
+        sourceHandle: 'firstFrame',
+        targetHandle: 'firstFrame',
+      },
+      {
+        id: 'e2',
+        source: 'i2',
+        target: 'v1',
+        sourceHandle: 'firstFrame',
+        targetHandle: 'firstFrame',
+      },
+    ]
+
+    const { nodes: stable, iterations } = simulateDataFlowUntilStable(nodes, edges)
+    expect(iterations).toBeLessThanOrEqual(2)
+    expect(computeDataFlowPatches(stable, edges)).toHaveLength(0)
+    expect(stable.find((n) => n.id === 'v1')?.data.firstFrameSrc).toBe('blob:b')
+  })
+
+  it('syncs two images to video firstFrame and lastFrame', () => {
+    const nodes: Node[] = [
+      {
+        id: 'i1',
+        type: 'image',
+        position: { x: 0, y: 0 },
+        data: { imageSrc: 'blob:a' },
+      },
+      {
+        id: 'i2',
+        type: 'image',
+        position: { x: 0, y: 0 },
+        data: { imageSrc: 'blob:b' },
+      },
+      { id: 'v1', type: 'video', position: { x: 0, y: 0 }, data: {} },
+    ]
+    const edges: Edge[] = [
+      {
+        id: 'e1',
+        source: 'i1',
+        target: 'v1',
+        sourceHandle: 'firstFrame',
+        targetHandle: 'firstFrame',
+      },
+      {
+        id: 'e2',
+        source: 'i2',
+        target: 'v1',
+        sourceHandle: 'firstFrame',
+        targetHandle: 'lastFrame',
+      },
+    ]
+
+    const { iterations } = simulateDataFlowUntilStable(nodes, edges)
+    expect(iterations).toBeLessThanOrEqual(2)
+    const video = simulateDataFlowUntilStable(nodes, edges).nodes.find((n) => n.id === 'v1')
+    expect(video?.data.firstFrameSrc).toBe('blob:a')
+    expect(video?.data.lastFrameSrc).toBe('blob:b')
   })
 })

@@ -1,7 +1,7 @@
 import { memo, useCallback, useRef } from 'react'
 import type { NodeProps } from '@xyflow/react'
-import { Handle, Position } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
+import { PortHandle } from './PortHandle'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 
 function AudioNodeComponent({ id, data, selected }: NodeProps) {
@@ -52,8 +52,7 @@ function AudioNodeComponent({ id, data, selected }: NodeProps) {
         }}
       />
 
-      <Handle type="source" position={Position.Right} id="audio"
-        style={{ top: '50%', background: 'var(--node-audio)', width: 10, height: 10 }} />
+      <PortHandle id="audio" type="source" color="var(--node-audio)" top="50%" />
     </BaseNode>
   )
 }

@@ -32,11 +32,45 @@ function imageOutputForHandle(
       assetPath: (data.referenceAssetPath ?? data.imageAssetPath) as string | undefined,
     }
   }
-  // firstFrame / lastFrame 源端口仍输出主图资源
   return {
     src: data.imageSrc as string | undefined,
     assetPath: data.imageAssetPath as string | undefined,
   }
+}
+
+function isDataFlowEdge(source: Node, target: Node, targetHandle: string | null | undefined): boolean {
+  if (!targetHandle) return false
+  if (source.type === 'text' && targetHandle === 'prompt') {
+    return target.type === 'image' || target.type === 'video'
+  }
+  if (source.type === 'script' && targetHandle === 'prompt') {
+    return target.type === 'image' || target.type === 'video'
+  }
+  if (source.type === 'image' && target.type === 'image' && targetHandle === 'reference') {
+    return true
+  }
+  if (source.type === 'image' && target.type === 'video') {
+    return targetHandle === 'firstFrame' || targetHandle === 'lastFrame'
+  }
+  if (source.type === 'audio' && target.type === 'video' && targetHandle === 'audio') {
+    return true
+  }
+  return false
+}
+
+/** 同一目标端口只保留最后一条连线，避免多源写入互相覆盖导致无限更新 */
+function resolveDataFlowEdges(nodes: Node[], edges: Edge[]): Edge[] {
+  const slotMap = new Map<string, Edge>()
+
+  for (const edge of edges) {
+    const sourceNode = nodes.find((n) => n.id === edge.source)
+    const targetNode = nodes.find((n) => n.id === edge.target)
+    if (!sourceNode || !targetNode) continue
+    if (!isDataFlowEdge(sourceNode, targetNode, edge.targetHandle)) continue
+    slotMap.set(`${edge.target}:${edge.targetHandle}`, edge)
+  }
+
+  return [...slotMap.values()]
 }
 
 /**
@@ -51,7 +85,7 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     patchMap.set(nodeId, { ...existing, ...data })
   }
 
-  for (const edge of edges) {
+  for (const edge of resolveDataFlowEdges(nodes, edges)) {
     const sourceNode = nodes.find((n) => n.id === edge.source)
     const targetNode = nodes.find((n) => n.id === edge.target)
     if (!sourceNode || !targetNode) continue
@@ -83,7 +117,7 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
       if (out.src && !valuesEqual(targetData.referenceSrc, out.src)) {
         mergePatch(targetNode.id, {
           referenceSrc: out.src,
-          ...(out.assetPath ? { referenceAssetPath: out.assetPath } : {}),
+          referenceAssetPath: out.assetPath,
         })
       }
     }
@@ -91,18 +125,24 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     if (sourceNode.type === 'image' && targetNode.type === 'video') {
       const out = imageOutputForHandle(sourceNode, sourceHandle)
       if (targetHandle === 'firstFrame') {
-        if (!valuesEqual(targetData.firstFrameSrc, out.src)) {
+        if (
+          !valuesEqual(targetData.firstFrameSrc, out.src) ||
+          !valuesEqual(targetData.firstFrameAssetPath, out.assetPath)
+        ) {
           mergePatch(targetNode.id, {
             firstFrameSrc: out.src,
-            ...(out.assetPath ? { firstFrameAssetPath: out.assetPath } : {}),
+            firstFrameAssetPath: out.assetPath,
           })
         }
       }
       if (targetHandle === 'lastFrame') {
-        if (!valuesEqual(targetData.lastFrameSrc, out.src)) {
+        if (
+          !valuesEqual(targetData.lastFrameSrc, out.src) ||
+          !valuesEqual(targetData.lastFrameAssetPath, out.assetPath)
+        ) {
           mergePatch(targetNode.id, {
             lastFrameSrc: out.src,
-            ...(out.assetPath ? { lastFrameAssetPath: out.assetPath } : {}),
+            lastFrameAssetPath: out.assetPath,
           })
         }
       }
@@ -111,10 +151,13 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     if (sourceNode.type === 'audio' && targetNode.type === 'video' && targetHandle === 'audio') {
       const audioSrc = sourceNode.data.audioSrc
       const audioAssetPath = sourceNode.data.audioAssetPath
-      if (!valuesEqual(targetData.audioSrc, audioSrc)) {
+      if (
+        !valuesEqual(targetData.audioSrc, audioSrc) ||
+        !valuesEqual(targetData.audioAssetPath, audioAssetPath)
+      ) {
         mergePatch(targetNode.id, {
           audioSrc,
-          ...(audioAssetPath ? { audioAssetPath } : {}),
+          audioAssetPath,
         })
       }
     }
@@ -124,4 +167,32 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     patches.push({ nodeId, data })
   }
   return patches
+}
+
+/** 模拟多次 dataFlow 应用，用于测试是否收敛 */
+export function simulateDataFlowUntilStable(
+  nodes: Node[],
+  edges: Edge[],
+  maxIterations = 20,
+): { nodes: Node[]; iterations: number } {
+  let current = nodes
+  let iterations = 0
+
+  for (let i = 0; i < maxIterations; i++) {
+    const patches = computeDataFlowPatches(current, edges)
+    if (patches.length === 0) {
+      iterations = i
+      break
+    }
+    current = current.map((node) => {
+      const patch = patches.find((p) => p.nodeId === node.id)
+      if (!patch) return node
+      const hasChange = Object.entries(patch.data).some(([k, v]) => node.data[k] !== v)
+      if (!hasChange) return node
+      return { ...node, data: { ...node.data, ...patch.data } }
+    })
+    iterations = i + 1
+  }
+
+  return { nodes: current, iterations }
 }

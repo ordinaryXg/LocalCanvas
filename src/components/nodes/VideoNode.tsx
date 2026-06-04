@@ -1,10 +1,10 @@
 import { memo, useRef, useCallback, useState } from 'react'
 import type { NodeProps } from '@xyflow/react'
-import { Handle, Position } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
+import { PortHandle } from './PortHandle'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 
-function VideoNodeComponent({ id, data, selected }: NodeProps) {
+function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const uploadMedia = useNodeMediaUpload(id, 'video')
   const [isPlaying, setIsPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -23,7 +23,11 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
       icon={<span className="text-sm">🎥</span>}
       title="视频"
       selected={selected}
-      width={230}
+      width={width}
+      height={height}
+      defaultWidth={230}
+      minWidth={180}
+      minHeight={120}
     >
       <div className="w-[200px] h-[120px] bg-bg-tertiary rounded relative overflow-hidden">
         {data.videoSrc ? (
@@ -68,6 +72,37 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
         </div>
       )}
 
+      {(typeof data.firstFrameSrc === 'string' || typeof data.lastFrameSrc === 'string') && (
+        <div className="mt-2 flex items-center gap-2">
+          {typeof data.firstFrameSrc === 'string' && data.firstFrameSrc.length > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-text-muted">首帧</span>
+              <img
+                src={data.firstFrameSrc}
+                alt="首帧"
+                className="w-10 h-10 object-cover rounded border border-border"
+              />
+            </div>
+          )}
+          {typeof data.lastFrameSrc === 'string' && data.lastFrameSrc.length > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-text-muted">尾帧</span>
+              <img
+                src={data.lastFrameSrc}
+                alt="尾帧"
+                className="w-10 h-10 object-cover rounded border border-border"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {typeof data.prompt === 'string' && data.prompt.length > 0 && (
+        <p className="mt-1 text-[10px] text-text-muted line-clamp-2 break-all" title={data.prompt}>
+          提示: {data.prompt}
+        </p>
+      )}
+
       <button
         type="button"
         disabled
@@ -87,16 +122,11 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
         }}
       />
 
-      <Handle type="target" position={Position.Left} id="prompt"
-        style={{ top: '18%', background: 'var(--node-video)', width: 10, height: 10 }} />
-      <Handle type="target" position={Position.Left} id="firstFrame"
-        style={{ top: '38%', background: 'var(--node-video)', width: 10, height: 10 }} />
-      <Handle type="target" position={Position.Left} id="lastFrame"
-        style={{ top: '58%', background: 'var(--node-video)', width: 10, height: 10 }} />
-      <Handle type="target" position={Position.Left} id="audio"
-        style={{ top: '78%', background: 'var(--node-video)', width: 10, height: 10 }} />
-      <Handle type="source" position={Position.Right} id="video"
-        style={{ top: '50%', background: 'var(--node-video)', width: 10, height: 10 }} />
+      <PortHandle id="prompt" type="target" color="var(--node-video)" top="18%" />
+      <PortHandle id="firstFrame" type="target" color="var(--node-video)" top="38%" />
+      <PortHandle id="lastFrame" type="target" color="var(--node-video)" top="58%" />
+      <PortHandle id="audio" type="target" color="var(--node-video)" top="78%" />
+      <PortHandle id="video" type="source" color="var(--node-video)" top="50%" />
     </BaseNode>
   )
 }

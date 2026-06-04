@@ -28,6 +28,10 @@ export function setToastHandler(handler: ToastHandler): void {
   toastHandler = handler
 }
 
+export function showToast(message: string, type: 'error' | 'info' = 'error'): void {
+  toastHandler?.(message, type)
+}
+
 export function handleError(error: unknown, context?: string): void {
   console.error('[ErrorHandler]', context, error)
 

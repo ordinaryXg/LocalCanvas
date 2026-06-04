@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect } from 'react'
 import { StartPage } from './components/project/StartPage'
 import { Canvas } from './components/canvas/Canvas'
 import { Sidebar } from './components/sidebar/Sidebar'
+import { OnboardingGuide } from './components/panels/OnboardingGuide'
+import { SettingsPanel } from './components/panels/SettingsPanel'
 import { useCanvasStore } from './stores/canvasStore'
 import { useProjectStore } from './stores/projectStore'
 import { handleError, setToastHandler } from './utils/ErrorHandler'
@@ -25,6 +27,8 @@ function Toast({ message, type }: { message: string; type: 'error' | 'info' }) {
 export default function App() {
   const [view, setView] = useState<AppView>('start')
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const loadProject = useCanvasStore((s) => s.loadProject)
   const { setCurrentProject, clearProject } = useProjectStore()
@@ -33,6 +37,12 @@ export default function App() {
     setToastHandler((message, type) => {
       setToast({ message, type })
       setTimeout(() => setToast(null), 4000)
+    })
+  }, [])
+
+  useEffect(() => {
+    void window.api.config.needsOnboarding().then((needs) => {
+      if (needs) setShowOnboarding(true)
     })
   }, [])
 
@@ -60,7 +70,12 @@ export default function App() {
   if (view === 'start') {
     return (
       <>
-        <StartPage onOpenProject={(id, name) => void openProject(id, name)} />
+        <StartPage
+          onOpenProject={(id, name) => void openProject(id, name)}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+        {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
+        {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
         {toast && <Toast {...toast} />}
       </>
     )
@@ -76,14 +91,23 @@ export default function App() {
         >
           ← 返回项目列表
         </button>
-        <span className="text-xs text-text-muted">LocalCanvas v0.1</span>
+        <span className="text-xs text-text-muted flex-1">LocalCanvas v0.2</span>
+        <button
+          type="button"
+          onClick={() => setShowSettings(true)}
+          className="text-xs text-text-muted hover:text-white"
+        >
+          ⚙️ 模型配置
+        </button>
       </header>
       <div className="flex flex-1 min-h-0">
         <Sidebar />
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 relative">
           <Canvas />
         </main>
       </div>
+      {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {toast && <Toast {...toast} />}
     </div>
   )
