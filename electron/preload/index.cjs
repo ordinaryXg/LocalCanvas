@@ -15,6 +15,7 @@ const validChannels = [
   'update:progress',
   'update:downloaded',
   'update:error',
+  'probe:ready',
 ]
 
 const listeners = new Map()
@@ -149,6 +150,68 @@ contextBridge.exposeInMainWorld('api', {
     query: (filter) => ipcRenderer.invoke('history:query', filter),
     getStats: () => ipcRenderer.invoke('history:getStats'),
     delete: (id) => ipcRenderer.invoke('history:delete', id),
+  },
+  fluid: {
+    getState: (projectId) => ipcRenderer.invoke('fluid:getState', projectId),
+    patchState: (projectId, patch) => ipcRenderer.invoke('fluid:patchState', projectId, patch),
+    listEvents: (projectId, limit) => ipcRenderer.invoke('fluid:listEvents', projectId, limit),
+    endSession: (projectId) => ipcRenderer.invoke('fluid:endSession', projectId),
+    appendEvent: (projectId, name, payload) =>
+      ipcRenderer.invoke('fluid:appendEvent', projectId, name, payload),
+  },
+  resonance: {
+    list: (projectId) => ipcRenderer.invoke('resonance:list', projectId),
+    getField: (projectId) => ipcRenderer.invoke('resonance:getField', projectId),
+    compilePrompt: (projectId) => ipcRenderer.invoke('resonance:compilePrompt', projectId),
+    create: (projectId, type, payload) =>
+      ipcRenderer.invoke('resonance:create', projectId, type, payload),
+    patch: (id, patch) => ipcRenderer.invoke('resonance:patch', id, patch),
+    delete: (id) => ipcRenderer.invoke('resonance:delete', id),
+  },
+  fluidCompiler: {
+    compileDown: (projectId, nodes, edges) =>
+      ipcRenderer.invoke('fluidCompiler:compileDown', projectId, nodes, edges),
+    projectUp: (projectId, nodes, compiledPrompt) =>
+      ipcRenderer.invoke('fluidCompiler:projectUp', projectId, nodes, compiledPrompt),
+    syncBindings: (projectId, nodes) =>
+      ipcRenderer.invoke('fluidCompiler:syncBindings', projectId, nodes),
+  },
+  affect: {
+    get: (projectId) => ipcRenderer.invoke('affect:get', projectId),
+    save: (envelope) => ipcRenderer.invoke('affect:save', envelope),
+    detectCliffs: (projectId) => ipcRenderer.invoke('affect:detectCliffs', projectId),
+  },
+  superposed: {
+    list: (shotSlotId) => ipcRenderer.invoke('superposed:list', shotSlotId),
+    append: (input) => ipcRenderer.invoke('superposed:append', input),
+    collapse: (candidateId) => ipcRenderer.invoke('superposed:collapse', candidateId),
+    archive: (candidateId) => ipcRenderer.invoke('superposed:archive', candidateId),
+    unresolvedCount: (projectId) => ipcRenderer.invoke('superposed:unresolvedCount', projectId),
+  },
+  palimpsest: {
+    append: (projectId, input) => ipcRenderer.invoke('palimpsest:append', projectId, input),
+    list: (projectId) => ipcRenderer.invoke('palimpsest:list', projectId),
+    recall: (projectId, query) => ipcRenderer.invoke('palimpsest:recall', projectId, query),
+    reviveToResonance: (projectId, layerId) =>
+      ipcRenderer.invoke('palimpsest:reviveToResonance', projectId, layerId),
+  },
+  chorus: {
+    deliberate: (projectId) => ipcRenderer.invoke('chorus:deliberate', projectId),
+    apply: (projectId, resolution) => ipcRenderer.invoke('chorus:apply', projectId, resolution),
+  },
+  negentropy: {
+    detect: (projectId, prompt, assetPath) =>
+      ipcRenderer.invoke('negentropy:detect', projectId, prompt, assetPath),
+  },
+  probe: {
+    getBudget: (projectId) => ipcRenderer.invoke('probe:getBudget', projectId),
+    notifyChange: (projectId) => ipcRenderer.invoke('probe:notifyChange', projectId),
+  },
+  crystallize: {
+    precheck: (projectId, durationSec) =>
+      ipcRenderer.invoke('crystallize:precheck', projectId, durationSec),
+    snapshot: (projectId, payload) =>
+      ipcRenderer.invoke('crystallize:snapshot', projectId, payload),
   },
   workflow: {
     list: (presetOnly) => ipcRenderer.invoke('workflow:list', presetOnly),

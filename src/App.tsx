@@ -17,6 +17,8 @@ import { handleError, setToastHandler } from './utils/ErrorHandler'
 import { hydrateProbedProfileCache } from './capabilities/load-probed-profiles'
 import { hydrateProjectNodes } from './utils/assetStorage'
 import type { Node, Edge } from '@xyflow/react'
+import { FLUID_UI } from './constants/fluidFeatures'
+import { FluidShell } from './layouts/FluidShell'
 
 type AppView = 'start' | 'editor'
 
@@ -145,8 +147,14 @@ export default function App() {
     )
   }
 
-  return (
-    <AuthGate>
+  const editorShell = FLUID_UI ? (
+    <FluidShell
+      onBack={backToStart}
+      onOpenSettings={() => setShowSettings(true)}
+      onToggleTheme={toggleTheme}
+      theme={theme}
+    />
+  ) : (
     <div className="w-screen h-screen flex bg-bg-primary overflow-hidden">
       <Sidebar
         onBack={backToStart}
@@ -157,6 +165,12 @@ export default function App() {
       <main className="flex-1 min-w-0 relative">
         <Canvas />
       </main>
+    </div>
+  )
+
+  return (
+    <AuthGate>
+      {editorShell}
       {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showLeaveConfirm && (
@@ -171,7 +185,6 @@ export default function App() {
         />
       )}
       {toast && <Toast {...toast} />}
-    </div>
     </AuthGate>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { VideoModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
@@ -21,6 +21,10 @@ import { useModelGeneration } from '../../hooks/useModelGeneration'
 import { ResizableTextarea } from '../common/ResizableTextarea'
 import { STYLE_PRESETS, applyStyleToPrompt } from '../../constants/stylePresets'
 import { useI18nStore } from '../../i18n'
+import { compileForProject } from '../../hooks/useCompiledPrompt'
+import { shotSlotIdForNode } from '../../types/fluid'
+import { SuperposedFilmstrip } from '../superposed/SuperposedFilmstrip'
+import { FLUID_RESONANCE } from '../../constants/fluidFeatures'
 import {
   SEEDANCE_T2V_RATIOS,
   SEEDANCE_CAMERA_PROMPTS,
@@ -30,6 +34,7 @@ import {
   isVideoReferenceImageHandle,
   referenceIndexFromHandle,
 } from '../../utils/videoReferenceSlots'
+import type { ShotCandidate } from '../../types/fluid'
 
 interface VideoGeneratorProps {
   nodeId: string
@@ -54,6 +59,17 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
   const [generateAudio, setGenerateAudio] = useState(data.generateAudio !== false)
   const [camera, setCamera] = useState((data.camera as string) || '静止')
   const [styleId, setStyleId] = useState((data.styleId as string) || '')
+  const [candidates, setCandidates] = useState<ShotCandidate[]>([])
+  const shotSlotId = shotSlotIdForNode(nodeId)
+
+  const reloadCandidates = useCallback(async () => {
+    const list = await window.api.superposed.list(shotSlotId)
+    setCandidates(list)
+  }, [shotSlotId])
+
+  useEffect(() => {
+    if (FLUID_RESONANCE) void reloadCandidates()
+  }, [reloadCandidates])
   const locale = useI18nStore((s) => s.locale)
   const [videoModels, setVideoModels] = useState<VideoModelConfig[]>([])
   const { isGenerating, progress, lastError, run, cancel } = useModelGeneration(nodeId, (pct) => {
@@ -129,7 +145,8 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
     try {
       assertNoWarnEdgesForNode(nodeId, nodes, edges, 'video')
       const preset = STYLE_PRESETS.find((p) => p.id === styleId)
-      const finalPrompt = preset ? applyStyleToPrompt(prompt, preset) : prompt
+      const { prompt: compiled } = await compileForProject(currentProjectId, prompt)
+      const finalPrompt = preset ? applyStyleToPrompt(compiled, preset) : compiled
 
       const firstFrame = firstFrameEdge
         ? await resolveImageRefFromNodeId(firstFrameEdge.source, nodes, currentProjectId)
@@ -192,6 +209,19 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         isGenerating: false,
         progress: 100,
       })
+
+      if (FLUID_RESONANCE && assetPath) {
+        const hash = (await window.api.resonance.compilePrompt(currentProjectId)).prompt
+        await window.api.superposed.append({
+          projectId: currentProjectId,
+          shotSlotId,
+          assetPath,
+          thumbPath: assetPath,
+          promptSnapshot: finalPrompt,
+          resonanceHash: hash.slice(0, 16),
+        })
+        await reloadCandidates()
+      }
     } catch (err) {
       if (err instanceof GenerationBlockedError) {
         showToast(err.message, 'error')
@@ -399,7 +429,7 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             disabled={isGenerating || !modelId || !prompt}
             className="flex-1 bg-rose-500 text-white text-sm py-1.5 rounded hover:bg-rose-600 disabled:opacity-50 transition"
           >
-            {isGenerating ? `Seedance 生成中 ${progress}%` : '✨ Seedance 生成视频'}
+            {isGenerating ? `Seedance 生成中 ${progress}%` : FLUID_RESONANCE ? '✨ 生成并追加' : '✨ Seedance 生成视频'}
           </button>
           {isGenerating && (
             <button
@@ -411,6 +441,33 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             </button>
           )}
         </div>
+        {FLUID_RESONANCE && (
+          <SuperposedFilmstrip
+            candidates={candidates}
+            onSelect={async (id) => {
+              const c = await window.api.superposed.collapse(id)
+              if (c && currentProjectId) {
+                const { src, assetPath, fileName } = await importGeneratedMedia(
+                  currentProjectId,
+                  'video',
+                  c.assetPath,
+                )
+                updateNodeData(nodeId, { videoSrc: src, videoAssetPath: assetPath, fileName })
+                await reloadCandidates()
+              }
+            }}
+            onArchive={async (id) => {
+              await window.api.superposed.archive(id)
+              if (currentProjectId) {
+                await window.api.palimpsest.append(currentProjectId, {
+                  eventType: 'reject',
+                  textSnapshot: prompt,
+                })
+              }
+              await reloadCandidates()
+            }}
+          />
+        )}
         {isGenerating && (
           <div className="w-full bg-bg-tertiary rounded-full h-1.5">
             <div

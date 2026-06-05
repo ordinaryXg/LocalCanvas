@@ -16,6 +16,10 @@ import { useModelGeneration } from '../../hooks/useModelGeneration'
 import { ResizableTextarea } from '../common/ResizableTextarea'
 import { STYLE_PRESETS, applyStyleToPrompt } from '../../constants/stylePresets'
 import { useI18nStore } from '../../i18n'
+import { compileForProject } from '../../hooks/useCompiledPrompt'
+import { FLUID_RESONANCE } from '../../constants/fluidFeatures'
+import { FakeElementChecklist, type FakeItem } from '../negentropy/FakeElementChecklist'
+import { applyNegentropy } from '../../utils/negentropy'
 
 interface ImageGeneratorProps {
   nodeId: string
@@ -45,6 +49,7 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
   const [styleId, setStyleId] = useState((data.styleId as string) || '')
   const locale = useI18nStore((s) => s.locale)
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([])
+  const [fakeItems, setFakeItems] = useState<FakeItem[] | null>(null)
   const { isGenerating, progress, run, cancel } = useModelGeneration(nodeId, (pct) => {
     updateNodeData(nodeId, { progress: pct })
   })
@@ -69,8 +74,10 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
 
     const [width, height] = RATIO_MAP[ratio] || [1024, 1024]
     const preset = STYLE_PRESETS.find((p) => p.id === styleId)
-    const finalPrompt = preset ? applyStyleToPrompt(prompt, preset) : prompt
-    const finalNegative = [negativePrompt, preset?.negativePrompt].filter(Boolean).join(', ')
+    const { prompt: compiled, negative: compiledNeg } = await compileForProject(currentProjectId, prompt)
+    const styled = preset ? applyStyleToPrompt(compiled, preset) : compiled
+    const finalPrompt = styled
+    const finalNegative = [negativePrompt, compiledNeg, preset?.negativePrompt].filter(Boolean).join(', ')
 
     try {
       assertNoWarnEdgesForNode(nodeId, nodes, edges, 'image')
@@ -220,6 +227,17 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
             </select>
           </div>
         </div>
+        {FLUID_RESONANCE && (
+          <button
+            type="button"
+            className="text-xs text-violet-400 hover:text-violet-300"
+            onClick={() =>
+              void window.api.negentropy.detect(currentProjectId!, prompt).then(setFakeItems)
+            }
+          >
+            去掉假的
+          </button>
+        )}
         <div className="flex gap-2">
           <div className="w-16">
             <label className="text-[10px] text-text-muted">数量</label>
@@ -262,6 +280,19 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
           </div>
         )}
       </div>
+      {fakeItems && (
+        <FakeElementChecklist
+          items={fakeItems}
+          onClose={() => setFakeItems(null)}
+          onApply={(selected) => {
+            const next = applyNegentropy(prompt, negativePrompt, selected)
+            setPrompt(next.prompt)
+            setNegativePrompt(next.negativePrompt)
+            setFakeItems(null)
+            void handleGenerate()
+          }}
+        />
+      )}
     </div>
   )
 }

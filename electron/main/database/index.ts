@@ -53,6 +53,121 @@ function migrateSchema(database: Database.Database): void {
   migrateV5Schema(database)
   migrateV6CapabilityCache(database)
   migrateV7CapabilityProbe(database)
+  migrateV7FluidSchema(database)
+}
+
+function migrateV7FluidSchema(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS fluid_state (
+      project_id TEXT PRIMARY KEY,
+      temperature REAL NOT NULL DEFAULT 0.55,
+      viscosity REAL NOT NULL DEFAULT 0.35,
+      surface_tension REAL NOT NULL DEFAULT 0.5,
+      phase TEXT NOT NULL DEFAULT 'explore',
+      user_temperature_override REAL,
+      last_session_ended_at TEXT,
+      crystallized_shot_ids TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS fluid_events (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      event_name TEXT NOT NULL,
+      payload TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_fluid_events_project ON fluid_events(project_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS resonance_sources (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      vector TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      gravity REAL NOT NULL DEFAULT 0.5,
+      orbit_index INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_resonance_project ON resonance_sources(project_id);
+
+    CREATE TABLE IF NOT EXISTS shot_candidates (
+      id TEXT PRIMARY KEY,
+      shot_slot_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      asset_path TEXT NOT NULL,
+      thumb_path TEXT NOT NULL,
+      probability REAL NOT NULL DEFAULT 0.25,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      prompt_snapshot TEXT,
+      resonance_hash TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_shot_candidates_slot ON shot_candidates(shot_slot_id, status);
+
+    CREATE TABLE IF NOT EXISTS shot_slot_bindings (
+      shot_slot_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      node_type TEXT NOT NULL,
+      cell_index INTEGER,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, shot_slot_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS affect_envelope (
+      project_id TEXT PRIMARY KEY,
+      duration_sec REAL NOT NULL,
+      sample_rate INTEGER NOT NULL DEFAULT 2,
+      arousal_series TEXT NOT NULL,
+      valence_series TEXT NOT NULL,
+      anchors TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS palimpsest_layers (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      depth INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      metaphor_tags TEXT NOT NULL DEFAULT '[]',
+      emotional_signature TEXT NOT NULL,
+      vitality REAL NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_palimpsest_project_depth ON palimpsest_layers(project_id, depth DESC);
+
+    CREATE TABLE IF NOT EXISTS ghost_previews (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      thumb_path TEXT NOT NULL,
+      asset_path TEXT NOT NULL,
+      compiled_prompt TEXT NOT NULL,
+      resonance_hash TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS probe_budget (
+      project_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      limit_count INTEGER NOT NULL DEFAULT 20,
+      PRIMARY KEY (project_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS crystallization_snapshots (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      mp4_path TEXT NOT NULL DEFAULT '',
+      duration_sec REAL NOT NULL DEFAULT 0,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `)
 }
 
 function migrateV5Schema(database: Database.Database): void {

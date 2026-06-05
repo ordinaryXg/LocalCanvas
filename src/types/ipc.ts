@@ -7,6 +7,16 @@ import type {
   CapabilitySyncResult,
   ProbedProfileEntry,
 } from './capability-sync'
+import type {
+  AffectEnvelope,
+  ChorusResolution,
+  FluidEvent,
+  FluidState,
+  GhostPreview,
+  PalimpsestLayer,
+  ResonanceSource,
+  ShotCandidate,
+} from './fluid'
 
 export interface ModelProgressEvent {
   taskId?: string
@@ -442,6 +452,121 @@ export interface LocalCanvasAPI {
     }) => Promise<GenerationRecord[]>
     getStats: () => Promise<GenerationStats>
     delete: (id: string) => Promise<{ success: boolean }>
+  }
+  fluid: {
+    getState: (projectId: string) => Promise<FluidState>
+    patchState: (projectId: string, patch: Partial<FluidState>) => Promise<FluidState>
+    listEvents: (projectId: string, limit?: number) => Promise<FluidEvent[]>
+    endSession: (projectId: string) => Promise<{ success: boolean }>
+    appendEvent: (
+      projectId: string,
+      name: string,
+      payload?: Record<string, unknown>,
+    ) => Promise<FluidEvent>
+  }
+  resonance: {
+    list: (projectId: string) => Promise<ResonanceSource[]>
+    getField: (projectId: string) => Promise<{ projectId: string; sources: ResonanceSource[] }>
+    compilePrompt: (projectId: string) => Promise<{ prompt: string; negativePrompt: string }>
+    create: (
+      projectId: string,
+      type: string,
+      payload: { text?: string; assetPath?: string },
+    ) => Promise<ResonanceSource>
+    patch: (id: string, patch: { gravity?: number }) => Promise<ResonanceSource | null>
+    delete: (id: string) => Promise<{ success: boolean }>
+  }
+  fluidCompiler: {
+    compileDown: (
+      projectId: string,
+      nodes: unknown[],
+      edges: unknown[],
+    ) => Promise<{ nodes: unknown[]; edges: unknown[]; changedNodeIds: string[] }>
+    projectUp: (
+      projectId: string,
+      nodes: unknown[],
+      compiledPrompt: string,
+    ) => Promise<{ bindings: unknown[]; conflict: boolean; compiledPrompt: string }>
+    syncBindings: (projectId: string, nodes: unknown[]) => Promise<unknown[]>
+  }
+  affect: {
+    get: (projectId: string) => Promise<AffectEnvelope>
+    save: (envelope: AffectEnvelope) => Promise<AffectEnvelope>
+    detectCliffs: (
+      projectId: string,
+    ) => Promise<Array<{ timeSec: number; delta: number; slope: number }>>
+  }
+  superposed: {
+    list: (shotSlotId: string) => Promise<ShotCandidate[]>
+    append: (input: {
+      projectId: string
+      shotSlotId: string
+      assetPath: string
+      thumbPath: string
+      promptSnapshot: string
+      resonanceHash?: string
+    }) => Promise<ShotCandidate>
+    collapse: (candidateId: string) => Promise<ShotCandidate | null>
+    archive: (candidateId: string) => Promise<{ success: boolean }>
+    unresolvedCount: (projectId: string) => Promise<number>
+  }
+  palimpsest: {
+    append: (
+      projectId: string,
+      input: {
+        eventType: string
+        textSnapshot?: string
+        userReason?: string
+        metaphorTags?: string[]
+      },
+    ) => Promise<PalimpsestLayer>
+    list: (projectId: string) => Promise<PalimpsestLayer[]>
+    recall: (
+      projectId: string,
+      query: { tags?: string[]; layerHint?: number },
+    ) => Promise<PalimpsestLayer[]>
+    reviveToResonance: (projectId: string, layerId: string) => Promise<ResonanceSource | null>
+  }
+  chorus: {
+    deliberate: (projectId: string) => Promise<{
+      utterances: Array<{ voiceId: string; text: string; stance: string }>
+      resolution: ChorusResolution
+    }>
+    apply: (projectId: string, resolution: ChorusResolution) => Promise<unknown>
+  }
+  negentropy: {
+    detect: (
+      projectId: string,
+      prompt: string,
+      assetPath?: string,
+    ) => Promise<
+      Array<{
+        id: string
+        label: string
+        reason: string
+        promptTokensToRemove: string[]
+        negativeTerms: string[]
+        confidence: number
+      }>
+    >
+  }
+  probe: {
+    getBudget: (projectId: string) => Promise<{ used: number; limit: number }>
+    notifyChange: (projectId: string) => Promise<GhostPreview | { skipped: boolean; reason: string }>
+  }
+  crystallize: {
+    precheck: (
+      projectId: string,
+      durationSec?: number,
+    ) => Promise<{
+      ok: boolean
+      collapsedRatio: number
+      unresolvedGhosts: number
+      pendingCliffs: number
+      durationSec: number
+      blockers: string[]
+    }>
+    snapshot: (projectId: string, payload: object) => Promise<{ id: string }>
   }
   workflow: {
     list: (presetOnly?: boolean) => Promise<WorkflowSummary[]>

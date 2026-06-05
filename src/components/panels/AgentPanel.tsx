@@ -8,6 +8,8 @@ import { WorkflowPlanPreview } from './WorkflowPlanPreview'
 import { handleError } from '../../utils/ErrorHandler'
 import { useT } from '../../i18n'
 import type { WorkflowPlan } from '../../types/agent'
+import { useBreathStore } from '../../stores/breathStore'
+import { FLUID_UI } from '../../constants/fluidFeatures'
 
 function loadDisabledSkills(): string[] {
   try {
@@ -72,7 +74,15 @@ export function AgentPanel() {
         timestamp: new Date().toISOString(),
       })
 
-      if (result.plan) setPendingPlan(result.plan)
+      if (result.plan && useBreathStore.getState().canShowWorkflowPlan()) {
+        setPendingPlan(result.plan)
+      } else if (result.plan && FLUID_UI) {
+        appendMessage({
+          role: 'assistant',
+          content: '（计划已记下，屏息后再展开）',
+          timestamp: new Date().toISOString(),
+        })
+      }
     } catch (err) {
       handleError(err, 'agentChat')
     } finally {

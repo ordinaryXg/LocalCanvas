@@ -26,6 +26,7 @@ import { registerAgentIpc } from './agent'
 import { registerStoryboardIpc } from './storyboard'
 import { registerAudioIpc } from './audio'
 import { registerCapabilityIpc } from './capability'
+import { registerFluidIpc } from './fluid'
 import { restoreSession } from '../services/auth-service'
 import { ensureDiskSpace } from '../services/disk-space'
 import { logger } from '../services/logger'
@@ -197,4 +198,5 @@ export function registerIpcHandlers(): void {
   registerHistoryIpc()
   registerWorkflowIpc()
   registerUpdateIpc()
+  registerFluidIpc()
 }
