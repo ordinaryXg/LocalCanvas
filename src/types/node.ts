@@ -1,6 +1,6 @@
 import type { Node, Edge } from '@xyflow/react'
 
-export type NodeType = 'text' | 'image' | 'video' | 'audio' | 'script' | 'compose' | 'group'
+export type NodeType = 'text' | 'image' | 'video' | 'audio' | 'script' | 'compose' | 'storyboard' | 'group'
 
 export interface TextNodeData {
   /** 节点内直接编辑的输入内容 */
@@ -121,4 +121,5 @@ export const NODE_TYPE_META: NodeTypeMeta[] = [
   { type: 'audio', label: '音频', icon: '🎵', color: '#22c55e' },
   { type: 'script', label: '脚本', icon: '🎬', color: '#f59e0b' },
   { type: 'compose', label: '合成', icon: '🎞️', color: '#6366f1' },
+  { type: 'storyboard', label: '分镜组', icon: '🎞️', color: '#a855f7' },
 ]

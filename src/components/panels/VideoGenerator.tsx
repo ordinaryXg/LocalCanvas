@@ -8,6 +8,9 @@ import { resolveImageRefFromNodeId } from '../../utils/resolveImageRefForApi'
 import { resolveVideoFrameRefForApi } from '../../utils/resolveVideoFrameRef'
 import { NodeImageThumb } from '../common/NodeImageThumb'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
+import { ResizableTextarea } from '../common/ResizableTextarea'
+import { STYLE_PRESETS, applyStyleToPrompt } from '../../constants/stylePresets'
+import { useI18nStore } from '../../i18n'
 import {
   SEEDANCE_T2V_RATIOS,
   SEEDANCE_CAMERA_PROMPTS,
@@ -37,6 +40,8 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
   )
   const [generateAudio, setGenerateAudio] = useState(data.generateAudio !== false)
   const [camera, setCamera] = useState((data.camera as string) || '静止')
+  const [styleId, setStyleId] = useState((data.styleId as string) || '')
+  const locale = useI18nStore((s) => s.locale)
   const [videoModels, setVideoModels] = useState<VideoModelConfig[]>([])
   const { isGenerating, progress, lastError, run, cancel } = useModelGeneration(nodeId, (pct) => {
     updateNodeData(nodeId, { progress: pct })
@@ -92,6 +97,9 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
 
     try {
+      const preset = STYLE_PRESETS.find((p) => p.id === styleId)
+      const finalPrompt = preset ? applyStyleToPrompt(prompt, preset) : prompt
+
       const firstFrame = firstFrameEdge
         ? await resolveImageRefFromNodeId(firstFrameEdge.source, nodes, currentProjectId)
         : await resolveVideoFrameRefForApi(data, 'first', currentProjectId)
@@ -103,7 +111,7 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         window.api.model.beginGenerateVideo({
         modelId,
         nodeId,
-        prompt,
+        prompt: finalPrompt,
         width: 1280,
         height: 720,
         duration,
@@ -133,6 +141,7 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         resolution,
         generateAudio,
         camera,
+        styleId: styleId || undefined,
         isGenerating: false,
         progress: 100,
       })
@@ -157,11 +166,11 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         </div>
         <div>
           <label className="text-[10px] text-text-muted">画面描述（支持运镜自然语言）</label>
-          <textarea
+          <ResizableTextarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="描述视频画面和运动，例如：金色柴犬在阳光下的麦田中奔跑，广角跟拍，电影感..."
-            className="w-full h-16 bg-bg-tertiary text-text-primary text-xs p-2 rounded resize-none outline-none"
+            minHeight={100}
           />
         </div>
         <div className="flex gap-2 items-center flex-wrap">
@@ -209,6 +218,21 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             {videoModels.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] text-text-muted">风格模板</label>
+          <select
+            value={styleId}
+            onChange={(e) => setStyleId(e.target.value)}
+            className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
+          >
+            <option value="">无</option>
+            {STYLE_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {locale === 'en-US' ? p.nameEn : p.name}
               </option>
             ))}
           </select>

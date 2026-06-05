@@ -15,6 +15,11 @@
   --node-video: #f43f5e;
   --node-audio: #22c55e;
   --node-script: #f59e0b;
+  --scrollbar-size: 8px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in srgb, var(--color-text-muted) 42%, var(--color-bg-primary));
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--color-accent) 45%, var(--color-text-muted));
+  --scrollbar-thumb-active: color-mix(in srgb, var(--color-accent) 65%, var(--color-text-muted));
 }
 
 @theme {

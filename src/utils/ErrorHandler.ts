@@ -1,3 +1,6 @@
+import { AdapterError, AdapterErrorCode, ADAPTER_USER_MESSAGES } from '../types/adapter-errors'
+import { t } from '../i18n'
+
 export enum ErrorCategory {
   NETWORK = 'network',
   MODEL_API = 'model_api',
@@ -32,8 +35,20 @@ export function showToast(message: string, type: 'error' | 'info' = 'error'): vo
   toastHandler?.(message, type)
 }
 
+function resolveAdapterMessage(error: AdapterError): string {
+  const key = `error.${error.code}`
+  const translated = t(key)
+  if (translated !== key) return translated
+  return ADAPTER_USER_MESSAGES[error.code] || error.userMessage
+}
+
 export function handleError(error: unknown, context?: string): void {
   console.error('[ErrorHandler]', context, error)
+
+  if (error instanceof AdapterError) {
+    toastHandler?.(resolveAdapterMessage(error), 'error')
+    return
+  }
 
   if (error instanceof AppError) {
     toastHandler?.(error.userMessage, 'error')
@@ -41,9 +56,22 @@ export function handleError(error: unknown, context?: string): void {
   }
 
   if (error instanceof Error) {
-    toastHandler?.(error.message || '操作失败，请重试', 'error')
+    toastHandler?.(error.message || t('error.UNKNOWN'), 'error')
     return
   }
 
-  toastHandler?.('操作失败，请重试', 'error')
+  toastHandler?.(t('error.UNKNOWN'), 'error')
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof AdapterError) return resolveAdapterMessage(error)
+  if (error instanceof AppError) return error.userMessage
+  if (error instanceof Error) return error.message || t('error.UNKNOWN')
+  return t('error.UNKNOWN')
+}
+
+/** Document alias: RATE_LIMITED maps to QUOTA_EXCEEDED messaging */
+export const ERROR_CODE_ALIASES: Partial<Record<string, AdapterErrorCode>> = {
+  RATE_LIMITED: AdapterErrorCode.QUOTA_EXCEEDED,
+  CONNECTION_FAILED: AdapterErrorCode.CONNECTION_REFUSED,
 }

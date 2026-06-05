@@ -3,12 +3,15 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
 import { getDatabase, closeDatabase } from './database'
+import { installPresetWorkflows } from './repositories/preset-workflows'
 import { getUtilityClient } from './services/utility-client'
 import { getDbPath } from './ipc/model'
+import { setMainWindow, getMainWindow } from './window'
+import { handleWindowClose } from './ipc/app'
+import { setMainLocale } from './i18n'
+import { setupAutoUpdater } from './services/updater'
 import './services/logger'
 import { logger } from './services/logger'
-
-let mainWindow: BrowserWindow | null = null
 
 function getPreloadPath(): string {
   if (is.dev) {
@@ -18,7 +21,7 @@ function getPreloadPath(): string {
 }
 
 function createWindow(): void {
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
@@ -26,6 +29,7 @@ function createWindow(): void {
     title: 'LocalCanvas',
     backgroundColor: '#1a1a2e',
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -34,12 +38,19 @@ function createWindow(): void {
     },
   })
 
+  setMainWindow(mainWindow)
+
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    mainWindow.show()
+    setupAutoUpdater(mainWindow)
+  })
+
+  mainWindow.on('close', (e) => {
+    void handleWindowClose(e, mainWindow)
   })
 
   mainWindow.on('closed', () => {
-    mainWindow = null
+    setMainWindow(null)
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -78,7 +89,9 @@ app.whenReady().then(() => {
   })
 
   getDatabase()
+  installPresetWorkflows()
   registerIpcHandlers()
+  setMainLocale('zh-CN', getMainWindow)
   void getUtilityClient()
     .start(getDbPath())
     .catch((err) => logger.error('Failed to start utility process', err))
@@ -101,8 +114,6 @@ app.on('before-quit', () => {
   closeDatabase()
 })
 
-export function getMainWindow(): BrowserWindow | null {
-  return mainWindow
-}
+export { getMainWindow } from './window'
 
 logger.info('LocalCanvas main process starting')

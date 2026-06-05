@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  Panel,
   ReactFlowProvider,
   useReactFlow,
   type Connection,
@@ -21,16 +22,23 @@ import { VideoNode } from '../nodes/VideoNode'
 import { AudioNode } from '../nodes/AudioNode'
 import { ScriptNode } from '../nodes/ScriptNode'
 import { ComposeNode } from '../nodes/ComposeNode'
+import { StoryboardGroupNode } from '../nodes/StoryboardGroupNode'
+import { useAgentStore } from '../../stores/agentStore'
 import { ContextMenu, NodePicker, useContextMenuHandlers, type ContextMenuState } from './ContextMenu'
 import { CanvasToolbar } from './CanvasToolbar'
 import { GeneratorPanel } from '../panels/GeneratorPanel'
-import { TimelinePanel } from '../panels/TimelinePanel'
 import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from '../../utils/portCompat'
 import { useDataFlow } from '../../hooks/useDataFlow'
 import { useFileDrop, useSidebarNodeDrop, useAssetDrop, useKeyboardShortcuts } from '../../hooks/useKeyboard'
 import { useAutoSave, useManualSave } from '../../hooks/useAutoSave'
 import { generateNodeId } from '../../utils/id'
 import { CANVAS_MIN_ZOOM, CANVAS_MAX_ZOOM } from '../../utils/constants'
+import { useDagRun } from '../../hooks/useDagRun'
+import { DagRunPanel } from '../panels/DagRunPanel'
+import { SlashCommandPalette } from './SlashCommandPalette'
+import { useCanvasStore as getCanvasStore } from '../../stores/canvasStore'
+import { useProjectStore } from '../../stores/projectStore'
+import { showToast } from '../../utils/ErrorHandler'
 
 const nodeTypes = {
   text: TextNode,
@@ -39,6 +47,7 @@ const nodeTypes = {
   audio: AudioNode,
   script: ScriptNode,
   compose: ComposeNode,
+  storyboard: StoryboardGroupNode,
 }
 
 function CanvasInner() {
@@ -58,8 +67,13 @@ function CanvasInner() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null)
   const [middleMouseDown, setMiddleMouseDown] = useState(false)
+  const [slashOpen, setSlashOpen] = useState(false)
+  const [slashQuery, setSlashQuery] = useState('')
+  const [slashPos, setSlashPos] = useState({ x: 0, y: 0 })
   const middleMouseDownRef = useRef(false)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
+  const { runState, startRun, dismiss } = useDagRun()
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -102,6 +116,90 @@ function CanvasInner() {
   useDataFlow()
   useKeyboardShortcuts(saveProject)
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+      if (e.key === '/' && !slashOpen) {
+        e.preventDefault()
+        setSlashPos({ x: window.innerWidth / 2 - 120, y: window.innerHeight / 2 - 80 })
+        setSlashQuery('')
+        setSlashOpen(true)
+        return
+      }
+
+      if (slashOpen) {
+        if (e.key === 'Backspace') {
+          setSlashQuery((q) => q.slice(0, -1))
+        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+          setSlashQuery((q) => q + e.key)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [slashOpen])
+
+  const handleSlashSelect = useCallback(
+    (cmd: { id: string }) => {
+      setSlashOpen(false)
+      if (cmd.id === 'agent') {
+        useAgentStore.getState().setPanelOpen(true)
+        return
+      }
+      if (cmd.id === 'grid3' || cmd.id === 'grid5') {
+        const layout = cmd.id === 'grid3' ? 'grid3' : 'grid5'
+        const store = getCanvasStore.getState()
+        const targets = selectedNodeIds.length
+          ? store.nodes.filter((n) => selectedNodeIds.includes(n.id) && n.type === 'storyboard')
+          : store.nodes.filter((n) => n.type === 'storyboard')
+        for (const n of targets) {
+          store.updateNodeData(n.id, { layout })
+        }
+        return
+      }
+      if (cmd.id === 'run') {
+        const ids =
+          selectedNodeIds.length > 0
+            ? selectedNodeIds
+            : getCanvasStore.getState().nodes.map((n) => n.id)
+        void startRun(ids)
+        return
+      }
+      if (cmd.id === 'exportStoryboard') {
+        const store = getCanvasStore.getState()
+        const projectId = useProjectStore.getState().currentProjectId
+        const targets = selectedNodeIds.length
+          ? store.nodes.filter((n) => selectedNodeIds.includes(n.id) && n.type === 'storyboard')
+          : store.nodes.filter((n) => n.type === 'storyboard')
+        const target = targets[0]
+        if (!target || !projectId) return
+        const frames = (target.data.frames as Array<{
+          sequence: number
+          description: string
+          imagePath?: string
+        }>) ?? []
+        if (frames.length === 0) return
+        void window.api.storyboard.export({
+          projectId,
+          format: 'png',
+          layout: (target.data.layout as 'list' | 'grid3' | 'grid5') || 'grid3',
+          frames: frames.map((f) => ({
+            sequence: f.sequence,
+            description: f.description,
+            imageAssetPath: f.imagePath,
+          })),
+        }).then(() => window.api.storyboard.openOutputDir())
+        return
+      }
+      if (cmd.id === 'style') {
+        showToast('请在右侧生成器面板选择「风格模板」', 'info')
+      }
+    },
+    [selectedNodeIds, startRun],
+  )
+
   const fileDrop = useFileDrop()
   const sidebarDrop = useSidebarNodeDrop()
   const assetDrop = useAssetDrop()
@@ -138,9 +236,18 @@ function CanvasInner() {
     [onConnect],
   )
 
+  useEffect(() => {
+    setZoom(Math.round(reactFlow.getZoom() * 100))
+  }, [reactFlow, viewport.zoom])
+
+  const handleMove = useCallback(
+    (_event: unknown, vp: { zoom: number }) => {
+      setZoom(Math.round(vp.zoom * 100))
+    },
+    [],
+  )
+
   const handleMoveEnd = useCallback(() => {
-    const z = reactFlow.getZoom()
-    setZoom(Math.round(z * 100))
     setViewport(reactFlow.getViewport())
   }, [reactFlow, setViewport])
 
@@ -220,6 +327,7 @@ function CanvasInner() {
         zoomOnScroll={!middleMouseDown}
         deleteKeyCode={['Delete', 'Backspace']}
         onEdgeClick={handleEdgeClick}
+        onMove={handleMove}
         onMoveEnd={handleMoveEnd}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}
@@ -234,8 +342,10 @@ function CanvasInner() {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
-        <Controls className="controls-dark" />
+        <Controls className="controls-dark" position="bottom-left" />
         <MiniMap
+          pannable
+          zoomable={false}
           nodeColor={(node) => {
             const colors: Record<string, string> = {
               text: '#8b5cf6',
@@ -244,22 +354,34 @@ function CanvasInner() {
               audio: '#22c55e',
               script: '#f59e0b',
               compose: '#6366f1',
+              storyboard: '#a855f7',
             }
             return colors[node.type || 'text'] || '#6366f1'
           }}
           maskColor="rgba(0,0,0,0.7)"
-          className="minimap-dark"
+          className="minimap-dark minimap-pannable"
+          position="bottom-right"
         />
+        <Panel position="bottom-left" className="canvas-zoom-panel">
+          <span className="canvas-zoom-label">{zoom}%</span>
+        </Panel>
       </ReactFlow>
 
-      <div className="absolute bottom-4 left-4 bg-bg-secondary/80 px-2 py-1 rounded text-xs text-text-muted z-10">
-        {zoom}%
-      </div>
-
       <CanvasToolbar />
-      <TimelinePanel />
       <GeneratorPanel />
-      <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
+      <ContextMenu
+        menu={contextMenu}
+        onClose={() => setContextMenu(null)}
+        onRunGroup={(ids) => void startRun(ids)}
+      />
+      <SlashCommandPalette
+        open={slashOpen}
+        query={slashQuery}
+        position={slashPos}
+        onSelect={handleSlashSelect}
+        onClose={() => setSlashOpen(false)}
+      />
+      <DagRunPanel runState={runState} onClose={dismiss} />
 
       {nodePicker && (
         <NodePicker

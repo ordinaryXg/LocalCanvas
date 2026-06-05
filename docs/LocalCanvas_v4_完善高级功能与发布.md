@@ -24,7 +24,7 @@
 | 11 | 工作流 | 预置工作流模板 | P1 | #10 |
 | 12 | 工作流 | 导入/导出工作流 JSON | P2 | #9 |
 | 13 | 错误处理 | API 超时/重试 | P0 | — |
-| 14 | 错误处理 | ComfyUI 离线检测 | P0 | — |
+| 14 | 错误处理 | 模型 API 离线检测 | P0 | — |
 | 15 | 错误处理 | 限流自动等待 | P1 | #13 |
 | 16 | 错误处理 | 异常退出恢复 | P0 | — |
 | 17 | 自动保存 | 每 30s 自动保存 | P0 | v1 基础 |
@@ -40,13 +40,13 @@
 | 27 | 文档 | README.md | P0 | — |
 | 28 | 文档 | 快速入门指南 | P0 | — |
 | 29 | 文档 | 模型配置指南 | P1 | — |
-| 30 | 文档 | ComfyUI 工作流模板说明 | P1 | — |
+| 30 | 文档 | 画布工作流模板说明 | P1 | — |
 
 ---
 
 ## 二、技术架构（v4 新增）
 
-> **⚠️ 关键修正**：ReplicateAdapter 和 CustomAdapter 与 v2 的 ComfyUI/OpenAI 适配器一样，必须在 Utility Process 中执行。
+> **⚠️ 关键修正**：ReplicateAdapter 和 CustomAdapter 与 v2 的 RemoteApi/Seedance 适配器一样，必须在 Utility Process 中执行。
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -75,8 +75,8 @@
 │ │ Utility Process（v4 扩展适配器层）                               ││
 │ │ │                                                                ││
 │ │ ├── 适配器层（统一 ModelAdapter 接口，v2 定义）                   ││
-│ │ │   ├── ComfyUIAdapter (v2)                                     ││
-│ │ │   ├── OpenAICompatibleAdapter (v2)                            ││
+│ │ │   ├── RemoteApiAdapter (v2，OpenAI 兼容 HTTP)                  ││
+│ │ │   ├── SeedanceAdapter (v2，火山方舟视频)                       ││
 │ │ │   ├── ReplicateAdapter (v4 新增)                              ││
 │ │ │   │   ├── createPrediction() → prediction_id                  ││
 │ │ │   │   ├── pollStatus(prediction_id) → status                  ││
@@ -88,8 +88,7 @@
 │ │ │                                                                ││
 │ │ ├── 错误处理（统一 AdapterError，v2 定义）                       ││
 │ │ │   ├── RetryManager (指数退避, max 3 次)                        ││
-│ │ │   ├── ComfyUIHealthChecker (每 30s ping)                      ││
-│ │ │   └── CrashRecovery (重启恢复 running 任务)                    ││
+│ │ │   └── TaskQueue 崩溃恢复 (重启恢复 running 任务)              ││
 │ │ │                                                                ││
 │ │ └── 日志 (electron-log)                                         ││
 │ └─────────────────────────────────────────────────────────────────┘│
@@ -1142,58 +1141,9 @@ export async function withRetry<T>(
 
 ---
 
-#### Step 4.4.2 ComfyUI 健康检查
+#### Step 4.4.2 模型 API 连通性检测
 
-**文件**：`electron/utility/services/health-checker.ts`
-
-```typescript
-import axios from 'axios'
-import { EventEmitter } from 'events'
-
-export class ComfyUIHealthChecker extends EventEmitter {
-  private endpoint: string
-  private intervalMs: number
-  private timer: ReturnType<typeof setInterval> | null = null
-  private lastStatus: 'online' | 'offline' = 'offline'
-
-  constructor(endpoint: string, intervalMs: number = 30000) {
-    super()
-    this.endpoint = endpoint
-    this.intervalMs = intervalMs
-  }
-
-  start(): void {
-    this.check()
-    this.timer = setInterval(() => this.check(), this.intervalMs)
-  }
-
-  stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer)
-      this.timer = null
-    }
-  }
-
-  private async check(): Promise<void> {
-    try {
-      await axios.get(`${this.endpoint}/system_stats`, { timeout: 5000 })
-      if (this.lastStatus === 'offline') {
-        this.lastStatus = 'online'
-        this.emit('statusChange', 'online')
-      }
-    } catch {
-      if (this.lastStatus === 'online') {
-        this.lastStatus = 'offline'
-        this.emit('statusChange', 'offline')
-      }
-    }
-  }
-
-  getStatus(): 'online' | 'offline' {
-    return this.lastStatus
-  }
-}
-```
+通过各适配器的 `getStatus()` 与设置面板的「测试连接」完成，无需独立健康检查服务。连接失败时统一映射为 `AdapterError.CONNECTION_REFUSED` / `NETWORK_ERROR`。
 
 ---
 
@@ -1288,10 +1238,6 @@ files:
   - "!node_modules/**/{test,tests,__tests__,spec}/**"
   - "!node_modules/**/*.md"
   - "!**/*.map"
-
-extraResources:
-  - from: resources/workflows
-    to: workflows
 
 win:
   target:
@@ -1393,7 +1339,7 @@ export function installUpdate(): void {
 - **无限画布** — 自由缩放、平移、节点式创作
 - **5 种节点** — 文本/图片/视频/音频/脚本
 - **连线工作流** — 节点间数据流传递，自动化创作
-- **模型可配置** — 支持 ComfyUI / OpenAI 兼容 / Replicate / 自定义 API
+- **模型可配置** — 支持 OpenAI 兼容 / Seedance / Replicate / 自定义 HTTP API
 - **脚本节点** — 输入故事梗概 → AI 自动生成分镜 → 批量生成视频
 - **视频合成** — 多片段拼接、裁取、混流、导出 MP4
 - **完全本地** — 无需登录，数据不离开你的电脑
@@ -1412,22 +1358,13 @@ export function installUpdate(): void {
 
 ## 快速开始
 
-### 1. 安装 ComfyUI（推荐）
-```bash
-# 克隆 ComfyUI
-git clone https://github.com/comfyanonymous/ComfyUI
-cd ComfyUI
-pip install -r requirements.txt
-python main.py --listen 0.0.0.0
-```
-
-### 2. 配置模型
+### 1. 配置模型
 首次启动 LocalCanvas 会弹出引导界面：
-- 输入 ComfyUI 地址（默认 `http://127.0.0.1:8188`）
-- 点击「测试连接」
-- 完成配置
+- 配置火山方舟 API Key（图像 Seedream / 视频 Seedance）
+- 或配置其他 OpenAI 兼容 / Replicate / 自定义 HTTP 端点
+- 点击「测试连接」确认可用
 
-### 3. 第一次生成
+### 2. 第一次生成
 1. 双击画布 → 创建文本节点 → 输入画面描述
 2. 从文本节点拉线到图片节点
 3. 选择模型 → 点击「生成」
@@ -1437,7 +1374,7 @@ python main.py --listen 0.0.0.0
 
 编辑 `~/.localcanvas/config.yaml`，可配置：
 
-- **ComfyUI 本地模型**：FLUX / SDXL / CogVideoX 等
+- **火山方舟 Seedream / Seedance**：图像与视频生成（推荐）
 - **OpenAI 兼容 API**：Qwen / DeepSeek / GLM 等
 - **Replicate 云端模型**：无需本地 GPU
 - **自定义 HTTP 端点**：任意 API 接口
@@ -1530,10 +1467,10 @@ export function StatsPanel() {
 
 | 错误场景 | 检测方式 | 处理策略 | 用户提示 |
 |----------|----------|----------|----------|
-| ComfyUI 离线 | HealthChecker 定期 ping | 提示启动 ComfyUI + 重试 | 「ComfyUI 未连接，请检查是否已启动」 |
+| 模型 API 离线 | 测试连接 / getStatus | 提示检查端点与 API Key + 重试 | 「无法连接到模型服务，请检查配置」 |
 | API 超时 | axios timeout 60s | 指数退避重试 2 次 | 「请求超时，正在重试...」 |
 | API 限流 | HTTP 429 | 自动等待 Retry-After | 「API 限流，{n}秒后重试」 |
-| 生成失败 | ComfyUI execution_error | 显示错误 + 重试按钮 | 「生成失败：{error}」 |
+| 生成失败 | 模型返回错误 | 显示错误 + 重试按钮 | 「生成失败：{error}」 |
 | 磁盘空间不足 | 写入前检查 | 警告 + 清理建议 | 「磁盘空间不足，建议清理临时文件」 |
 | 文件损坏 | JSON.parse 失败 | 从 .tmp 恢复 | 「检测到未保存的项目，已自动恢复」 |
 | 网络断开 | axios Network Error | 等待网络恢复 | 「网络不可用，请检查连接」 |
@@ -1557,7 +1494,7 @@ export function StatsPanel() {
 - [ ] 安装包可正常安装
 - [ ] 安装后可正常启动
 - [ ] 首次引导流程正常
-- [ ] ComfyUI 连接正常
+- [ ] 模型 API 连接正常
 - [ ] 图像/视频生成正常
 - [ ] 视频合成/导出正常
 - [ ] 项目保存/加载正常
@@ -1601,7 +1538,7 @@ export function StatsPanel() {
 
 ### 错误处理
 - [ ] API 超时自动重试（指数退避，max 3 次）
-- [ ] ComfyUI 离线有检测和提示
+- [ ] 模型 API 离线有检测和提示
 - [ ] 崩溃后 running 任务可恢复
 - [ ] 各种错误场景有友好提示（错误处理矩阵覆盖）
 - [ ] 自动保存（30s + 失焦 + 关闭前）
@@ -1664,8 +1601,7 @@ export function StatsPanel() {
 | ReplicateAdapter | Utility | `electron/utility/services/model-adapter/replicate.ts` |
 | CustomAdapter | Utility | `electron/utility/services/model-adapter/custom.ts` |
 | RetryManager | Utility | `electron/utility/services/retry-manager.ts` |
-| ComfyUIHealthChecker | Utility | `electron/utility/services/health-checker.ts` |
-| CrashRecovery | Utility | `electron/utility/services/crash-recovery.ts` |
+| TaskQueue 崩溃恢复 | Utility | `electron/utility/services/task-queue.ts` |
 | GenerationRepository | Main | `electron/main/repositories/generation-repository.ts` |
 | WorkflowRepository | Main | `electron/main/repositories/workflow-repository.ts` |
 | AutoUpdater | Main | `electron/main/services/updater.ts` |
@@ -1803,7 +1739,7 @@ src/i18n/
 
 | 错误场景 | 错误类型 | AdapterErrorCode | 检测方式 | 处理策略 | 用户提示（i18n key） |
 |----------|----------|-------------------|----------|----------|----------------------|
-| ComfyUI 离线 | AdapterError | `CONNECTION_FAILED` | HealthChecker 定期 ping | 提示启动 ComfyUI + 重试 | `error.connection_failed` |
+| 模型 API 离线 | AdapterError | `CONNECTION_REFUSED` | 测试连接 / getStatus | 提示检查端点与 API Key | `error.connection_failed` |
 | API 超时 | AdapterError | `TIMEOUT` | axios timeout 60s | 指数退避重试 2 次 | `error.timeout` |
 | API 限流 | AdapterError | `RATE_LIMITED` | HTTP 429 | 自动等待 Retry-After | `error.rate_limited` |
 | 认证失败 | AdapterError | `AUTH_FAILED` | HTTP 401 | 不重试，提示检查配置 | `error.auth_failed` |

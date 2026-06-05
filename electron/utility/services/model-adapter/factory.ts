@@ -9,6 +9,8 @@ import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-er
 import { ModelAdapter } from './base'
 import { RemoteApiAdapter } from './remote-api'
 import { SeedanceAdapter } from './seedance'
+import { ReplicateAdapter } from './replicate'
+import { CustomAdapter } from './custom'
 
 export interface AdapterRegistryOptions {
   outputDir: string
@@ -83,12 +85,28 @@ export class AdapterRegistry {
     const cached = this.instances.get(key)
     if (cached) return cached
 
-    const adapter = new RemoteApiAdapter({
-      endpoint: config.endpoint,
-      apiKey: config.api_key || '',
-      model: config.model,
-      outputDir: this.options.outputDir,
-    })
+    let adapter: ModelAdapter
+    if (config.provider === 'replicate') {
+      if (!config.api_key?.trim()) {
+        throw new AdapterError(
+          'Replicate API token missing',
+          'custom',
+          AdapterErrorCode.AUTH_FAILED,
+          false,
+          `模型「${config.name}」未配置 Replicate API Token`,
+        )
+      }
+      adapter = new ReplicateAdapter(config.api_key, this.options.outputDir)
+    } else if (config.provider === 'custom' && config.custom_config) {
+      adapter = new CustomAdapter(config.custom_config, this.options.outputDir)
+    } else {
+      adapter = new RemoteApiAdapter({
+        endpoint: config.endpoint,
+        apiKey: config.api_key || '',
+        model: config.model,
+        outputDir: this.options.outputDir,
+      })
+    }
     this.instances.set(key, adapter)
     return adapter
   }
@@ -108,6 +126,19 @@ export class AdapterRegistry {
         pollEndpoint: config.poll_endpoint,
         defaultParams: config.default_params,
       })
+    } else if (config.provider === 'replicate') {
+      if (!config.api_key?.trim()) {
+        throw new AdapterError(
+          'Replicate API token missing',
+          'custom',
+          AdapterErrorCode.AUTH_FAILED,
+          false,
+          `视频模型「${config.name}」未配置 Replicate API Token`,
+        )
+      }
+      adapter = new ReplicateAdapter(config.api_key, this.options.outputDir)
+    } else if (config.provider === 'custom' && config.custom_config) {
+      adapter = new CustomAdapter(config.custom_config, this.options.outputDir)
     } else {
       adapter = new RemoteApiAdapter({
         endpoint: config.endpoint,

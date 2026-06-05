@@ -5,6 +5,9 @@ import { useProjectStore } from '../../stores/projectStore'
 import { handleError } from '../../utils/ErrorHandler'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
+import { ResizableTextarea } from '../common/ResizableTextarea'
+import { STYLE_PRESETS, applyStyleToPrompt } from '../../constants/stylePresets'
+import { useI18nStore } from '../../i18n'
 
 interface ImageGeneratorProps {
   nodeId: string
@@ -30,6 +33,8 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
   const [modelId, setModelId] = useState((data.modelId as string) || '')
   const [ratio, setRatio] = useState((data.ratio as string) || '16:9')
   const [batchSize, setBatchSize] = useState(1)
+  const [styleId, setStyleId] = useState((data.styleId as string) || '')
+  const locale = useI18nStore((s) => s.locale)
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([])
   const { isGenerating, progress, run, cancel } = useModelGeneration(nodeId, (pct) => {
     updateNodeData(nodeId, { progress: pct })
@@ -49,14 +54,17 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
 
     const [width, height] = RATIO_MAP[ratio] || [1024, 1024]
+    const preset = STYLE_PRESETS.find((p) => p.id === styleId)
+    const finalPrompt = preset ? applyStyleToPrompt(prompt, preset) : prompt
+    const finalNegative = [negativePrompt, preset?.negativePrompt].filter(Boolean).join(', ')
 
     try {
       const resultPath = await run(() =>
         window.api.model.beginGenerateImage({
           modelId,
           nodeId,
-          prompt,
-          negativePrompt,
+          prompt: finalPrompt,
+          negativePrompt: finalNegative || undefined,
           width,
           height,
           batchSize,
@@ -77,6 +85,7 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
         negativePrompt,
         modelId,
         ratio,
+        styleId: styleId || undefined,
         isGenerating: false,
         progress: 100,
       })
@@ -91,11 +100,11 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
       <div className="flex-1 space-y-2">
         <div>
           <label className="text-[10px] text-text-muted">正向提示词</label>
-          <textarea
+          <ResizableTextarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="描述你想要的画面..."
-            className="w-full h-16 bg-bg-tertiary text-text-primary text-xs p-2 rounded resize-none outline-none"
+            minHeight={100}
           />
         </div>
         <div>
@@ -110,6 +119,21 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
       </div>
 
       <div className="w-56 space-y-2">
+        <div>
+          <label className="text-[10px] text-text-muted">风格模板</label>
+          <select
+            value={styleId}
+            onChange={(e) => setStyleId(e.target.value)}
+            className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
+          >
+            <option value="">无</option>
+            {STYLE_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {locale === 'en-US' ? p.nameEn : p.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="flex gap-2">
           <div className="flex-1">
             <label className="text-[10px] text-text-muted">模型</label>

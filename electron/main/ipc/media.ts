@@ -1,6 +1,7 @@
 import { ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { app } from 'electron'
+import { statSync } from 'fs'
 import { listAssets, importAsset } from '../services/asset'
 import { getThumbnail } from '../services/thumbnail'
 import { getUtilityClient } from '../services/utility-client'
@@ -8,6 +9,7 @@ import { ensureFFmpeg } from '../services/ffmpeg-setup'
 import { persistFfmpegPath } from '../services/ffmpeg-config'
 import { getProjectAssetsPath } from '../services/project'
 import { getDatabase } from '../database'
+import { ensureDiskSpace } from '../services/disk-space'
 import { logger } from '../services/logger'
 
 export function registerMediaIpc(): void {
@@ -116,6 +118,8 @@ export function registerMediaIpc(): void {
         audioPath?: string
         outputName?: string
         reencode?: boolean
+        subtitlePath?: string
+        burnSubtitles?: boolean
       },
     ) => {
       try {
@@ -126,7 +130,29 @@ export function registerMediaIpc(): void {
           )
         }
 
-        const outputPath = await getUtilityClient().compose(payload)
+        let estimatedBytes = 100 * 1024 * 1024
+        for (const clip of payload.clips) {
+          try {
+            estimatedBytes += statSync(clip.path).size
+          } catch {
+            estimatedBytes += 50 * 1024 * 1024
+          }
+        }
+        const outputDir = join(app.getPath('userData'), 'LocalCanvas', 'outputs')
+        ensureDiskSpace(join(outputDir, payload.outputName || 'compose.mp4'), estimatedBytes)
+
+        let subtitlePath: string | undefined
+        if (payload.burnSubtitles && payload.subtitlePath) {
+          const { existsSync } = await import('fs')
+          if (existsSync(payload.subtitlePath)) {
+            subtitlePath = payload.subtitlePath
+          }
+        }
+
+        const outputPath = await getUtilityClient().compose({
+          ...payload,
+          subtitlePath,
+        })
         return { outputPath }
       } catch (error) {
         logger.error('compose:start failed', error)

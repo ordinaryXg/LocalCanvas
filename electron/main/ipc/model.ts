@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { join } from 'path'
 import { app } from 'electron'
 import { getUtilityClient } from '../services/utility-client'
+import { trackGenerationStart, getActiveProjectId } from '../services/generation-tracker'
 import { logger } from '../services/logger'
 
 export function registerModelIpc(): void {
@@ -20,13 +21,24 @@ export function registerModelIpc(): void {
       },
     ) => {
       try {
-        return await getUtilityClient().beginGenerateImage(payload.modelId, payload.nodeId, {
+        const result = await getUtilityClient().beginGenerateImage(payload.modelId, payload.nodeId, {
           prompt: payload.prompt,
           negativePrompt: payload.negativePrompt,
           width: payload.width,
           height: payload.height,
           batchSize: payload.batchSize,
         })
+        trackGenerationStart(
+          result.taskId,
+          'image',
+          payload.modelId,
+          payload.nodeId,
+          payload.prompt,
+          getActiveProjectId() ?? undefined,
+          payload.negativePrompt,
+          { width: payload.width, height: payload.height, batchSize: payload.batchSize },
+        )
+        return result
       } catch (error) {
         logger.error('model:beginGenerateImage failed', error)
         throw error
@@ -83,7 +95,7 @@ export function registerModelIpc(): void {
       },
     ) => {
       try {
-        return await getUtilityClient().beginGenerateVideo(payload.modelId, payload.nodeId, {
+        const result = await getUtilityClient().beginGenerateVideo(payload.modelId, payload.nodeId, {
           prompt: payload.prompt,
           width: payload.width,
           height: payload.height,
@@ -95,6 +107,12 @@ export function registerModelIpc(): void {
           resolution: payload.resolution,
           generateAudio: payload.generateAudio,
         })
+        trackGenerationStart(result.taskId, 'video', payload.modelId, payload.nodeId, payload.prompt, getActiveProjectId() ?? undefined, undefined, {
+          width: payload.width,
+          height: payload.height,
+          duration: payload.duration,
+        })
+        return result
       } catch (error) {
         logger.error('model:beginGenerateVideo failed', error)
         throw error
@@ -155,12 +173,14 @@ export function registerModelIpc(): void {
       },
     ) => {
       try {
-        return await getUtilityClient().beginGenerateText(payload.modelId, payload.nodeId, {
+        const result = await getUtilityClient().beginGenerateText(payload.modelId, payload.nodeId, {
           prompt: payload.prompt,
           systemPrompt: payload.systemPrompt,
           maxTokens: payload.maxTokens,
           temperature: payload.temperature,
         })
+        trackGenerationStart(result.taskId, 'text', payload.modelId, payload.nodeId, payload.prompt, getActiveProjectId() ?? undefined)
+        return result
       } catch (error) {
         logger.error('model:beginGenerateText failed', error)
         throw error
@@ -207,10 +227,12 @@ export function registerModelIpc(): void {
       },
     ) => {
       try {
-        return await getUtilityClient().beginGenerateAudio(payload.modelId, payload.nodeId, {
+        const result = await getUtilityClient().beginGenerateAudio(payload.modelId, payload.nodeId, {
           text: payload.text,
           voice: payload.voice,
         })
+        trackGenerationStart(result.taskId, 'audio', payload.modelId, payload.nodeId, payload.text, getActiveProjectId() ?? undefined)
+        return result
       } catch (error) {
         logger.error('model:beginGenerateAudio failed', error)
         throw error

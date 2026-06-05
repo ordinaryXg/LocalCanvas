@@ -10,7 +10,7 @@ import { SEEDREAM_4_5_IMAGE_MODEL, SEEDREAM_4_0_IMAGE_MODEL } from './seedream'
 export interface ModelPreset {
   id: string
   name: string
-  provider: 'openai_compatible' | 'volcengine_seedance'
+  provider: 'openai_compatible' | 'volcengine_seedance' | 'replicate' | 'custom'
   endpoint: string
   model: string
   envKey: string
@@ -47,6 +47,15 @@ export const LLM_PRESETS: ModelPreset[] = [
     envKey: 'DASHSCOPE_API_KEY',
     kind: 'llm',
   },
+  {
+    id: 'custom-llm',
+    name: 'Custom HTTP（LLM）',
+    provider: 'custom',
+    endpoint: 'https://your-api.example.com/chat',
+    model: 'llm-model',
+    envKey: 'CUSTOM_API_KEY',
+    kind: 'llm',
+  },
 ]
 
 export const IMAGE_PRESETS: ModelPreset[] = [
@@ -77,6 +86,24 @@ export const IMAGE_PRESETS: ModelPreset[] = [
     endpoint: 'https://api.openai.com/v1/images/generations',
     model: 'dall-e-3',
     envKey: 'OPENAI_API_KEY',
+    kind: 'image',
+  },
+  {
+    id: 'replicate-flux',
+    name: 'Replicate (Flux Dev)',
+    provider: 'replicate',
+    endpoint: 'https://api.replicate.com/v1/predictions',
+    model: 'black-forest-labs/flux-dev',
+    envKey: 'REPLICATE_API_TOKEN',
+    kind: 'image',
+  },
+  {
+    id: 'custom-image',
+    name: 'Custom HTTP（图像）',
+    provider: 'custom',
+    endpoint: 'https://your-api.example.com/generate',
+    model: 'image-model',
+    envKey: 'CUSTOM_API_KEY',
     kind: 'image',
   },
 ]
@@ -115,6 +142,15 @@ export const VIDEO_PRESETS: ModelPreset[] = [
     envKey: SEEDANCE_2_0_FAST_VIDEO_MODEL.envKey,
     kind: 'video',
     default_params: SEEDANCE_2_0_FAST_VIDEO_MODEL.default_params,
+  },
+  {
+    id: 'custom-video',
+    name: 'Custom HTTP（视频）',
+    provider: 'custom',
+    endpoint: 'https://your-api.example.com/video',
+    model: 'video-model',
+    envKey: 'CUSTOM_API_KEY',
+    kind: 'video',
   },
 ]
 
@@ -171,6 +207,23 @@ export function presetToModelConfig(
   apiKey = '',
 ): ImageModelConfig | VideoModelConfig | LLMModelConfig | TTSModelConfig {
   if (preset.kind === 'video') {
+    if (preset.provider === 'custom') {
+      return {
+        id: preset.id,
+        name: preset.name,
+        provider: 'custom',
+        endpoint: preset.endpoint,
+        api_key: apiKey,
+        model: preset.model,
+        custom_config: {
+          endpoint: preset.endpoint,
+          method: 'POST',
+          request_template: { prompt: '{{prompt}}', model: preset.model },
+          response_mapping: { output_url: 'data.url', status: 'data.status' },
+          poll_config: { enabled: true, interval_ms: 3000, completion_status: 'completed' },
+        },
+      }
+    }
     return seedanceVideoConfigFromPreset(preset, apiKey)
   }
   if (preset.kind === 'llm') {
@@ -184,7 +237,7 @@ export function presetToModelConfig(
     }
   }
   if (preset.kind === 'image') {
-    return {
+    const base = {
       id: preset.id,
       name: preset.name,
       provider: preset.provider,
@@ -192,6 +245,18 @@ export function presetToModelConfig(
       api_key: apiKey,
       model: preset.model,
     }
+    if (preset.provider === 'custom') {
+      return {
+        ...base,
+        custom_config: {
+          endpoint: preset.endpoint,
+          method: 'POST',
+          request_template: { prompt: '{{prompt}}', model: preset.model },
+          response_mapping: { output_url: 'data.url' },
+        },
+      }
+    }
+    return base
   }
   return {
     id: preset.id,
@@ -200,6 +265,16 @@ export function presetToModelConfig(
     endpoint: preset.endpoint,
     api_key: apiKey,
     model: preset.model,
+    ...(preset.provider === 'custom'
+      ? {
+          custom_config: {
+            endpoint: preset.endpoint,
+            method: 'POST',
+            request_template: { text: '{{prompt}}', model: preset.model },
+            response_mapping: { text: 'data.text' },
+          },
+        }
+      : {}),
   }
 }
 

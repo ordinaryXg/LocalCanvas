@@ -3,6 +3,7 @@ import type { LLMModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { handleError } from '../../utils/ErrorHandler'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
+import { ResizableTextarea } from '../common/ResizableTextarea'
 
 interface TextGeneratorProps {
   nodeId: string
@@ -82,11 +83,10 @@ export function TextGenerator({ nodeId }: TextGeneratorProps) {
               {charCount.toLocaleString()} 字 · {lineCount} 行
             </span>
           </div>
-          <textarea
+          <ResizableTextarea
             value={prompt}
             onChange={(e) => handlePromptChange(e.target.value)}
             placeholder="在此编辑长文本，将同步到节点「输入」栏…"
-            className="w-full min-h-[140px] max-h-[320px] bg-bg-tertiary text-text-primary text-xs p-2 rounded resize-y outline-none border border-border focus:border-accent leading-relaxed"
           />
         </div>
         <div>

@@ -31,6 +31,16 @@ import {
   initComposeService,
   type ComposeOptions,
 } from './services/compose-service'
+import { agentChat } from './services/agent/agent-service'
+import { listSkills } from './services/agent/skills/index'
+import {
+  exportStoryboardPng,
+  exportStoryboardPdf,
+  exportFrame4k,
+  type StoryboardExportFrame,
+  type StoryboardExportLayout,
+} from './services/storyboard-export'
+import { separateVocals, detectDemucs } from './services/audio/vocal-separator'
 
 interface InitMessage {
   type: 'init'
@@ -285,6 +295,105 @@ async function handleComposeRequest(req: UtilityRequest): Promise<void> {
   }
 }
 
+async function handleStoryboardRequest(req: UtilityRequest): Promise<void> {
+  try {
+    await detectFFmpeg(currentConfig?.settings.ffmpeg_path)
+
+    switch (req.channel) {
+      case 'storyboard:export': {
+        const frames = req.data.frames as StoryboardExportFrame[]
+        const layout = (req.data.layout as StoryboardExportLayout) || 'grid3'
+        const baseName = (req.data.baseName as string) || 'storyboard'
+        const format = req.data.format as 'png' | 'pdf'
+        const outputPath =
+          format === 'pdf'
+            ? await exportStoryboardPdf(utilityUserDataPath, frames, layout, baseName)
+            : await exportStoryboardPng(utilityUserDataPath, frames, layout, baseName)
+        post('storyboard:exportResult', { outputPath, format }, req.id)
+        break
+      }
+      case 'storyboard:exportFrame4k': {
+        const imagePath = req.data.imagePath as string
+        const sequence = (req.data.sequence as number) || 1
+        const outputPath = await exportFrame4k(utilityUserDataPath, imagePath, sequence)
+        post('storyboard:exportResult', { outputPath, format: 'frame4k' }, req.id)
+        break
+      }
+      default:
+        post('storyboard:error', { error: `Unknown storyboard channel: ${req.channel}` }, req.id)
+    }
+  } catch (error) {
+    post(
+      'storyboard:error',
+      { error: error instanceof Error ? error.message : String(error) },
+      req.id,
+    )
+  }
+}
+
+async function handleAudioRequest(req: UtilityRequest): Promise<void> {
+  try {
+    await detectFFmpeg(currentConfig?.settings.ffmpeg_path)
+
+    switch (req.channel) {
+      case 'audio:checkDemucs': {
+        const demucsPath = req.data.demucsPath as string | undefined
+        const available = await detectDemucs(demucsPath)
+        post('audio:checkDemucsResult', { available }, req.id)
+        break
+      }
+      case 'audio:separateVocals': {
+        const inputPath = req.data.inputPath as string
+        const result = await separateVocals(inputPath, utilityUserDataPath, {
+          demucsPath: req.data.demucsPath as string | undefined,
+          apiEndpoint: req.data.apiEndpoint as string | undefined,
+          apiKey: req.data.apiKey as string | undefined,
+        })
+        post('audio:separateResult', result, req.id)
+        break
+      }
+      default:
+        post('audio:error', { error: `Unknown audio channel: ${req.channel}` }, req.id)
+    }
+  } catch (error) {
+    post(
+      'audio:error',
+      { error: error instanceof Error ? error.message : String(error) },
+      req.id,
+    )
+  }
+}
+
+function handleAgentRequest(req: UtilityRequest): void {
+  if (!adapters || !currentConfig) {
+    post('agent:error', { error: 'Utility process not initialized' }, req.id)
+    return
+  }
+
+  switch (req.channel) {
+    case 'agent:chat': {
+      void (async () => {
+        try {
+          const result = await agentChat(adapters!, currentConfig!, {
+            message: req.data.message as string,
+            disabledSkills: req.data.disabledSkills as string[] | undefined,
+          })
+          post('agent:result', result, req.id)
+        } catch (error) {
+          post('agent:error', { error: getAdapterErrorMessage(error) }, req.id)
+        }
+      })()
+      break
+    }
+    case 'agent:listSkills': {
+      post('agent:skills', { skills: listSkills() }, req.id)
+      break
+    }
+    default:
+      post('agent:error', { error: `Unknown agent channel: ${req.channel}` }, req.id)
+  }
+}
+
 function handleRequest(req: UtilityRequest): void {
   if (req.channel.startsWith('ffmpeg:')) {
     void handleFfmpegRequest(req)
@@ -292,6 +401,18 @@ function handleRequest(req: UtilityRequest): void {
   }
   if (req.channel.startsWith('compose:')) {
     void handleComposeRequest(req)
+    return
+  }
+  if (req.channel.startsWith('agent:')) {
+    void handleAgentRequest(req)
+    return
+  }
+  if (req.channel.startsWith('storyboard:')) {
+    void handleStoryboardRequest(req)
+    return
+  }
+  if (req.channel.startsWith('audio:')) {
+    void handleAudioRequest(req)
     return
   }
 
@@ -352,11 +473,14 @@ function handleRequest(req: UtilityRequest): void {
               })
             },
             (item) => {
+              const task = tasks.find((t) => t.sequence === item.sequence)
               post('model:batchItemComplete', {
                 scriptNodeId,
                 type: 'image',
                 sequence: item.sequence,
                 result: item.result,
+                modelId: req.data.modelId,
+                prompt: task?.prompt ?? '',
               })
             },
           )
@@ -390,11 +514,14 @@ function handleRequest(req: UtilityRequest): void {
               })
             },
             (item) => {
+              const task = tasks.find((t) => t.sequence === item.sequence)
               post('model:batchItemComplete', {
                 scriptNodeId,
                 type: 'video',
                 sequence: item.sequence,
                 result: item.result,
+                modelId: req.data.modelId,
+                prompt: task?.prompt ?? '',
               })
             },
           )

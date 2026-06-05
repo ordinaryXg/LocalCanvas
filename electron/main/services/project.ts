@@ -3,6 +3,7 @@ import { join } from 'path'
 import { existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getDatabase } from '../database'
+import { getCurrentUserId, GUEST_USER_ID, isGuestMode } from './auth-service'
 import { listAssets } from './asset'
 import { getThumbnail } from './thumbnail'
 import { logger } from './logger'
@@ -95,10 +96,12 @@ export function createProject(name: string): ProjectData {
     .prepare('SELECT COALESCE(MAX(list_order), -1) AS m FROM projects')
     .get() as { m: number }
 
+  const userId = isGuestMode() ? null : getCurrentUserId()
+
   db.prepare(
-    `INSERT INTO projects (id, name, created_at, updated_at, viewport_x, viewport_y, viewport_zoom, list_order)
-     VALUES (?, ?, ?, ?, 0, 0, 1, ?)`,
-  ).run(id, name, now, now, maxOrder.m + 1)
+    `INSERT INTO projects (id, name, created_at, updated_at, viewport_x, viewport_y, viewport_zoom, list_order, user_id)
+     VALUES (?, ?, ?, ?, 0, 0, 1, ?, ?)`,
+  ).run(id, name, now, now, maxOrder.m + 1, userId)
 
   logger.info('Project created', id, name)
   return project
@@ -246,11 +249,22 @@ export function saveProject(data: ProjectData): void {
 
 export function listProjects(): ProjectSummary[] {
   const db = getDatabase()
-  const rows = db
-    .prepare(
-      'SELECT id, name, created_at, updated_at FROM projects ORDER BY list_order ASC, updated_at DESC',
-    )
-    .all() as Array<{ id: string; name: string; created_at: string; updated_at: string }>
+  const userId = getCurrentUserId()
+  const rows = isGuestMode()
+    ? (db
+        .prepare(
+          `SELECT id, name, created_at, updated_at FROM projects
+           WHERE user_id IS NULL OR user_id = ?
+           ORDER BY list_order ASC, updated_at DESC`,
+        )
+        .all(GUEST_USER_ID) as Array<{ id: string; name: string; created_at: string; updated_at: string }>)
+    : (db
+        .prepare(
+          `SELECT id, name, created_at, updated_at FROM projects
+           WHERE user_id = ?
+           ORDER BY list_order ASC, updated_at DESC`,
+        )
+        .all(userId) as Array<{ id: string; name: string; created_at: string; updated_at: string }>)
 
   return rows.map((r) => ({
     id: r.id,

@@ -82,13 +82,30 @@ export class TaskQueue extends EventEmitter {
   }
 
   private recoverInterruptedTasks(): void {
-    const result = this.db
+    const running = this.db
       .prepare(
-        "UPDATE task_queue SET status = 'pending', retry_count = retry_count + 1 WHERE status = 'running'",
+        "SELECT id, retry_count, max_retries FROM task_queue WHERE status = 'running'",
       )
-      .run()
-    if (result.changes > 0) {
-      this.emit('log', `Recovered ${result.changes} interrupted tasks`)
+      .all() as Array<{ id: string; retry_count: number; max_retries: number }>
+
+    for (const task of running) {
+      if (task.retry_count + 1 >= task.max_retries) {
+        this.db
+          .prepare(
+            "UPDATE task_queue SET status = 'failed', error = 'Max retries exceeded after crash recovery' WHERE id = ?",
+          )
+          .run(task.id)
+      } else {
+        this.db
+          .prepare(
+            "UPDATE task_queue SET status = 'pending', retry_count = retry_count + 1, error = 'Crash recovery: task was running on shutdown' WHERE id = ?",
+          )
+          .run(task.id)
+      }
+    }
+
+    if (running.length > 0) {
+      this.emit('log', `Recovered ${running.length} interrupted tasks`)
     }
     void this.process()
   }

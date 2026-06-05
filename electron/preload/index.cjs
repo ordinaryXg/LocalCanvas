@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 const validChannels = [
+  'dag:progress',
   'project:autoSaved',
   'file:changed',
   'model:progress',
@@ -9,11 +10,39 @@ const validChannels = [
   'model:batchItemComplete',
   'compose:progress',
   'ffmpeg:progress',
+  'app:requestSave',
+  'update:available',
+  'update:progress',
+  'update:downloaded',
+  'update:error',
 ]
 
 const listeners = new Map()
 
 contextBridge.exposeInMainWorld('api', {
+  auth: {
+    register: (payload) => ipcRenderer.invoke('auth:register', payload),
+    login: (payload) => ipcRenderer.invoke('auth:login', payload),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+    enterGuest: () => ipcRenderer.invoke('auth:enterGuest'),
+    getSession: () => ipcRenderer.invoke('auth:getSession'),
+  },
+  user: {
+    getProfile: () => ipcRenderer.invoke('user:getProfile'),
+    updateProfile: (updates) => ipcRenderer.invoke('user:updateProfile', updates),
+  },
+  agent: {
+    chat: (payload) => ipcRenderer.invoke('agent:chat', payload),
+    listSessions: (projectId) => ipcRenderer.invoke('agent:listSessions', projectId),
+    listSkills: () => ipcRenderer.invoke('agent:listSkills'),
+  },
+  dag: {
+    createRun: (payload) => ipcRenderer.invoke('dag:createRun', payload),
+    getRun: (dagRunId) => ipcRenderer.invoke('dag:getRun', dagRunId),
+    updateRun: (payload) => ipcRenderer.invoke('dag:updateRun', payload),
+    updateNode: (payload) => ipcRenderer.invoke('dag:updateNode', payload),
+    recover: () => ipcRenderer.invoke('dag:recover'),
+  },
   project: {
     create: (name) => ipcRenderer.invoke('project:create', name),
     load: (projectId) => ipcRenderer.invoke('project:load', projectId),
@@ -63,6 +92,15 @@ contextBridge.exposeInMainWorld('api', {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getDataPath: () => ipcRenderer.invoke('app:getDataPath'),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+    setDirty: (dirty) => ipcRenderer.invoke('app:setDirty', dirty),
+    setActiveProject: (projectId) => ipcRenderer.invoke('app:setActiveProject', projectId),
+    setLocale: (locale) => ipcRenderer.invoke('app:setLocale', locale),
+    quitConfirmed: () => ipcRenderer.invoke('app:quitConfirmed'),
+  },
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
   },
   asset: {
     list: (projectId) => ipcRenderer.invoke('asset:list', projectId),
@@ -81,9 +119,30 @@ contextBridge.exposeInMainWorld('api', {
     cancel: () => ipcRenderer.invoke('compose:cancel'),
     openOutputDir: () => ipcRenderer.invoke('compose:openOutputDir'),
   },
+  storyboard: {
+    export: (payload) => ipcRenderer.invoke('storyboard:export', payload),
+    openOutputDir: () => ipcRenderer.invoke('storyboard:openOutputDir'),
+  },
+  audio: {
+    checkDemucs: () => ipcRenderer.invoke('audio:checkDemucs'),
+    separateVocals: (payload) => ipcRenderer.invoke('audio:separateVocals', payload),
+  },
   projectExtra: {
     rename: (projectId, name) => ipcRenderer.invoke('project:rename', projectId, name),
     openDir: (projectId) => ipcRenderer.invoke('project:openDir', projectId),
+  },
+  history: {
+    query: (filter) => ipcRenderer.invoke('history:query', filter),
+    getStats: () => ipcRenderer.invoke('history:getStats'),
+    delete: (id) => ipcRenderer.invoke('history:delete', id),
+  },
+  workflow: {
+    list: (presetOnly) => ipcRenderer.invoke('workflow:list', presetOnly),
+    load: (workflowId) => ipcRenderer.invoke('workflow:load', workflowId),
+    save: (payload) => ipcRenderer.invoke('workflow:save', payload),
+    delete: (workflowId) => ipcRenderer.invoke('workflow:delete', workflowId),
+    export: (workflowId) => ipcRenderer.invoke('workflow:export', workflowId),
+    import: () => ipcRenderer.invoke('workflow:import'),
   },
   on: (channel, callback) => {
     if (!validChannels.includes(channel)) return () => {}

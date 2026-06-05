@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog, BrowserWindow, shell } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import {
   createProject,
   loadProject,
@@ -16,7 +16,19 @@ import { join } from 'path'
 import { registerConfigIpc } from './config'
 import { registerModelIpc } from './model'
 import { registerMediaIpc } from './media'
+import { registerHistoryIpc } from './history'
+import { registerWorkflowIpc } from './workflow'
+import { registerAppIpc } from './app'
+import { registerUpdateIpc } from './update'
+import { registerAuthIpc } from './auth'
+import { registerDagIpc } from './dag'
+import { registerAgentIpc } from './agent'
+import { registerStoryboardIpc } from './storyboard'
+import { registerAudioIpc } from './audio'
+import { restoreSession } from '../services/auth-service'
+import { ensureDiskSpace } from '../services/disk-space'
 import { logger } from '../services/logger'
+import { getMainWindow } from '../window'
 
 export function registerProjectIpc(): void {
   ipcMain.handle('project:create', (_e, name: string) => {
@@ -100,21 +112,6 @@ export function registerProjectIpc(): void {
     }
   })
 
-  ipcMain.handle('app:getVersion', () => app.getVersion())
-  ipcMain.handle('app:getDataPath', () => app.getPath('userData'))
-  ipcMain.handle('app:openExternal', async (_e, url: string) => {
-    try {
-      const parsed = new URL(url)
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('Only http(s) URLs are allowed')
-      }
-      await shell.openExternal(url)
-      return { success: true }
-    } catch (error) {
-      logger.error('app:openExternal failed', error)
-      throw error
-    }
-  })
 }
 
 export function registerFileIpc(): void {
@@ -143,6 +140,7 @@ export function registerFileIpc(): void {
       const { join, dirname } = await import('path')
       const base = getProjectAssetsPath(projectId)
       const fullPath = join(base, relativePath)
+      ensureDiskSpace(fullPath, data.byteLength)
       await mkdir(dirname(fullPath), { recursive: true })
       await writeFile(fullPath, Buffer.from(data))
       return { success: true }
@@ -182,9 +180,19 @@ export function registerFileIpc(): void {
 }
 
 export function registerIpcHandlers(): void {
+  restoreSession()
+  registerAuthIpc()
+  registerDagIpc()
+  registerAgentIpc()
+  registerStoryboardIpc()
+  registerAudioIpc()
+  registerAppIpc(getMainWindow)
   registerProjectIpc()
   registerFileIpc()
   registerConfigIpc()
   registerModelIpc()
   registerMediaIpc()
+  registerHistoryIpc()
+  registerWorkflowIpc()
+  registerUpdateIpc()
 }

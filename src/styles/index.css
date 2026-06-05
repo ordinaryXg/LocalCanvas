@@ -1,5 +1,6 @@
 @import './theme.css';
 @import './theme-light.css';
+@import './scrollbars.css';
 @import './nodes.css';
 @import 'tailwindcss';
 
@@ -69,6 +70,33 @@ textarea::placeholder {
   border: 1px solid var(--color-border) !important;
 }
 
+.minimap-pannable .react-flow__minimap-mask {
+  cursor: grab;
+}
+
+.minimap-pannable .react-flow__minimap-mask:active {
+  cursor: grabbing;
+}
+
+.canvas-zoom-panel {
+  margin: 0 0 132px 8px !important;
+}
+
+.canvas-zoom-label {
+  display: inline-block;
+  min-width: 3rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-bg-secondary) 90%, transparent);
+  border: 1px solid var(--color-border);
+  font-size: 11px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--color-text-muted);
+  backdrop-filter: blur(8px);
+}
+
 .react-flow__edge-path {
   stroke: var(--color-accent);
 }
@@ -90,4 +118,8 @@ textarea::placeholder {
 
 .react-flow__attribution {
   display: none;
+}
+
+textarea.resize-y {
+  resize: vertical;
 }

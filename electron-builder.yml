@@ -1,0 +1,49 @@
+appId: com.localcanvas.app
+productName: LocalCanvas
+copyright: Copyright © 2026
+
+directories:
+  output: dist/release
+  buildResources: resources
+
+files:
+  - out/**/*
+  - resources/**/*
+  - "!node_modules/**/{test,tests,__tests__,spec}/**"
+  - "!node_modules/**/*.md"
+  - "!**/*.map"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: LocalCanvas
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.productivity
+
+dmg:
+  title: LocalCanvas ${version}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+publish:
+  provider: github
+  owner: localcanvas
+  repo: localcanvas
+  releaseType: release

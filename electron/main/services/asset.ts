@@ -1,8 +1,11 @@
 import { join, extname, basename } from 'path'
-import { existsSync, readdirSync, copyFileSync, statSync } from 'fs'
+import { existsSync, readdirSync, copyFileSync, statSync, symlinkSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getProjectAssetsPath } from './project'
 import { logger } from './logger'
+import { ensureDiskSpace, getFileSize } from './disk-space'
+
+const LARGE_FILE_THRESHOLD = 50 * 1024 * 1024
 
 export type AssetType = 'image' | 'video' | 'audio'
 
@@ -84,10 +87,25 @@ export function importAsset(projectId: string, filePath: string): Asset {
   const fileName = `${uuid()}${ext}`
   const relativePath = `${folder}/${fileName}`
   const dest = join(getProjectAssetsPath(projectId), relativePath)
+  const fileSize = getFileSize(filePath)
 
-  copyFileSync(filePath, dest)
+  if (fileSize >= LARGE_FILE_THRESHOLD) {
+    ensureDiskSpace(dest, 1024)
+    try {
+      symlinkSync(filePath, dest, 'file')
+      logger.info('Asset symlinked (large file)', projectId, relativePath, fileSize)
+    } catch (err) {
+      logger.warn('Symlink failed, falling back to copy', err)
+      ensureDiskSpace(dest, fileSize)
+      copyFileSync(filePath, dest)
+    }
+  } else {
+    ensureDiskSpace(dest, fileSize)
+    copyFileSync(filePath, dest)
+    logger.info('Asset imported', projectId, relativePath)
+  }
+
   const stat = statSync(dest)
-  logger.info('Asset imported', projectId, relativePath)
 
   return {
     id: relativePath,

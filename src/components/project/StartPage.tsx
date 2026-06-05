@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { ProjectCard } from './ProjectCard'
 import type { ProjectSummary } from '../../types/project'
 import { handleError } from '../../utils/ErrorHandler'
+import { useT } from '../../i18n'
+import { AccountMenu } from '../common/AccountMenu'
 
 interface StartPageProps {
   onOpenProject: (id: string, name: string) => void
@@ -9,6 +11,7 @@ interface StartPageProps {
 }
 
 export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
+  const t = useT()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(true)
@@ -44,7 +47,7 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除此项目？')) return
+    if (!confirm(t('start.deleteConfirm'))) return
     try {
       await window.api.project.delete(id)
       await loadProjects()
@@ -95,24 +98,27 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">LocalCanvas</h1>
-            <p className="text-text-primary/80">本地 AI 视频创作画布</p>
+            <p className="text-text-primary/80">{t('app.tagline')}</p>
           </div>
-          {onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="text-sm text-text-muted hover:text-white px-3 py-2 rounded-lg border border-border hover:border-accent/50"
-            >
-              ⚙️ 模型配置
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <AccountMenu />
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="text-sm text-text-muted hover:text-white px-3 py-2 rounded-lg border border-border hover:border-accent/50"
+              >
+                {t('app.modelSettings')}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2 mb-8">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="输入项目名称..."
+            placeholder={t('start.placeholder')}
             className="flex-1 bg-bg-secondary text-white px-4 py-2 rounded-lg outline-none border border-border focus:border-accent"
             onKeyDown={(e) => e.key === 'Enter' && void handleCreate()}
           />
@@ -122,17 +128,17 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
             disabled={creating || !newName.trim()}
             className="bg-accent text-white px-6 py-2 rounded-lg hover:bg-accent-hover transition disabled:opacity-50"
           >
-            {creating ? '创建中...' : '新建项目'}
+            {creating ? t('start.creating') : t('start.create')}
           </button>
         </div>
 
-        <h2 className="text-sm text-text-primary/90 mb-3">最近项目</h2>
-        <p className="text-[10px] text-text-muted mb-2">拖拽卡片可调整排序</p>
+        <h2 className="text-sm text-text-primary/90 mb-3">{t('start.recent')}</h2>
+        <p className="text-[10px] text-text-muted mb-2">{t('start.dragHint')}</p>
 
         {loading ? (
-          <div className="text-center text-text-muted py-8">加载中...</div>
+          <div className="text-center text-text-muted py-8">{t('start.loading')}</div>
         ) : projects.length === 0 ? (
-          <div className="text-center text-text-muted py-8">还没有项目，创建一个开始吧</div>
+          <div className="text-center text-text-muted py-8">{t('start.empty')}</div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {projects.map((p) => (

@@ -7,6 +7,7 @@ import type {
   TTSModelConfig,
 } from '../../types/config'
 import { getPresetsForTab, presetToModelConfig, type ModelPreset } from '../../constants/modelPresets'
+import { useI18nStore, useT, type Locale } from '../../i18n'
 
 type ModelEntry = ImageModelConfig | VideoModelConfig | LLMModelConfig | TTSModelConfig
 type TabId = 'image' | 'video' | 'llm' | 'tts' | 'settings'
@@ -16,6 +17,8 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
+  const t = useT()
+  const { locale, setLocale } = useI18nStore()
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('image')
   const [testing, setTesting] = useState<string | null>(null)
@@ -25,10 +28,28 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [newApiKey, setNewApiKey] = useState('')
   const [ffmpegDownloading, setFfmpegDownloading] = useState(false)
   const [ffmpegDownloadPct, setFfmpegDownloadPct] = useState(0)
+  const [agentSkills, setAgentSkills] = useState<Array<{ id: string; name: string; description: string }>>([])
+  const [disabledSkills, setDisabledSkills] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('lc-agent-disabled-skills')
+      return raw ? (JSON.parse(raw) as string[]) : []
+    } catch {
+      return []
+    }
+  })
 
   useEffect(() => {
     void window.api.config.read().then(setConfig)
+    void window.api.agent.listSkills().then((r) => setAgentSkills(r.skills))
   }, [])
+
+  const toggleAgentSkill = (skillId: string) => {
+    setDisabledSkills((prev) => {
+      const next = prev.includes(skillId) ? prev.filter((id) => id !== skillId) : [...prev, skillId]
+      localStorage.setItem('lc-agent-disabled-skills', JSON.stringify(next))
+      return next
+    })
+  }
 
   if (!config) {
     return (
@@ -188,7 +209,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           ))}
         </div>
 
-        <div className="p-4 overflow-y-auto flex-1 min-h-0">
+        <div className="p-4 overflow-y-auto lc-scroll flex-1 min-h-0">
           {statusMsg && (
             <div
               className={`mb-3 text-sm p-3 rounded ${
@@ -430,6 +451,41 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   ))}
                 </select>
               </div>
+              {agentSkills.length > 0 && (
+                <div>
+                  <label className="text-xs text-text-muted block mb-2">{t('settings.agentSkills')}</label>
+                  <div className="space-y-2">
+                    {agentSkills.map((skill) => (
+                      <label
+                        key={skill.id}
+                        className="flex items-start gap-2 text-xs text-text-primary cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!disabledSkills.includes(skill.id)}
+                          onChange={() => toggleAgentSkill(skill.id)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="font-medium">{skill.name}</span>
+                          <span className="text-text-muted block text-[10px]">{skill.description}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-text-muted block mb-1">{t('settings.language')}</label>
+                <select
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value as Locale)}
+                  className="w-full bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
+                >
+                  <option value="zh-CN">简体中文</option>
+                  <option value="en-US">English</option>
+                </select>
+              </div>
               <div>
                 <label className="text-xs text-text-muted block mb-1">最大并发任务</label>
                 <input
@@ -537,6 +593,21 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     {ffmpegDownloading ? `下载中 ${ffmpegDownloadPct}%` : '下载安装'}
                   </button>
                 </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">Demucs 路径（人声分离，可选）</label>
+                <input
+                  type="text"
+                  value={config.settings.demucs_path ?? ''}
+                  placeholder="留空则尝试 demucs 命令，否则使用 FFmpeg 简易分离"
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      settings: { ...config.settings, demucs_path: e.target.value },
+                    })
+                  }
+                  className="w-full bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
+                />
               </div>
             </div>
           )}

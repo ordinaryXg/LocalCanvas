@@ -34,7 +34,8 @@ localcanvas/
 │   │   │   ├── project.ts         # 项目文件读写
 │   │   │   ├── model-adapter/     # 模型适配器
 │   │   │   │   ├── base.ts
-│   │   │   │   ├── comfyui.ts
+│   │   │   │   ├── remote-api.ts
+│   │   │   │   ├── seedance.ts
 │   │   │   │   ├── openai-compat.ts
 │   │   │   │   ├── replicate.ts
 │   │   │   │   └── custom.ts
@@ -59,7 +60,7 @@ localcanvas/
 │   ├── utils/                     # 工具函数
 │   └── styles/                    # 样式
 ├── resources/                     # 静态资源
-│   └── workflows/                 # 预置 ComfyUI 工作流
+│   └── preset-workflows.ts        # 预置画布工作流模板
 ├── package.json
 ├── electron.vite.config.ts
 ├── tailwind.config.ts
@@ -126,15 +127,15 @@ localcanvas/
 |---|------|----------|----------|----------|
 | 2.1.1 | config.yaml 解析 | 1. 安装 `yaml` 包<br>2. 主进程 `config.ts`：读取 `~/.localcanvas/config.yaml`<br>3. 解析为 `AppConfig` 类型<br>4. 环境变量替换：`${VAR_NAME}` → `process.env.VAR_NAME`<br>5. 校验配置完整性 | `yaml.parse()` + `process.env` 替换 + schema 校验 | 配置文件可正确解析，环境变量替换正常 |
 | 2.1.2 | 配置 UI | 1. 创建 `<SettingsPanel>` 组件<br>2. 模型列表展示（图像/视频/LLM/TTS）<br>3. 添加/编辑/删除模型<br>4. 连通性测试（点击「测试连接」→ 主进程 ping 端点）<br>5. 设置默认模型 | IPC: `config:read`、`config:write`、`config:testConnection` | 可通过 UI 配置模型并测试连通性 |
-| 2.1.3 | 首次引导 | 1. 检测 `config.yaml` 是否存在<br>2. 不存在则弹出引导界面<br>3. 引导配置至少一个 ComfyUI 端点<br>4. 自动生成示例配置文件 | — | 首次启动有引导流程 |
+| 2.1.3 | 首次引导 | 1. 检测 `config.yaml` 是否存在<br>2. 不存在则弹出引导界面<br>3. 引导配置火山方舟 API Key（图像/视频）<br>4. 自动生成示例配置文件 | — | 首次启动有引导流程 |
 
 ### 2.2 模型适配器
 
 | # | 任务 | 详细步骤 | 技术要点 | 验收标准 |
 |---|------|----------|----------|----------|
 | 2.2.1 | 适配器基类 | 1. 定义 `ModelAdapter` 抽象类<br>2. 方法：`generateImage()`、`generateVideo()`、`generateText()`、`getStatus()`、`cancel()`<br>3. 事件：`onProgress`、`onComplete`、`onError` | `EventEmitter` 模式 | 基类接口清晰，子类可扩展 |
-| 2.2.2 | ComfyUI 适配器 | 1. `ComfyUIAdapter` 实现<br>2. `generateImage()`：加载 workflow JSON → 填入参数 → `POST /prompt`<br>3. WebSocket 连接 `/ws?clientId=xxx` 监听进度<br>4. 解析进度消息 `{'type': 'progress', 'value': 3, 'max': 20}`<br>5. 完成后从 `/view?filename=xxx` 下载图片<br>6. `generateVideo()` 同理，下载 `.mp4` 文件 | `axios` for REST + `ws` for WebSocket；workflow JSON 参数替换逻辑 | 文生图 + 图生视频均可通过 ComfyUI 完成 |
-| 2.2.3 | ComfyUI 工作流模板 | 1. 准备 3 个预置 workflow JSON：<br>   - `flux_dev_api.json`（文生图）<br>   - `img2img_api.json`（图生图）<br>   - `video_api.json`（图生视频）<br>2. 模板中用占位符 `{{PROMPT}}`、`{{WIDTH}}`、`{{HEIGHT}}`、`{{SEED}}`<br>3. 运行时替换为用户参数 | 从 ComfyUI UI 导出 API 格式 → 改造为模板 | 预置模板可直接使用 |
+| 2.2.2 | 远程 API 适配器 | 1. `RemoteApiAdapter` 实现<br>2. `generateImage()`：POST 图像 API → 解析 URL 或轮询 task_id<br>3. `generateVideo()`：POST 视频 API 或 Seedance 异步任务<br>4. 轮询进度 → 节点显示进度条<br>5. 完成后下载输出到本地 outputs/ | `axios` + 轮询；Seedance 专用适配器 | 文生图 + 图生视频均可通过远程 API 完成 |
+| 2.2.3 | 画布工作流模板 | 1. 预置 4 个画布工作流（文生图→视频、脚本分镜、首尾帧、多片段合成）<br>2. 存储于 SQLite workflows 表<br>3. 侧边栏工具面板加载到画布 | `preset-workflows.ts` + WorkflowRepository | 预置模板可直接使用 |
 | 2.2.4 | OpenAI 兼容适配器 | 1. `OpenAICompatibleAdapter` 实现<br>2. `generateText()`：`POST /chat/completions`<br>3. 支持流式响应（SSE）<br>4. `generateImage()`：`POST /images/generations`（如支持） | `axios` + `ReadableStream` | 可调用 Qwen/DeepSeek 等 OpenAI 兼容接口 |
 | 2.2.5 | 适配器工厂 | 1. `AdapterFactory.get(provider: string)` 工厂方法<br>2. 根据 `config.yaml` 中的 `provider` 字段返回对应适配器实例<br>3. 传入 endpoint / api_key / workflow 等配置 | 简单工厂模式 | 传入 provider 名称即可获取正确的适配器 |
 
@@ -233,7 +234,7 @@ localcanvas/
 
 | # | 任务 | 详细步骤 | 技术要点 | 验收标准 |
 |---|------|----------|----------|----------|
-| 4.4.1 | API 错误处理 | 1. 网络超时 → 重试 1 次 + 提示<br>2. API 返回错误 → 显示错误信息 + 重试按钮<br>3. ComfyUI 离线 → 检测并提示启动<br>4. 限流 → 等待并自动重试 | `axios` timeout 60s + retry 逻辑 | 各种错误场景有友好提示 |
+| 4.4.1 | API 错误处理 | 1. 网络超时 → 重试 1 次 + 提示<br>2. API 返回错误 → 显示错误信息 + 重试按钮<br>3. 模型 API 离线 → 测试连接检测并提示<br>4. 限流 → 等待并自动重试 | `axios` timeout + RetryManager | 各种错误场景有友好提示 |
 | 4.4.2 | 自动保存 | 1. 每 30s 自动保存 `project.json`<br>2. 窗口失焦时保存<br>3. 关闭窗口前保存<br>4. 异常退出后恢复（检测 `.tmp` 文件） | `debounce` + `beforeunload` | 不丢失用户数据 |
 | 4.4.3 | 大文件处理 | 1. 视频文件 >100MB 时使用符号链接而非复制<br>2. 缩略图缓存（`~/.localcanvas/thumbnails/`）<br>3. 磁盘空间检查 | `fs.symlink` | 大文件不卡顿，磁盘不足有提示 |
 
@@ -249,7 +250,7 @@ localcanvas/
 
 | # | 任务 | 详细步骤 | 技术要点 | 验收标准 |
 |---|------|----------|----------|----------|
-| 4.6.1 | README.md | 1. 项目介绍 + 截图<br>2. 安装步骤<br>3. ComfyUI 配置指南<br>4. 常见问题 FAQ | — | 新用户可按文档上手 |
+| 4.6.1 | README.md | 1. 项目介绍 + 截图<br>2. 安装步骤<br>3. 模型配置指南<br>4. 常见问题 FAQ | — | 新用户可按文档上手 |
 | 4.6.2 | 快速入门指南 | 1. 5 分钟完成第一次视频生成<br>2. 图文并茂 | — | 5 分钟内可完成首次生成 |
 
 ---
@@ -302,7 +303,7 @@ Phase 4（完善+发布）                        │
 ### Phase 2 验收
 
 - [ ] config.yaml 可配置模型
-- [ ] ComfyUI 适配器可文生图 + 图生视频
+- [ ] 远程 API 适配器可文生图 + 图生视频
 - [ ] 图像生成器面板完整可用
 - [ ] 视频生成器面板完整可用
 - [ ] 脚本节点可生成脚本 → 批量分镜图 → 批量视频

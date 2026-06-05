@@ -3,15 +3,21 @@ import type { TTSModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
-import { handleError } from '../../utils/ErrorHandler'
+import { handleError, showToast } from '../../utils/ErrorHandler'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
+import { ResizableTextarea } from '../common/ResizableTextarea'
+import { generateNodeId } from '../../utils/id'
+import { useT } from '../../i18n'
 
 interface AudioGeneratorProps {
   nodeId: string
 }
 
 export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
+  const t = useT()
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
+  const addNode = useCanvasStore((s) => s.addNode)
+  const addConnection = useCanvasStore((s) => s.addConnection)
   const nodes = useCanvasStore((s) => s.nodes)
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
   const node = nodes.find((n) => n.id === nodeId)
@@ -21,9 +27,13 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
   const [voice, setVoice] = useState((data.voice as string) || '')
   const [modelId, setModelId] = useState((data.modelId as string) || '')
   const [ttsModels, setTtsModels] = useState<TTSModelConfig[]>([])
+  const [separating, setSeparating] = useState(false)
+  const [demucsAvailable, setDemucsAvailable] = useState<boolean | null>(null)
   const { isGenerating, progress, run, cancel } = useModelGeneration(nodeId, (pct) => {
     updateNodeData(nodeId, { progress: pct })
   })
+
+  const hasAudio = !!(data.audioSrc || data.audioAssetPath)
 
   useEffect(() => {
     void window.api.config.read().then((config) => {
@@ -32,6 +42,7 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
         setModelId(config.settings.default_tts)
       }
     })
+    void window.api.audio.checkDemucs().then((r) => setDemucsAvailable(r.available))
   }, [modelId])
 
   const handleGenerate = async () => {
@@ -71,16 +82,88 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
     }
   }
 
+  const handleSeparateVocals = async () => {
+    if (!currentProjectId || !hasAudio || !node) return
+    setSeparating(true)
+    try {
+      const result = await window.api.audio.separateVocals({
+        projectId: currentProjectId,
+        audioAssetPath: data.audioAssetPath as string | undefined,
+      })
+
+      const vocalsMedia = await importGeneratedMedia(currentProjectId, 'audio', result.vocalsPath)
+      const instMedia = await importGeneratedMedia(
+        currentProjectId,
+        'audio',
+        result.instrumentalPath,
+      )
+
+      const nodeWidth = node.width ?? node.measured?.width ?? 260
+      const vocalsId = generateNodeId('audio')
+      const instId = generateNodeId('audio')
+
+      addNode({
+        id: vocalsId,
+        type: 'audio',
+        position: { x: node.position.x + nodeWidth + 60, y: node.position.y - 40 },
+        width: 240,
+        height: 200,
+        data: {
+          audioSrc: vocalsMedia.src,
+          audioAssetPath: vocalsMedia.assetPath,
+          fileName: vocalsMedia.fileName || 'vocals.wav',
+          label: t('audio.vocals'),
+        },
+      })
+
+      addNode({
+        id: instId,
+        type: 'audio',
+        position: { x: node.position.x + nodeWidth + 60, y: node.position.y + 120 },
+        width: 240,
+        height: 200,
+        data: {
+          audioSrc: instMedia.src,
+          audioAssetPath: instMedia.assetPath,
+          fileName: instMedia.fileName || 'instrumental.wav',
+          label: t('audio.instrumental'),
+        },
+      })
+
+      addConnection({
+        source: nodeId,
+        target: vocalsId,
+        sourceHandle: 'audio',
+        targetHandle: 'audio',
+      })
+      addConnection({
+        source: nodeId,
+        target: instId,
+        sourceHandle: 'audio',
+        targetHandle: 'audio',
+      })
+
+      showToast(
+        result.mode === 'demucs' ? t('audio.separateDoneDemucs') : t('audio.separateDoneFfmpeg'),
+        'info',
+      )
+    } catch (err) {
+      handleError(err, 'audioSeparate')
+    } finally {
+      setSeparating(false)
+    }
+  }
+
   return (
     <div className="flex gap-4 items-start">
       <div className="flex-1 space-y-2">
         <div>
           <label className="text-[10px] text-text-muted">配音文本</label>
-          <textarea
+          <ResizableTextarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="输入要合成的语音文本..."
-            className="w-full h-16 bg-bg-tertiary text-text-primary text-xs p-2 rounded resize-none outline-none border border-border focus:border-accent"
+            minHeight={100}
           />
         </div>
         <div>
@@ -129,6 +212,19 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
             </button>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => void handleSeparateVocals()}
+          disabled={!hasAudio || separating}
+          className="w-full py-1.5 text-xs border border-border rounded hover:border-accent/50 disabled:opacity-50"
+          title={
+            demucsAvailable === false
+              ? t('audio.separateHintFfmpeg')
+              : t('audio.separateHintDemucs')
+          }
+        >
+          {separating ? t('audio.separating') : t('audio.separateVocals')}
+        </button>
         {isGenerating && (
           <div className="w-full bg-bg-tertiary rounded-full h-1.5">
             <div

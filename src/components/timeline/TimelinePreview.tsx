@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { findClipAtTime } from '../../utils/timelineClipAtTime'
 import { mimeFromAssetPath } from '../../utils/assetStorage'
+import { SubtitleOverlay } from './SubtitleTrack'
+import type { SubtitleCue } from '../../utils/parseSrt'
+import { findCueAtTime } from '../../utils/parseSrt'
 
 export interface PreviewClip {
   id: string
@@ -13,14 +16,16 @@ export interface PreviewClip {
 interface Props {
   clips: PreviewClip[]
   playheadTime: number
+  subtitleCues?: SubtitleCue[]
 }
 
-export function TimelinePreview({ clips, playheadTime }: Props) {
+export function TimelinePreview({ clips, playheadTime, subtitleCues }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const activeClipIdRef = useRef<string | null>(null)
   const [blobSrc, setBlobSrc] = useState<string | null>(null)
   const [decodeError, setDecodeError] = useState(false)
   const active = findClipAtTime(clips, playheadTime)
+  const activeCue = subtitleCues?.length ? findCueAtTime(subtitleCues, playheadTime) : null
 
   useEffect(() => {
     if (!active) {
@@ -110,6 +115,7 @@ export function TimelinePreview({ clips, playheadTime }: Props) {
           onError={() => setDecodeError(true)}
         />
       )}
+      <SubtitleOverlay cue={activeCue} />
       <div className="absolute bottom-1 left-2 text-[9px] text-white/80 bg-black/50 px-1 rounded">
         {active.clip.name || active.clip.id} · {active.offsetInClip.toFixed(1)}s
       </div>

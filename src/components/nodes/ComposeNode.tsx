@@ -1,7 +1,6 @@
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
-import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import {
   clipsFromComposeNode,
@@ -14,13 +13,11 @@ import type { ComposeClipItem } from '../../types/node'
 
 function ComposeNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const clips = (data.clips as ComposeClipItem[] | undefined) ?? []
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const projectId = useProjectStore((s) => s.currentProjectId)
   const [isComposing, setIsComposing] = useState(false)
   const [composeProgress, setComposeProgress] = useState(0)
 
   const totalDuration = clips.reduce((sum, c) => sum + (c.duration || 0), 0)
-  const showTimeline = !!data.showTimeline
 
   useComposeProgress(useCallback((pct) => setComposeProgress(pct), []))
 
@@ -43,10 +40,6 @@ function ComposeNodeComponent({ id, data, selected, width, height }: NodeProps) 
     }
   }, [projectId, clips, data.audioAssetPath, id])
 
-  const toggleTimeline = useCallback(() => {
-    updateNodeData(id, { showTimeline: !showTimeline })
-  }, [showTimeline, id, updateNodeData])
-
   return (
     <BaseNode
       color="var(--color-accent)"
@@ -67,7 +60,7 @@ function ComposeNodeComponent({ id, data, selected, width, height }: NodeProps) 
       outputs={[{ id: 'composed', top: '50%' }]}
     >
       <div className="flex flex-col flex-1 min-h-0 gap-2">
-        <div className="flex-1 min-h-0 max-h-[140px] overflow-y-auto nowheel space-y-1 rounded border border-border/50 bg-bg-tertiary/30 p-1">
+        <div className="flex-1 min-h-0 max-h-[140px] overflow-y-auto lc-scroll nowheel space-y-1 rounded border border-border/50 bg-bg-tertiary/30 p-1">
           {clips.length === 0 ? (
             <div className="text-[11px] text-text-muted text-center py-6">
               连接视频节点到左侧输入口
@@ -95,21 +88,20 @@ function ComposeNodeComponent({ id, data, selected, width, height }: NodeProps) 
           <div className="flex gap-1">
             <button
               type="button"
-              onClick={toggleTimeline}
-              className="text-[10px] px-2 py-1 bg-bg-tertiary text-text-secondary rounded hover:bg-bg-primary nodrag"
-            >
-              {showTimeline ? '收起' : '时间轴'}
-            </button>
-            <button
-              type="button"
               onClick={() => void handleCompose()}
               disabled={clips.length === 0 || isComposing}
               className="text-[10px] px-2 py-1 bg-accent text-white rounded hover:bg-accent-hover disabled:opacity-50 nodrag"
             >
-              {isComposing ? `${composeProgress}%` : '合成'}
+              {isComposing ? `${composeProgress}%` : '快速合成'}
             </button>
           </div>
         </div>
+
+        {selected && (
+          <p className="text-[9px] text-text-muted shrink-0 text-center">
+            底部面板可编辑时间轴与导出
+          </p>
+        )}
 
         {isComposing && composeProgress > 0 && (
           <div className="shrink-0 w-full bg-bg-tertiary rounded-full h-1">

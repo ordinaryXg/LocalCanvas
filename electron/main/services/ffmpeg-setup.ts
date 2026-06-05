@@ -3,6 +3,7 @@ import { getUtilityClient } from './utility-client'
 import { readConfig } from './config'
 import { persistFfmpegPath } from './ffmpeg-config'
 import { logger } from './logger'
+import { mt } from '../i18n'
 
 export type EnsureFfmpegResult =
   | { ok: true; path: string }
@@ -24,11 +25,15 @@ export async function ensureFFmpeg(): Promise<EnsureFfmpegResult> {
 
   const choice = await dialog.showMessageBox({
     type: 'warning',
-    title: '需要 FFmpeg',
-    message: '视频裁切与合成依赖 FFmpeg，当前未检测到可用安装。',
-    detail:
-      '你可以自动下载、手动安装后在「设置 → FFmpeg 路径」中填写，或直接选择 ffmpeg 可执行文件。',
-    buttons: ['选择 ffmpeg 文件', '自动下载 FFmpeg', '打开下载页', '取消'],
+    title: mt('ffmpeg.required.title'),
+    message: mt('ffmpeg.required.message'),
+    detail: mt('ffmpeg.required.detail'),
+    buttons: [
+      mt('ffmpeg.pickFile'),
+      mt('ffmpeg.autoDownload'),
+      mt('ffmpeg.openDownloadPage'),
+      mt('ffmpeg.cancel'),
+    ],
     defaultId: 1,
     cancelId: 3,
   })
@@ -51,19 +56,20 @@ export async function ensureFFmpeg(): Promise<EnsureFfmpegResult> {
       logger.warn('FFmpeg auto-download failed', error)
       await dialog.showMessageBox({
         type: 'error',
-        title: '下载失败',
-        message: error instanceof Error ? error.message : 'FFmpeg 自动下载失败',
+        title: mt('ffmpeg.downloadFailed.title'),
+        message: error instanceof Error ? error.message : mt('ffmpeg.downloadFailed.title'),
       })
       return { ok: false, reason: 'download_failed' }
     }
   }
 
   const picked = await dialog.showOpenDialog({
-    title: '选择 FFmpeg 可执行文件',
+    title: mt('ffmpeg.pickDialog.title'),
     properties: ['openFile'],
-    filters: process.platform === 'win32'
-      ? [{ name: 'FFmpeg', extensions: ['exe'] }]
-      : [{ name: 'FFmpeg', extensions: ['*'] }],
+    filters:
+      process.platform === 'win32'
+        ? [{ name: mt('ffmpeg.filterName'), extensions: ['exe'] }]
+        : [{ name: mt('ffmpeg.filterName'), extensions: ['*'] }],
   })
 
   const filePath = picked.filePaths[0]
@@ -79,8 +85,8 @@ export async function ensureFFmpeg(): Promise<EnsureFfmpegResult> {
     logger.warn('User-selected FFmpeg invalid', error)
     await dialog.showMessageBox({
       type: 'error',
-      title: 'FFmpeg 无效',
-      message: '所选文件无法作为 FFmpeg 运行，请重新选择或在设置中配置路径。',
+      title: mt('ffmpeg.invalid.title'),
+      message: mt('ffmpeg.invalid.message'),
     })
     return { ok: false, reason: 'invalid' }
   }

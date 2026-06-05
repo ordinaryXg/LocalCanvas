@@ -1,4 +1,22 @@
-export type ModelProvider = 'openai_compatible' | 'volcengine_seedance' | 'custom'
+export type ModelProvider = 'openai_compatible' | 'volcengine_seedance' | 'replicate' | 'custom'
+
+export interface CustomAdapterConfig {
+  endpoint: string
+  method: string
+  headers?: Record<string, string>
+  request_template: Record<string, unknown>
+  response_mapping: {
+    output_url?: string
+    status?: string
+    text?: string
+  }
+  poll_config?: {
+    enabled: boolean
+    endpoint?: string
+    interval_ms?: number
+    completion_status?: string
+  }
+}
 
 export interface ImageModelConfig {
   id: string
@@ -10,6 +28,7 @@ export interface ImageModelConfig {
   max_resolution?: number
   supported_ratios?: string[]
   default_params?: Record<string, unknown>
+  custom_config?: CustomAdapterConfig
 }
 
 export interface VideoModelConfig {
@@ -24,6 +43,7 @@ export interface VideoModelConfig {
   max_duration?: number
   supported_resolutions?: string[]
   default_params?: Record<string, unknown>
+  custom_config?: CustomAdapterConfig
 }
 
 export interface LLMModelConfig {
@@ -34,6 +54,7 @@ export interface LLMModelConfig {
   api_key?: string
   model: string
   max_tokens?: number
+  custom_config?: CustomAdapterConfig
 }
 
 export interface TTSModelConfig {
@@ -44,6 +65,7 @@ export interface TTSModelConfig {
   api_key?: string
   model: string
   method?: string
+  custom_config?: CustomAdapterConfig
 }
 
 export interface AppSettings {
@@ -56,6 +78,9 @@ export interface AppSettings {
   max_concurrent_tasks: number
   auto_save_interval: number
   ffmpeg_path: string
+  demucs_path?: string
+  vocal_separation_endpoint?: string
+  vocal_separation_api_key?: string
   onboarding_completed?: boolean
 }
 

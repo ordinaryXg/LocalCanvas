@@ -156,7 +156,7 @@ export function Timeline({
         </div>
       )}
 
-      <div ref={containerRef} className="overflow-x-auto" style={{ height: tracks.length * 50 + 30 }}>
+      <div ref={containerRef} className="overflow-x-auto lc-scroll lc-scroll-x" style={{ height: tracks.length * 50 + 30 }}>
         <div style={{ width: timelineWidth + 100, position: 'relative' }}>
           <div className="h-[30px] border-b border-border relative" style={{ marginLeft: 60 }}>
             {Array.from({ length: Math.ceil(totalDuration) + 1 }).map((_, i) => (

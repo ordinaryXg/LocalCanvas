@@ -13,6 +13,8 @@ export interface BatchItemCompleteEvent {
   type: 'image' | 'video'
   sequence: number
   result: string
+  modelId: string
+  prompt: string
 }
 
 export interface ModelCompleteEvent {
@@ -162,7 +164,126 @@ export interface EnsureFfmpegResult =
   | { ok: true; path: string }
   | { ok: false; reason: 'cancelled' | 'not_found' | 'invalid' | 'download_failed' }
 
+export interface GenerationRecord {
+  id: string
+  type: 'image' | 'video' | 'text' | 'audio'
+  modelId: string
+  modelName: string
+  provider: string
+  prompt: string
+  negativePrompt?: string
+  params?: Record<string, unknown>
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  progress: number
+  outputPath?: string
+  thumbnailPath?: string
+  error?: string
+  projectId?: string
+  nodeId?: string
+  durationMs?: number
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+  updatedAt: string
+}
+
+export interface GenerationStats {
+  total: number
+  images: number
+  videos: number
+  texts: number
+  failed: number
+}
+
+export interface WorkflowSummary {
+  id: string
+  name: string
+  description?: string
+  isPreset: boolean
+  updatedAt: string
+}
+
+export interface WorkflowData {
+  id: string
+  name: string
+  description?: string
+  nodes: unknown[]
+  edges: unknown[]
+  isPreset: boolean
+}
+
+export interface PublicUser {
+  id: string
+  username: string
+  email?: string
+  displayName?: string
+  avatarPath?: string
+  preferences?: Record<string, unknown>
+  syncStatus: 'local' | 'pending' | 'synced'
+  cloudUserId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AuthResult {
+  user: PublicUser | null
+  session: { sessionId: string; userId: string; isGuest: boolean } | null
+  isGuest: boolean
+  error?: string
+  message?: string
+  claimedLegacyProjects?: number
+}
+
 export interface LocalCanvasAPI {
+  auth: {
+    register: (payload: { username: string; password: string; email?: string }) => Promise<AuthResult>
+    login: (payload: { username: string; password: string }) => Promise<AuthResult>
+    logout: () => Promise<AuthResult>
+    enterGuest: () => Promise<AuthResult>
+    getSession: () => Promise<AuthResult>
+  }
+  user: {
+    getProfile: () => Promise<{ user: PublicUser | null; error?: string; message?: string }>
+    updateProfile: (updates: {
+      displayName?: string
+      email?: string
+      avatarPath?: string
+      preferences?: Record<string, unknown>
+    }) => Promise<{ user?: PublicUser; error?: string; message?: string }>
+  }
+  agent: {
+    chat: (payload: {
+      message: string
+      sessionId?: string
+      disabledSkills?: string[]
+    }) => Promise<import('./agent').AgentChatResult>
+    listSessions: (projectId?: string) => Promise<import('./agent').AgentSessionSummary[]>
+    listSkills: () => Promise<{ skills: Array<{ id: string; name: string; description: string }> }>
+  }
+  dag: {
+    createRun: (payload: {
+      projectId: string
+      nodeIds: string[]
+      snapshot: unknown
+      groupId?: string
+    }) => Promise<{ id: string; nodes: unknown[] }>
+    getRun: (dagRunId: string) => Promise<unknown>
+    updateRun: (payload: {
+      dagRunId: string
+      status?: string
+      completedNodes?: number
+      currentNodeId?: string
+      error?: string
+    }) => Promise<{ success: boolean }>
+    updateNode: (payload: {
+      dagRunId: string
+      nodeId: string
+      status?: string
+      error?: string
+      output?: string
+    }) => Promise<{ success: boolean }>
+    recover: () => Promise<Array<{ id: string; projectId: string }>>
+  }
   project: {
     create: (name: string) => Promise<ProjectData>
     load: (projectId: string) => Promise<ProjectData>
@@ -218,6 +339,15 @@ export interface LocalCanvasAPI {
     getVersion: () => Promise<string>
     getDataPath: () => Promise<string>
     openExternal: (url: string) => Promise<{ success: boolean }>
+    setDirty: (dirty: boolean) => Promise<{ success: boolean }>
+    setActiveProject: (projectId: string | null) => Promise<{ success: boolean }>
+    setLocale: (locale: 'zh-CN' | 'en-US') => Promise<{ success: boolean }>
+    quitConfirmed: () => Promise<{ success: boolean }>
+  }
+  update: {
+    check: () => Promise<{ hasUpdate: boolean; version?: string }>
+    download: () => Promise<{ success: boolean }>
+    install: () => Promise<{ success: boolean }>
   }
   asset: {
     list: (projectId: string) => Promise<AssetItem[]>
@@ -241,15 +371,64 @@ export interface LocalCanvasAPI {
     start: (payload: {
       clips: ComposeClip[]
       audioPath?: string
+      subtitlePath?: string
+      burnSubtitles?: boolean
       outputName?: string
       reencode?: boolean
     }) => Promise<{ outputPath: string }>
     cancel: () => Promise<{ success: boolean }>
     openOutputDir: () => Promise<{ success: boolean }>
   }
+  storyboard: {
+    export: (payload: {
+      projectId: string
+      format: 'png' | 'pdf' | 'frame4k'
+      layout?: 'list' | 'grid3' | 'grid5'
+      baseName?: string
+      frames: Array<{
+        sequence: number
+        description: string
+        imagePath?: string
+        imageAssetPath?: string
+      }>
+      frameSequence?: number
+    }) => Promise<{ outputPath: string; format: string }>
+    openOutputDir: () => Promise<{ success: boolean }>
+  }
+  audio: {
+    checkDemucs: () => Promise<{ available: boolean; demucsPath: string }>
+    separateVocals: (payload: {
+      projectId: string
+      audioPath?: string
+      audioAssetPath?: string
+    }) => Promise<{ vocalsPath: string; instrumentalPath: string; mode: string }>
+  }
   projectExtra: {
     rename: (projectId: string, name: string) => Promise<{ success: boolean }>
     openDir: (projectId: string) => Promise<{ success: boolean }>
+  }
+  history: {
+    query: (filter?: {
+      type?: string
+      search?: string
+      limit?: number
+      offset?: number
+    }) => Promise<GenerationRecord[]>
+    getStats: () => Promise<GenerationStats>
+    delete: (id: string) => Promise<{ success: boolean }>
+  }
+  workflow: {
+    list: (presetOnly?: boolean) => Promise<WorkflowSummary[]>
+    load: (workflowId: string) => Promise<WorkflowData>
+    save: (payload: {
+      name: string
+      nodes: unknown[]
+      edges: unknown[]
+      description?: string
+    }) => Promise<{ id: string }>
+    delete: (workflowId: string) => Promise<{ success: boolean }>
+    export: (workflowId: string) => Promise<{ success: boolean; path?: string }>
+    import: () => Promise<{ success: boolean; id?: string }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
   off: (channel: string, callback: (...args: unknown[]) => void) => void

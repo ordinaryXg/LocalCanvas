@@ -10,4 +10,9 @@
   --color-border: #e2e8f0;
   --color-danger: #ef4444;
   --color-success: #22c55e;
+  --scrollbar-size: 8px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in srgb, var(--color-text-muted) 55%, var(--color-bg-tertiary));
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--color-accent) 40%, var(--color-text-muted));
+  --scrollbar-thumb-active: color-mix(in srgb, var(--color-accent) 55%, var(--color-text-muted));
 }

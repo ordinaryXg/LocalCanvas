@@ -236,7 +236,7 @@ export function OnboardingGuide({ onComplete }: OnboardingGuideProps) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-bg-primary">
-      <div className="w-[520px] px-6 max-h-[90vh] overflow-y-auto">
+      <div className="w-[520px] px-6 max-h-[90vh] overflow-y-auto lc-scroll">
         <h1 className="text-2xl font-bold text-text-primary mb-6">{steps[step].title}</h1>
         {steps[step].content}
       </div>

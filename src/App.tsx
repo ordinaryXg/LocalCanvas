@@ -4,9 +4,15 @@ import { Canvas } from './components/canvas/Canvas'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { OnboardingGuide } from './components/panels/OnboardingGuide'
 import { SettingsPanel } from './components/panels/SettingsPanel'
+import { ConfirmDialog } from './components/common/ConfirmDialog'
 import { useCanvasStore } from './stores/canvasStore'
 import { useProjectStore } from './stores/projectStore'
 import { useThemeStore } from './stores/themeStore'
+import { useDirtySync } from './hooks/useDirtySync'
+import { useManualSave } from './hooks/useAutoSave'
+import { useT, useI18nStore } from './i18n'
+import { AuthGate } from './components/auth/AuthGate'
+import { useUserStore } from './stores/userStore'
 import { handleError, setToastHandler } from './utils/ErrorHandler'
 import { hydrateProjectNodes } from './utils/assetStorage'
 import type { Node, Edge } from '@xyflow/react'
@@ -26,14 +32,20 @@ function Toast({ message, type }: { message: string; type: 'error' | 'info' }) {
 }
 
 export default function App() {
+  const t = useT()
   const [view, setView] = useState<AppView>('start')
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'info' } | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
   const loadProject = useCanvasStore((s) => s.loadProject)
-  const { setCurrentProject, clearProject } = useProjectStore()
+  const { setCurrentProject, clearProject, isDirty } = useProjectStore()
   const { theme, toggleTheme } = useThemeStore()
+  const locale = useI18nStore((s) => s.locale)
+  const manualSave = useManualSave()
+
+  useDirtySync()
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -46,11 +58,41 @@ export default function App() {
     })
   }, [])
 
+  const currentProjectId = useProjectStore((s) => s.currentProjectId)
+
+  useEffect(() => {
+    void window.api.app.setActiveProject(currentProjectId)
+  }, [currentProjectId])
+
+  useEffect(() => {
+    void window.api.app.setLocale(locale)
+  }, [locale])
+
+  const setAuth = useUserStore((s) => s.setAuth)
+  const setAuthReady = useUserStore((s) => s.setAuthReady)
+
+  useEffect(() => {
+    void window.api.auth.getSession().then((result) => {
+      setAuth(result.user, result.isGuest)
+      setAuthReady(true)
+    })
+    void window.api.dag.recover()
+  }, [setAuth, setAuthReady])
+
   useEffect(() => {
     void window.api.config.needsOnboarding().then((needs) => {
       if (needs) setShowOnboarding(true)
     })
   }, [])
+
+  useEffect(() => {
+    const unsub = window.api.on('app:requestSave', () => {
+      void manualSave().then(() => {
+        void window.api.app.quitConfirmed()
+      })
+    })
+    return unsub
+  }, [manualSave])
 
   const openProject = useCallback(
     async (id: string, name: string) => {
@@ -68,14 +110,25 @@ export default function App() {
   )
 
   const backToStart = () => {
+    if (isDirty) {
+      setShowLeaveConfirm(true)
+      return
+    }
     clearProject()
     useCanvasStore.getState().loadProject([], [])
     setView('start')
   }
 
+  const confirmLeave = () => {
+    clearProject()
+    useCanvasStore.getState().loadProject([], [])
+    setView('start')
+    setShowLeaveConfirm(false)
+  }
+
   if (view === 'start') {
     return (
-      <>
+      <AuthGate>
         <StartPage
           onOpenProject={(id, name) => void openProject(id, name)}
           onOpenSettings={() => setShowSettings(true)}
@@ -83,46 +136,37 @@ export default function App() {
         {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
         {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
         {toast && <Toast {...toast} />}
-      </>
+      </AuthGate>
     )
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-bg-primary overflow-hidden">
-      <header className="h-10 shrink-0 flex items-center px-3 border-b border-border bg-bg-secondary">
-        <button
-          type="button"
-          onClick={backToStart}
-          className="text-xs text-text-primary/80 hover:text-white mr-4"
-        >
-          ← 返回项目列表
-        </button>
-        <span className="text-xs text-text-muted flex-1">LocalCanvas v0.3</span>
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="text-xs text-text-muted hover:text-white mr-3"
-          title="切换主题"
-        >
-          {theme === 'dark' ? '☀️' : '🌙'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowSettings(true)}
-          className="text-xs text-text-muted hover:text-white"
-        >
-          ⚙️ 设置
-        </button>
-      </header>
-      <div className="flex flex-1 min-h-0">
-        <Sidebar />
-        <main className="flex-1 min-w-0 relative">
-          <Canvas />
-        </main>
-      </div>
+    <AuthGate>
+    <div className="w-screen h-screen flex bg-bg-primary overflow-hidden">
+      <Sidebar
+        onBack={backToStart}
+        onOpenSettings={() => setShowSettings(true)}
+        onToggleTheme={toggleTheme}
+        theme={theme}
+      />
+      <main className="flex-1 min-w-0 relative">
+        <Canvas />
+      </main>
       {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      {showLeaveConfirm && (
+        <ConfirmDialog
+          title={t('app.unsavedTitle')}
+          message={t('app.unsavedMessage')}
+          onSave={() => {
+            void manualSave().then(confirmLeave)
+          }}
+          onDiscard={confirmLeave}
+          onCancel={() => setShowLeaveConfirm(false)}
+        />
+      )}
       {toast && <Toast {...toast} />}
     </div>
+    </AuthGate>
   )
 }

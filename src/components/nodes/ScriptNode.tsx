@@ -64,7 +64,7 @@ function ScriptNodeComponent({ id, selected, width, height }: NodeProps) {
       )}
 
       {rows.length > 0 && (
-        <div className="mt-2 flex-1 min-h-0 max-h-[160px] overflow-y-auto nowheel">
+        <div className="mt-2 flex-1 min-h-0 max-h-[160px] overflow-y-auto lc-scroll nowheel">
           <table className="w-full text-[10px] text-text-primary table-fixed">
             <thead>
               <tr className="text-text-secondary">

@@ -1,4 +1,5 @@
 import { useScriptNodeActions } from '../../hooks/useScriptNodeActions'
+import { ResizableTextarea } from '../common/ResizableTextarea'
 
 interface ScriptGeneratorProps {
   nodeId: string
@@ -27,11 +28,11 @@ export function ScriptGenerator({ nodeId }: ScriptGeneratorProps) {
         <div className="flex-1 space-y-2">
           <div>
             <label className="text-[10px] text-text-muted">故事梗概</label>
-            <textarea
+            <ResizableTextarea
               value={storyInput}
               onChange={(e) => setStoryInput(e.target.value)}
               placeholder="输入故事梗概，AI 将自动拆分为分镜脚本..."
-              className="w-full h-20 bg-bg-tertiary text-text-primary text-xs p-2 rounded resize-none outline-none border border-border focus:border-accent"
+              minHeight={100}
             />
           </div>
           {scriptTitle && (
@@ -76,7 +77,7 @@ export function ScriptGenerator({ nodeId }: ScriptGeneratorProps) {
       </div>
 
       {rows.length > 0 && (
-        <div className="max-h-[240px] overflow-y-auto nowheel border border-border rounded">
+        <div className="max-h-[240px] overflow-y-auto lc-scroll nowheel border border-border rounded">
           <table className="w-full text-xs text-text-primary">
             <thead className="sticky top-0 bg-bg-secondary">
               <tr className="text-text-secondary">
@@ -99,11 +100,13 @@ export function ScriptGenerator({ nodeId }: ScriptGeneratorProps) {
                       className="nodrag w-full bg-transparent outline-none text-text-primary"
                     />
                   </td>
-                  <td className="px-2 py-1">
-                    <input
+                  <td className="px-2 py-1 align-top">
+                    <ResizableTextarea
                       value={row.prompt}
                       onChange={(e) => updateRow(row.id, 'prompt', e.target.value)}
-                      className="nodrag w-full bg-transparent outline-none text-text-primary"
+                      className="nodrag min-h-[48px] max-h-[160px] text-[11px] p-1.5"
+                      minHeight={48}
+                      maxHeight={160}
                     />
                   </td>
                   <td className="px-2 py-1 text-center">{row.duration}s</td>

@@ -5,8 +5,11 @@ import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { NODE_TYPE_META } from '../../types/node'
 import { generateNodeId } from '../../utils/id'
+import { scriptRowsToFrames } from '../../utils/storyboardConvert'
+import type { ScriptRow } from '../../types/node'
 import { extractWorkflowSnapshot } from '../../utils/workflow'
 import { handleError } from '../../utils/ErrorHandler'
+import { useT } from '../../i18n'
 
 export interface ContextMenuState {
   x: number
@@ -19,12 +22,15 @@ export interface ContextMenuState {
 interface ContextMenuProps {
   menu: ContextMenuState | null
   onClose: () => void
+  onRunGroup?: (nodeIds: string[]) => void
 }
 
-export function ContextMenu({ menu, onClose }: ContextMenuProps) {
+export function ContextMenu({ menu, onClose, onRunGroup }: ContextMenuProps) {
+  const t = useT()
   const reactFlow = useReactFlow()
   const { nodes, edges, addNode, removeNodes, removeEdge, groupNodes, duplicateNode, selectedNodeIds } =
     useCanvasStore()
+  const scriptNode = menu?.nodeId ? nodes.find((n) => n.id === menu.nodeId) : undefined
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
 
   useEffect(() => {
@@ -63,6 +69,19 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
+      {menu.type === 'pane' && selectedNodeIds.length > 0 && onRunGroup && (
+        <button
+          type="button"
+          className="w-full text-left px-3 py-1.5 text-xs text-accent hover:bg-bg-tertiary font-medium"
+          onClick={() => {
+            onRunGroup(selectedNodeIds)
+            onClose()
+          }}
+        >
+          ▶ {t('dag.runGroup')}
+        </button>
+      )}
+
       {menu.type === 'pane' && (
         <>
           <div className="px-3 py-1 text-xs text-text-muted">新建节点</div>
@@ -114,6 +133,54 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           >
             📦 打组
           </button>
+          {onRunGroup && (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-xs text-accent hover:bg-bg-tertiary"
+              onClick={() => {
+                const ids =
+                  selectedNodeIds.length > 1 ? selectedNodeIds : [menu.nodeId!]
+                onRunGroup(ids)
+                onClose()
+              }}
+            >
+              ▶ {t('dag.runGroup')}
+            </button>
+          )}
+          {scriptNode?.type === 'script' && (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+              onClick={() => {
+                const data = scriptNode.data as Record<string, unknown>
+                const rows = (data.scriptRows as ScriptRow[]) ?? []
+                const rowAssets = data.rowAssets as Record<
+                  number,
+                  { imageNodeId?: string; videoNodeId?: string }
+                >
+                const nodesData: Record<string, Record<string, unknown>> = {}
+                for (const n of nodes) {
+                  nodesData[n.id] = n.data as Record<string, unknown>
+                }
+                const frames = scriptRowsToFrames(rows, rowAssets, nodesData)
+                addNode({
+                  id: generateNodeId('storyboard'),
+                  type: 'storyboard',
+                  position: { x: scriptNode.position.x + 420, y: scriptNode.position.y },
+                  data: {
+                    frames,
+                    layout: 'list',
+                    imageModelId: data.imageModelId,
+                    videoModelId: data.videoModelId,
+                  },
+                  selected: true,
+                })
+                onClose()
+              }}
+            >
+              🎞️ {t('storyboard.convertFromScript')}
+            </button>
+          )}
           <button
             type="button"
             className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
@@ -127,6 +194,12 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
                   selectedNodeIds.length > 0 ? selectedNodeIds : [menu.nodeId!]
                 try {
                   const snapshot = extractWorkflowSnapshot(nodes, edges, ids)
+                  await window.api.workflow.save({
+                    name: snapshot.name,
+                    nodes: snapshot.nodes,
+                    edges: snapshot.edges,
+                    description: `从项目 ${currentProjectId} 导出`,
+                  })
                   const fileName = `workflow-${Date.now()}.json`
                   await window.api.file.saveWorkflow(
                     currentProjectId,

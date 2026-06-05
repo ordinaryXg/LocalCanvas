@@ -22,7 +22,7 @@
 | 维度 | LibTV（云端 SaaS） | LocalCanvas（本地桌面） |
 |------|---------------------|------------------------|
 | 账号 | 必须登录 | 无需登录，本地启动即用 |
-| 模型 | 平台内置，按积分消耗 | 用户自行配置 API 端点（ComfyUI/OpenAI兼容/Replicate/自定义） |
+| 模型 | 平台内置，按积分消耗 | 用户自行配置 API 端点（OpenAI 兼容/Seedance/Replicate/自定义 HTTP） |
 | 存储 | 云端存储 | 本地 SQLite + 文件系统（JSON 仅用于导入/导出） |
 | 积分/会员 | 有 | 无，用户直接对接模型服务商 |
 | 社区/分享 | 有 | MVP 不含，V2 可选 |
@@ -156,21 +156,14 @@
 
 # 图像模型配置
 image_models:
-  - id: "flux-dev"
-    name: "FLUX.1 Dev"
-    provider: "comfyui"           # 适配器类型
-    endpoint: "http://127.0.0.1:8188"  # ComfyUI 本地地址
-    workflow: "flux_dev_api.json"      # ComfyUI 工作流文件
-    max_resolution: 2048
+  - id: "seedream-4.5"
+    name: "Seedream 4.5"
+    provider: "openai_compatible"
+    endpoint: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+    api_key: "${ARK_API_KEY}"
+    model: "doubao-seedream-4-5-251128"
+    max_resolution: 4096
     supported_ratios: ["1:1", "16:9", "9:16", "3:4", "4:3"]
-
-  - id: "sdxl"
-    name: "Stable Diffusion XL"
-    provider: "comfyui"
-    endpoint: "http://127.0.0.1:8188"
-    workflow: "sdxl_api.json"
-    max_resolution: 2048
-    supported_ratios: ["1:1", "16:9", "9:16"]
 
   - id: "dall-e-3"
     name: "DALL-E 3"
@@ -182,11 +175,13 @@ image_models:
 
 # 视频模型配置
 video_models:
-  - id: "cogvideox"
-    name: "CogVideoX"
-    provider: "comfyui"
-    endpoint: "http://127.0.0.1:8188"
-    workflow: "cogvideox_api.json"
+  - id: "seedance-2.0"
+    name: "Seedance 2.0"
+    provider: "volcengine_seedance"
+    endpoint: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks"
+    poll_endpoint: "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/{task_id}"
+    api_key: "${ARK_API_KEY}"
+    model: "doubao-seedance-2-0-260128"
     max_duration: 10
     supported_resolutions: ["720p", "1080p"]
 
@@ -239,8 +234,8 @@ tts_models:
 
 # 通用设置
 settings:
-  default_image_model: "flux-dev"
-  default_video_model: "cogvideox"
+  default_image_model: "seedream-4.5"
+  default_video_model: "seedance-2.0"
   default_llm: "qwen3"
   output_dir: "~/LocalCanvas/outputs"
   temp_dir: "~/LocalCanvas/.temp"
@@ -251,14 +246,13 @@ settings:
 
 ```
 ModelAdapter (抽象基类)
-├── ComfyUIAdapter
-│   ├── 支持 workflow JSON 模板
-│   ├── WebSocket 实时进度
-│   └── 图片/视频输出自动下载
-├── OpenAICompatibleAdapter
-│   ├── 统一 REST 调用
-│   ├── 流式响应支持
-│   └── 图片 base64 / URL 自动处理
+├── RemoteApiAdapter（OpenAI 兼容 HTTP）
+│   ├── 统一 REST 调用（图像/文本/视频/音频）
+│   ├── 异步任务轮询
+│   └── 输出文件自动下载到本地
+├── SeedanceAdapter（火山方舟视频）
+│   ├── 创建任务 + 轮询状态
+│   └── 视频输出自动下载
 ├── ReplicateAdapter
 │   ├── 异步预测模式
 │   └── 轮询进度 + 自动下载
@@ -268,24 +262,23 @@ ModelAdapter (抽象基类)
     └── 响应 JSONPath 映射
 ```
 
-### 3.3 ComfyUI 适配器设计（首要支持）
+### 3.3 远程 API 适配器设计（首要支持）
 
-**为什么首要支持 ComfyUI**：
-- 本地部署最成熟的开源方案
-- 已有大量用户基础
-- 工作流可复用、可分享
-- 支持所有主流模型（SD/FLUX/视频模型等）
+**为什么首要支持 OpenAI 兼容 HTTP API**：
+- 火山方舟等云服务提供稳定的图像/视频/LLM 接口
+- 无需本地 GPU，配置 API Key 即可使用
+- 适配器层统一抽象，便于扩展 Replicate / 自定义端点
 
 **交互流程**：
 
 ```
 1. 用户在画布创建图片节点 → 输入提示词 → 点击生成
-2. 应用读取 config.yaml 中 ComfyUI endpoint
-3. 加载对应的 workflow JSON 模板
+2. 应用读取 config.yaml 中对应模型的 endpoint 与 api_key
+3. RemoteApiAdapter / SeedanceAdapter 构造 HTTP 请求
 4. 填入用户参数（提示词/分辨率/参考图等）
-5. POST /prompt 提交任务
-6. WebSocket 监听进度 → 节点显示进度条
-7. 完成后获取输出图片 → 展示在节点中
+5. POST 提交任务（同步返回或异步 task_id）
+6. 轮询任务状态 → 节点显示进度条
+7. 完成后下载输出文件 → 展示在节点中
 8. 同时保存到本地 outputs/ 目录
 ```
 
@@ -506,7 +499,7 @@ interface Edge {
 │ ┌──────────────────────────────────────────────────────────────┐  │
 │ │ Utility Process（CPU/IO 密集操作，独立进程不阻塞主进程）      │  │
 │ │ ├── ModelAdapter 调用层                                     │  │
-│ │ │   ├── ComfyUIAdapter（HTTP + WebSocket）                   │  │
+│ │ │   ├── RemoteApiAdapter / SeedanceAdapter（HTTP API）        │  │
 │ │ │   ├── OpenAICompatibleAdapter（REST + SSE）               │  │
 │ │ │   ├── ReplicateAdapter（异步轮询）                         │  │
 │ │ │   └── CustomAdapter（模板 + JSONPath）                     │  │
@@ -669,7 +662,7 @@ interface Edge {
 |--------|------|------|
 | **Core** | config.yaml 解析 | 模型配置读取/写入 UI |
 | **Core** | Utility Process 搭建 | 独立进程承载模型 API 调用 |
-| **Core** | ComfyUI 适配器 | WebSocket + workflow JSON 提交（在 Utility Process） |
+| **Core** | RemoteApi + Seedance 适配器 | HTTP API 调用 + 异步轮询（在 Utility Process） |
 | **Core** | 图像生成器面板 | 提示词/模型/参数/生成 |
 | **Core** | 视频生成器面板 | 提示词/模型/首尾帧/生成 |
 | **Core** | 生成进度 | 节点内进度条显示（Utility → Main → Renderer） |
@@ -711,7 +704,7 @@ interface Edge {
 | 风险 | 影响 | 应对 |
 |------|------|------|
 | React Flow 性能（节点过多） | 画布卡顿 | 虚拟化渲染，节点数 >100 时启用 viewport culling |
-| ComfyUI 工作流兼容性 | 不同模型需要不同 workflow JSON | 提供预置模板 + 社区共享机制 |
+| 各家 API 格式差异 | 不同服务商请求/响应结构不同 | Adapter 层抽象 + custom_config 配置化映射 |
 | FFmpeg 体积大 | 安装包臃肿 | 首次启动时下载，不打包进安装包 |
 | 大文件本地存储 | 视频/图片占用磁盘 | 缩略图 + 原始文件分离，支持外部存储路径 |
 | 模型 API 不统一 | 各家 API 格式差异 | Adapter 层抽象，配置化映射 |
@@ -732,8 +725,8 @@ interface Edge {
 - [ ] 画布支持无限缩放/平移/小地图
 - [ ] 5 种节点可创建、编辑、删除
 - [ ] 节点之间可连线（数据流正确传递）
-- [ ] 图片生成器可通过 ComfyUI API 生成图片（Utility Process 调用）
-- [ ] 视频生成器可通过 ComfyUI API 生成视频（Utility Process 调用）
+- [ ] 图片生成器可通过远程 API 生成图片（Utility Process 调用）
+- [ ] 视频生成器可通过 Seedance / 远程 API 生成视频（Utility Process 调用）
 - [ ] 脚本节点可 LLM 生成脚本 → 批量分镜 → 批量视频
 - [ ] 多视频可连线到合成节点，通过 FFmpeg 合成导出（Utility Process 调用）
 - [ ] config.yaml 可配置模型端点
@@ -745,22 +738,15 @@ interface Edge {
 
 ---
 
-## 附录 A：ComfyUI 工作流模板示例
+## 附录 A：画布工作流模板示例
 
-### 文生图工作流（flux_dev_api.json）
+LocalCanvas 的「工作流」指画布节点编排模板（非外部推理引擎工作流），存储于 SQLite `workflows` 表，例如：
 
-ComfyUI 的 API 格式工作流 JSON，包含：
-- KSampler 节点（提示词/步数/CFG）
-- FLUX 模型加载
-- VAE 解码
-- 保存图像
+- **文生图 → 图生视频**：文本节点 → 图片节点 → 视频节点
+- **首尾帧视频生成**：双文本 → 双图片 → 视频节点
+- **多片段合成导出**：多视频 + 音频 → 合成节点
 
-> 具体工作流 JSON 需从 ComfyUI 导出 API 格式后放入 `~/.localcanvas/workflows/` 目录。
-
-### 图生视频工作流
-
-- 加载图片 → 视频模型 → 保存视频
-- 支持首帧/首尾帧模式
+用户可在侧边栏「工具」加载预置模板，或将打组节点右键保存为自定义工作流。
 
 ---
 

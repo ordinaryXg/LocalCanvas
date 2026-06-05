@@ -3,6 +3,7 @@ import { join } from 'path'
 import { v4 as uuid } from 'uuid'
 import { getConfigPath, ensureConfigFile } from './config'
 import { getDbPath } from '../ipc/model'
+import { trackGenerationComplete, trackGenerationError, trackBatchItemComplete, getActiveProjectId } from './generation-tracker'
 import { logger } from './logger'
 
 interface PendingRequest {
@@ -108,6 +109,7 @@ export class UtilityClient {
       }
       case 'model:complete': {
         const payload = data as { taskId: string; nodeId: string; result: string }
+        trackGenerationComplete(payload.taskId, payload.result)
         const resolver = this.taskResolvers.get(payload.taskId)
         if (resolver) {
           this.taskResolvers.delete(payload.taskId)
@@ -121,6 +123,7 @@ export class UtilityClient {
       case 'model:error': {
         const payload = data as { taskId?: string; nodeId?: string; error: string }
         if (payload.taskId) {
+          trackGenerationError(payload.taskId, payload.error)
           const resolver = this.taskResolvers.get(payload.taskId)
           if (resolver) {
             this.taskResolvers.delete(payload.taskId)
@@ -133,6 +136,22 @@ export class UtilityClient {
         break
       }
       case 'model:batchItemComplete': {
+        const payload = data as {
+          scriptNodeId: string
+          type: 'image' | 'video'
+          sequence: number
+          result: string
+          modelId: string
+          prompt: string
+        }
+        trackBatchItemComplete({
+          type: payload.type,
+          modelId: payload.modelId,
+          nodeId: payload.scriptNodeId,
+          prompt: payload.prompt,
+          outputPath: payload.result,
+          projectId: getActiveProjectId() ?? undefined,
+        })
         BrowserWindow.getAllWindows().forEach((win) => {
           win.webContents.send('model:batchItemComplete', data)
         })
@@ -299,6 +318,23 @@ export class UtilityClient {
     }
   }
 
+  async agentChat(payload: {
+    message: string
+    disabledSkills?: string[]
+  }): Promise<{ reply: string; plan?: unknown; skillId?: string }> {
+    return (await this.send('agent:chat', payload, 120000)) as {
+      reply: string
+      plan?: unknown
+      skillId?: string
+    }
+  }
+
+  async listAgentSkills(): Promise<{ skills: Array<{ id: string; name: string; description: string }> }> {
+    return (await this.send('agent:listSkills', {}, 10000)) as {
+      skills: Array<{ id: string; name: string; description: string }>
+    }
+  }
+
   async batchGenerateVideos(payload: {
     scriptNodeId: string
     modelId: string
@@ -381,6 +417,8 @@ export class UtilityClient {
   async compose(payload: {
     clips: Array<{ id: string; path: string; startTime: number; duration: number }>
     audioPath?: string
+    subtitlePath?: string
+    burnSubtitles?: boolean
     outputName?: string
     reencode?: boolean
   }): Promise<string> {
@@ -394,6 +432,49 @@ export class UtilityClient {
 
   async cancelCompose(): Promise<void> {
     await this.send('compose:cancel', {}, 10000)
+  }
+
+  async exportStoryboard(payload: {
+    frames: Array<{ sequence: number; description: string; imagePath?: string }>
+    layout: 'list' | 'grid3' | 'grid5'
+    format: 'png' | 'pdf'
+    baseName?: string
+  }): Promise<string> {
+    const result = (await this.send('storyboard:export', payload, 300000)) as {
+      outputPath: string
+    }
+    return result.outputPath
+  }
+
+  async exportStoryboardFrame4k(imagePath: string, sequence: number): Promise<string> {
+    const result = (await this.send(
+      'storyboard:exportFrame4k',
+      { imagePath, sequence },
+      120000,
+    )) as { outputPath: string }
+    return result.outputPath
+  }
+
+  async checkDemucs(demucsPath?: string): Promise<boolean> {
+    const result = (await this.send('audio:checkDemucs', { demucsPath }, 15000)) as {
+      available: boolean
+    }
+    return result.available
+  }
+
+  async separateVocals(
+    inputPath: string,
+    options?: {
+      demucsPath?: string
+      apiEndpoint?: string
+      apiKey?: string
+    },
+  ): Promise<{ vocalsPath: string; instrumentalPath: string; mode: string }> {
+    return (await this.send(
+      'audio:separateVocals',
+      { inputPath, ...options },
+      600000,
+    )) as { vocalsPath: string; instrumentalPath: string; mode: string }
   }
 
   private waitForTask(taskId: string, nodeId: string): Promise<string> {

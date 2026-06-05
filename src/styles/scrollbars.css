@@ -1,0 +1,137 @@
+/* 全局自定义滚动条 — 与 LocalCanvas 主题一致 */
+
+*,
+*::before,
+*::after {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--scrollbar-thumb) 72%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 28px;
+  min-width: 28px;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 面板内滚动：轨道略可见，悬停时滑块高亮 */
+.lc-scroll {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-gutter: stable;
+}
+
+.lc-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--color-bg-tertiary) 32%, transparent);
+  margin: 4px 0;
+}
+
+.lc-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--scrollbar-thumb) 58%, transparent);
+}
+
+.lc-scroll:hover {
+  scrollbar-color: var(--scrollbar-thumb-hover) var(--scrollbar-track);
+}
+
+.lc-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* 横向滚动（时间轴等） */
+.lc-scroll-x {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.lc-scroll-x::-webkit-scrollbar {
+  height: 6px;
+}
+
+.lc-scroll-x::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--color-bg-tertiary) 28%, transparent);
+  margin: 0 6px;
+}
+
+.lc-scroll-x::-webkit-scrollbar-thumb {
+  min-height: unset;
+  min-width: 40px;
+  background-color: color-mix(in srgb, var(--scrollbar-thumb) 55%, transparent);
+}
+
+.lc-scroll-x:hover::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* 文本域：略宽滑块，便于拖拽 */
+textarea,
+.lc-scroll-text {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+textarea::-webkit-scrollbar,
+.lc-scroll-text::-webkit-scrollbar {
+  width: 9px;
+}
+
+textarea::-webkit-scrollbar-track,
+.lc-scroll-text::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--color-bg-primary) 40%, transparent);
+  margin: 6px 2px;
+}
+
+textarea::-webkit-scrollbar-thumb,
+.lc-scroll-text::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--scrollbar-thumb) 65%, transparent);
+  border-width: 2px;
+}
+
+textarea:hover::-webkit-scrollbar-thumb,
+.lc-scroll-text:hover::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+textarea:focus::-webkit-scrollbar-thumb,
+.lc-scroll-text:focus::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-accent) 35%, var(--scrollbar-thumb));
+}
+
+/* React Flow 节点内滚动 */
+.react-flow__node .nowheel,
+.react-flow__node textarea,
+.react-flow__node [class*='overflow-y-auto'],
+.react-flow__node [class*='overflow-auto'],
+.react-flow__node [class*='overflow-x-auto'] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}

@@ -518,7 +518,7 @@ ScriptNode 按钮：「生成分镜图」「Seedance 视频」
 
 | 能力 | 说明 |
 |------|------|
-| 本地 ComfyUI / 自托管推理 | 不在 v2 范围 |
+| 本地自托管推理引擎 | 不在 v2 范围，v2 聚焦远程 HTTP API |
 | 本地 SD / FLUX 推理 | 请使用对应云端 API |
 | WebSocket 本地进度 | 仅远端 API 轮询 |
 
