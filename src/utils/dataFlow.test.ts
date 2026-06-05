@@ -21,13 +21,39 @@ describe('computeDataFlowPatches', () => {
     expect(patches).toEqual([{ nodeId: 'i1', data: { prompt: 'sunset' } }])
   })
 
-  it('prefers generatedContent over inputContent for text to image', () => {
+  it('syncs passthrough draft to downstream when output follows draft', () => {
     const nodes: Node[] = [
       {
         id: 't1',
         type: 'text',
         position: { x: 0, y: 0 },
-        data: { inputContent: 'raw story draft', generatedContent: 'polished prompt for image' },
+        data: {
+          draft: 'updated prompt text',
+          output: 'updated prompt text',
+          outputMode: 'passthrough',
+          outputEdited: false,
+        },
+      },
+      { id: 'i1', type: 'image', position: { x: 0, y: 0 }, data: { prompt: 'old' } },
+    ]
+    const edges: Edge[] = [
+      { id: 'e1', source: 't1', target: 'i1', sourceHandle: 'prompt', targetHandle: 'prompt' },
+    ]
+    const patches = computeDataFlowPatches(nodes, edges)
+    expect(patches[0].data.prompt).toBe('updated prompt text')
+  })
+
+  it('syncs text output field to image prompt', () => {
+    const nodes: Node[] = [
+      {
+        id: 't1',
+        type: 'text',
+        position: { x: 0, y: 0 },
+        data: {
+          draft: 'raw story draft',
+          output: 'polished prompt for image',
+          outputMode: 'generated',
+        },
       },
       { id: 'i1', type: 'image', position: { x: 0, y: 0 }, data: { prompt: '' } },
     ]
@@ -38,7 +64,7 @@ describe('computeDataFlowPatches', () => {
     expect(patches[0].data.prompt).toBe('polished prompt for image')
   })
 
-  it('falls back to inputContent when no generated text', () => {
+  it('falls back to legacy fields when output empty', () => {
     const nodes: Node[] = [
       {
         id: 't1',
@@ -86,7 +112,7 @@ describe('computeDataFlowPatches', () => {
     expect(patches[0].data.prompt).toBe('cat')
   })
 
-  it('syncs image firstFrame to video', () => {
+  it('syncs image output to video firstFrame', () => {
     const nodes: Node[] = [
       {
         id: 'i1',
@@ -101,7 +127,7 @@ describe('computeDataFlowPatches', () => {
         id: 'e1',
         source: 'i1',
         target: 'v1',
-        sourceHandle: 'firstFrame',
+        sourceHandle: 'image',
         targetHandle: 'firstFrame',
       },
     ]
@@ -139,7 +165,7 @@ describe('computeDataFlowPatches', () => {
     expect(patches[0].data.audioAssetPath).toBe('audios/x.mp3')
   })
 
-  it('syncs image reference to target image', () => {
+  it('syncs image output to target image reference', () => {
     const nodes: Node[] = [
       {
         id: 'i1',
@@ -154,7 +180,7 @@ describe('computeDataFlowPatches', () => {
         id: 'e1',
         source: 'i1',
         target: 'i2',
-        sourceHandle: 'reference',
+        sourceHandle: 'image',
         targetHandle: 'reference',
       },
     ]
@@ -184,14 +210,14 @@ describe('computeDataFlowPatches', () => {
         id: 'e1',
         source: 'i1',
         target: 'v1',
-        sourceHandle: 'firstFrame',
+        sourceHandle: 'image',
         targetHandle: 'firstFrame',
       },
       {
         id: 'e2',
         source: 'i2',
         target: 'v1',
-        sourceHandle: 'firstFrame',
+        sourceHandle: 'image',
         targetHandle: 'firstFrame',
       },
     ]
@@ -223,14 +249,14 @@ describe('computeDataFlowPatches', () => {
         id: 'e1',
         source: 'i1',
         target: 'v1',
-        sourceHandle: 'firstFrame',
+        sourceHandle: 'image',
         targetHandle: 'firstFrame',
       },
       {
         id: 'e2',
         source: 'i2',
         target: 'v1',
-        sourceHandle: 'firstFrame',
+        sourceHandle: 'image',
         targetHandle: 'lastFrame',
       },
     ]
@@ -240,6 +266,39 @@ describe('computeDataFlowPatches', () => {
     const video = simulateDataFlowUntilStable(nodes, edges).nodes.find((n) => n.id === 'v1')
     expect(video?.data.firstFrameSrc).toBe('blob:a')
     expect(video?.data.lastFrameSrc).toBe('blob:b')
+  })
+
+  it('fans out one image to multiple video nodes', () => {
+    const nodes: Node[] = [
+      {
+        id: 'i1',
+        type: 'image',
+        position: { x: 0, y: 0 },
+        data: { imageSrc: 'blob:shared', imageAssetPath: 'images/shared.png' },
+      },
+      { id: 'v1', type: 'video', position: { x: 0, y: 0 }, data: {} },
+      { id: 'v2', type: 'video', position: { x: 0, y: 0 }, data: {} },
+    ]
+    const edges: Edge[] = [
+      {
+        id: 'e1',
+        source: 'i1',
+        target: 'v1',
+        sourceHandle: 'image',
+        targetHandle: 'firstFrame',
+      },
+      {
+        id: 'e2',
+        source: 'i1',
+        target: 'v2',
+        sourceHandle: 'image',
+        targetHandle: 'firstFrame',
+      },
+    ]
+    const patches = computeDataFlowPatches(nodes, edges)
+    expect(patches).toHaveLength(2)
+    expect(patches.find((p) => p.nodeId === 'v1')?.data.firstFrameSrc).toBe('blob:shared')
+    expect(patches.find((p) => p.nodeId === 'v2')?.data.firstFrameSrc).toBe('blob:shared')
   })
 
   it('clears firstFrame on video when edge removed', () => {

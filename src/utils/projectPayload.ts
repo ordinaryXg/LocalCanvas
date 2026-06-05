@@ -1,6 +1,7 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { ProjectGroup } from '../types/project'
 import { stripTransientMediaFields } from './assetStorage'
+import { ensureEdgeIds } from './canvasEdge'
 
 export function extractGroupsFromNodes(nodes: Node[]): ProjectGroup[] {
   return nodes
@@ -56,7 +57,7 @@ export function buildProjectSavePayload(params: {
     name: params.name,
     viewport: params.viewport,
     nodes: params.nodes.map(serializeNodeForSave),
-    edges: params.edges,
+    edges: ensureEdgeIds(params.edges),
     groups: extractGroupsFromNodes(params.nodes),
     updatedAt: new Date().toISOString(),
   }

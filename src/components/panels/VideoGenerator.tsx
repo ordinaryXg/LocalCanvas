@@ -2,9 +2,19 @@ import { useState, useEffect } from 'react'
 import type { VideoModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
-import { handleError } from '../../utils/ErrorHandler'
+import { handleError, showToast } from '../../utils/ErrorHandler'
+import {
+  assertNoWarnEdgesForNode,
+  GenerationBlockedError,
+} from '../../capabilities/generation-guard'
+import {
+  getVideoGeneratorUi,
+  listUnsupportedInboundSlots,
+} from '../../capabilities/generator-ui'
+import { ModelCapabilityBadges } from './ModelCapabilityBadges'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
 import { resolveImageRefFromNodeId } from '../../utils/resolveImageRefForApi'
+import { resolveMediaRefFromNodeId } from '../../utils/resolveMediaRefForApi'
 import { resolveVideoFrameRefForApi } from '../../utils/resolveVideoFrameRef'
 import { NodeImageThumb } from '../common/NodeImageThumb'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
@@ -15,8 +25,11 @@ import {
   SEEDANCE_T2V_RATIOS,
   SEEDANCE_CAMERA_PROMPTS,
   DEFAULT_SEEDANCE_VIDEO_MODEL,
-  getSeedanceCapabilities,
 } from '../../constants/seedance'
+import {
+  isVideoReferenceImageHandle,
+  referenceIndexFromHandle,
+} from '../../utils/videoReferenceSlots'
 
 interface VideoGeneratorProps {
   nodeId: string
@@ -51,6 +64,19 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
 
   const firstFrameEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'firstFrame')
   const lastFrameEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'lastFrame')
+  const videoRefEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'video')
+  const audioRefEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'audio')
+  const referenceEdges = edges
+    .filter(
+      (e) =>
+        e.target === nodeId &&
+        e.targetHandle &&
+        isVideoReferenceImageHandle(e.targetHandle),
+    )
+    .sort(
+      (a, b) =>
+        referenceIndexFromHandle(a.targetHandle!) - referenceIndexFromHandle(b.targetHandle!),
+    )
   const hasSyncedFirstFrame = typeof data.firstFrameAssetPath === 'string' || typeof data.firstFrameSrc === 'string'
   const hasSyncedLastFrame = typeof data.lastFrameAssetPath === 'string' || typeof data.lastFrameSrc === 'string'
 
@@ -65,9 +91,13 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
 
   const selectedModel = videoModels.find((m) => m.id === modelId)
   const isSeedance = selectedModel?.provider === 'volcengine_seedance'
-  const caps = getSeedanceCapabilities(selectedModel?.model ?? DEFAULT_SEEDANCE_VIDEO_MODEL.model)
-  const resolutionOptions = caps.resolutions
-  const durationOptions = caps.durations
+  const ui = getVideoGeneratorUi(modelId, selectedModel?.model)
+  const resolutionOptions = ui.resolutions
+  const durationOptions = ui.durations
+  const connectedHandles = edges
+    .filter((e) => e.target === nodeId && e.targetHandle)
+    .map((e) => e.targetHandle as string)
+  const unsupportedSlotWarnings = listUnsupportedInboundSlots(ui, connectedHandles)
   const hasFrameInput =
     !!firstFrameEdge || !!lastFrameEdge || hasSyncedFirstFrame || hasSyncedLastFrame
   const ratioOptions = hasFrameInput ? (['adaptive'] as const) : SEEDANCE_T2V_RATIOS
@@ -86,17 +116,18 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
     if (!selectedModel) return
     const modelDefaultRes =
       (selectedModel.default_params?.resolution as string) ||
-      (caps.version === '1.0' ? '720p' : '1080p')
+      (ui.versionLabel === '1.0' ? '720p' : '1080p')
     if (!resolutionOptions.includes(resolution as (typeof resolutionOptions)[number])) {
       setResolution(modelDefaultRes)
     }
-  }, [selectedModel, caps.version, resolution, resolutionOptions])
+  }, [selectedModel, ui.versionLabel, resolution, resolutionOptions])
 
   const handleGenerate = async () => {
     if (!modelId || !prompt || !currentProjectId) return
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
 
     try {
+      assertNoWarnEdgesForNode(nodeId, nodes, edges, 'video')
       const preset = STYLE_PRESETS.find((p) => p.id === styleId)
       const finalPrompt = preset ? applyStyleToPrompt(prompt, preset) : prompt
 
@@ -106,6 +137,19 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
       const lastFrame = lastFrameEdge
         ? await resolveImageRefFromNodeId(lastFrameEdge.source, nodes, currentProjectId)
         : await resolveVideoFrameRefForApi(data, 'last', currentProjectId)
+      const referenceVideo = videoRefEdge
+        ? await resolveMediaRefFromNodeId(videoRefEdge.source, nodes, currentProjectId)
+        : undefined
+      const referenceAudio = audioRefEdge
+        ? await resolveMediaRefFromNodeId(audioRefEdge.source, nodes, currentProjectId)
+        : undefined
+      const referenceImages = (
+        await Promise.all(
+          referenceEdges.map((edge) =>
+            resolveImageRefFromNodeId(edge.source, nodes, currentProjectId),
+          ),
+        )
+      ).filter((url): url is string => !!url)
 
       const resultPath = await run(() =>
         window.api.model.beginGenerateVideo({
@@ -120,6 +164,9 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         generateAudio,
         firstFrame,
         lastFrame,
+        ...(referenceImages.length > 0 ? { referenceImages } : {}),
+        ...(referenceVideo ? { referenceVideo } : {}),
+        ...(referenceAudio ? { referenceAudio } : {}),
         camera,
         }),
       )
@@ -146,6 +193,11 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
         progress: 100,
       })
     } catch (err) {
+      if (err instanceof GenerationBlockedError) {
+        showToast(err.message, 'error')
+        updateNodeData(nodeId, { isGenerating: false })
+        return
+      }
       const message = err instanceof Error ? err.message : String(err)
       handleError(err, 'videoGenerate')
       updateNodeData(nodeId, { isGenerating: false, error: message })
@@ -159,7 +211,7 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
           <span className="text-xs font-medium text-rose-400">
             {selectedModel?.name ?? 'Seedance 视频'}
           </span>
-          <span className="text-[10px] text-text-muted">v{caps.version}</span>
+          <span className="text-[10px] text-text-muted">v{ui.versionLabel}</span>
           {isSeedance && !selectedModel?.api_key && (
             <span className="text-[10px] text-danger">未配置 ARK API Key</span>
           )}
@@ -196,11 +248,36 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
               />
             </div>
           )}
+          {referenceEdges.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[10px] text-text-muted">
+                参考图 {referenceEdges.length}/{ui.maxReferenceImages}
+              </span>
+              {referenceEdges.map((edge) => (
+                <div
+                  key={edge.id}
+                  className="w-10 h-10 rounded overflow-hidden border border-border"
+                  title={`参考图 ${referenceIndexFromHandle(edge.targetHandle!) + 1}`}
+                >
+                  <NodeImageThumb
+                    projectId={currentProjectId}
+                    nodeId={edge.source}
+                    alt="参考图"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           {hasFrameInput && (
             <span className="text-[10px] text-text-muted self-center">
               已接入分镜图，将使用 adaptive 比例（图生视频）
             </span>
           )}
+          {unsupportedSlotWarnings.map((msg) => (
+            <p key={msg} className="text-[10px] text-amber-300 leading-snug w-full">
+              {msg}
+            </p>
+          ))}
         </div>
       </div>
 
@@ -209,7 +286,10 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
           <label className="text-[10px] text-text-muted">模型</label>
           <select
             value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
+            onChange={(e) => {
+              setModelId(e.target.value)
+              updateNodeData(nodeId, { modelId: e.target.value })
+            }}
             className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
           >
             {videoModels.length === 0 && (
@@ -221,6 +301,9 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
               </option>
             ))}
           </select>
+          <div className="mt-1">
+            <ModelCapabilityBadges profile={ui.profile} compact />
+          </div>
         </div>
         <div>
           <label className="text-[10px] text-text-muted">风格模板</label>
@@ -298,7 +381,7 @@ export function VideoGenerator({ nodeId }: VideoGeneratorProps) {
             </select>
           </div>
         </div>
-        {caps.supportsGenerateAudio && (
+        {ui.supportsGenerateAudio && (
           <label className="flex items-center gap-2 text-[10px] text-text-muted cursor-pointer">
             <input
               type="checkbox"

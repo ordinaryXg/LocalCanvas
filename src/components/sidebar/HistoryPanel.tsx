@@ -91,8 +91,9 @@ export function HistoryPanel() {
           position,
           data: {
             ...baseData,
-            generatedContent: record.outputPath,
-            content: record.outputPath,
+            output: record.outputPath,
+            outputMode: 'generated',
+            draft: record.prompt,
           },
         })
         return

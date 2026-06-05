@@ -14,6 +14,7 @@ import { useT, useI18nStore } from './i18n'
 import { AuthGate } from './components/auth/AuthGate'
 import { useUserStore } from './stores/userStore'
 import { handleError, setToastHandler } from './utils/ErrorHandler'
+import { hydrateProbedProfileCache } from './capabilities/load-probed-profiles'
 import { hydrateProjectNodes } from './utils/assetStorage'
 import type { Node, Edge } from '@xyflow/react'
 
@@ -56,6 +57,10 @@ export default function App() {
       setToast({ message, type })
       setTimeout(() => setToast(null), 4000)
     })
+  }, [])
+
+  useEffect(() => {
+    void hydrateProbedProfileCache()
   }, [])
 
   const currentProjectId = useProjectStore((s) => s.currentProjectId)

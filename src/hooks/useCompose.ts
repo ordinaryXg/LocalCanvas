@@ -6,6 +6,7 @@ import { importGeneratedMedia } from '../utils/generatedMedia'
 import { generateNodeId } from '../utils/id'
 import type { ComposeClip } from '../types/ipc'
 import type { ComposeClipItem } from '../types/node'
+import { applySequentialStartTimes, getActiveClips } from '../utils/composeSequence'
 
 export async function resolveAssetAbsolutePath(
   projectId: string,
@@ -52,6 +53,7 @@ export async function runCompose(
       path,
       startTime: clip.startTime,
       duration: clip.duration,
+      trimIn: clip.trimIn,
     })
   }
 
@@ -122,12 +124,14 @@ export async function finishComposeAndCreateVideoNode(
 }
 
 export function clipsFromComposeNode(clips: ComposeClipItem[] | undefined) {
-  return (clips ?? []).map((c, i) => ({
+  const active = applySequentialStartTimes(getActiveClips(clips ?? []))
+  return active.map((c, i) => ({
     id: c.id || `clip-${i}`,
     assetPath: c.assetPath,
     absolutePath: c.absolutePath,
     startTime: c.startTime ?? 0,
     duration: c.duration || 5,
+    trimIn: c.trimIn ?? 0,
   }))
 }
 

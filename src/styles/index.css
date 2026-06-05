@@ -65,6 +65,47 @@ textarea::placeholder {
   fill: white !important;
 }
 
+.canvas-controls-panel {
+  margin: 0 0 8px 8px !important;
+}
+
+.canvas-controls {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.canvas-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.canvas-control-btn:last-child {
+  border-bottom: none;
+}
+
+.canvas-control-btn:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  color: var(--color-accent);
+}
+
+.canvas-control-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .minimap-dark {
   background: var(--color-bg-secondary) !important;
   border: 1px solid var(--color-border) !important;
@@ -79,7 +120,7 @@ textarea::placeholder {
 }
 
 .canvas-zoom-panel {
-  margin: 0 0 132px 8px !important;
+  margin: 0 0 168px 8px !important;
 }
 
 .canvas-zoom-label {

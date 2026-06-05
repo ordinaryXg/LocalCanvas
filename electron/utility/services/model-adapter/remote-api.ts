@@ -11,6 +11,27 @@ import {
 } from './base'
 import { AdapterError, AdapterErrorCode, ADAPTER_USER_MESSAGES } from '../../../../src/types/adapter-errors'
 import { isSeedreamModel, mapSizeForSeedream } from '../../../../src/constants/seedream'
+import { resolveProfile } from '../../../../src/capabilities/registry'
+import {
+  buildReasoningParams,
+  shouldForceStream,
+} from '../../../../src/capabilities/reasoning-params'
+import { buildVisionUserContent } from '../../../../src/capabilities/llm-vision-content'
+
+function mergeTextRequestBody(
+  base: Record<string, unknown>,
+  reasoning: Record<string, unknown>,
+): Record<string, unknown> {
+  const baseExtra = (base.extra_body as Record<string, unknown> | undefined) ?? {}
+  const reasoningExtra = (reasoning.extra_body as Record<string, unknown> | undefined) ?? {}
+  const { extra_body: _rExtra, ...reasoningRest } = reasoning
+  const mergedExtra = { ...baseExtra, ...reasoningExtra }
+  return {
+    ...base,
+    ...reasoningRest,
+    ...(Object.keys(mergedExtra).length > 0 ? { extra_body: mergedExtra } : {}),
+  }
+}
 import { isTaskCancelled, cancelledError } from '../task-cancellation'
 
 export interface RemoteApiAdapterOptions {
@@ -47,6 +68,10 @@ export class RemoteApiAdapter extends ModelAdapter {
 
   async generateImage(params: GenerateImageParams): Promise<string> {
     return this.withRetry(async () => {
+      const referenceUrls =
+        params.referenceImages?.filter(Boolean) ??
+        (params.referenceImage ? [params.referenceImage] : undefined)
+
       const body = isSeedreamModel(this.model)
         ? {
             model: this.model,
@@ -55,6 +80,7 @@ export class RemoteApiAdapter extends ModelAdapter {
             response_format: 'url',
             watermark: false,
             sequential_image_generation: 'disabled',
+            ...(referenceUrls?.length ? { image: referenceUrls } : {}),
           }
         : {
             model: this.model,
@@ -137,21 +163,30 @@ export class RemoteApiAdapter extends ModelAdapter {
 
   async generateText(params: GenerateTextParams): Promise<string> {
     try {
-      const res = await axios.post(
-        this.endpoint,
+      const profile = resolveProfile({ model: this.model, kind: 'llm' })
+      const preset = params.thinkingPreset ?? 'balanced'
+      const reasoning = buildReasoningParams(profile, preset)
+      const userContent = buildVisionUserContent(params.prompt, params.images)
+      const body = mergeTextRequestBody(
         {
           model: this.model,
           messages: [
             ...(params.systemPrompt
               ? [{ role: 'system' as const, content: params.systemPrompt }]
               : []),
-            { role: 'user' as const, content: params.prompt },
+            { role: 'user' as const, content: userContent },
           ],
           max_tokens: params.maxTokens || 4096,
           temperature: params.temperature ?? 0.7,
+          stream: params.stream ?? shouldForceStream(profile, preset),
         },
-        { headers: this.headers, timeout: 120000 },
+        reasoning,
       )
+
+      const res = await axios.post(this.endpoint, body, {
+        headers: this.headers,
+        timeout: 120000,
+      })
 
       return (res.data.choices?.[0]?.message?.content as string) || ''
     } catch (err) {

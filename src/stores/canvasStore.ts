@@ -17,6 +17,13 @@ import { useProjectStore } from './projectStore'
 import { generateNodeId } from '../utils/id'
 
 import type { DataFlowPatch } from '../utils/dataFlow'
+import { computeCanvasLayout } from '../utils/canvasLayout'
+import { connectionToEdgeParams, normalizeCanvasEdges } from '../utils/canvasEdge'
+import { evaluateEdgeCompat } from '../capabilities/edge-compat'
+import type { ModelKind } from '../types/capability'
+import { migrateImageOutputEdges, getNodeTypeFromId } from '../utils/portCompat'
+import { refreshEdgeCompatStyles } from '../capabilities/refresh-edge-compat'
+import { normalizeTextNodeData } from '../utils/textNodeOutput'
 
 interface CanvasState {
   nodes: Node[]
@@ -39,9 +46,10 @@ interface CanvasState {
   removeEdge: (edgeId: string) => void
   groupNodes: (ids: string[]) => void
   setSelectedNodes: (ids: string[]) => void
-  setViewport: (viewport: Viewport) => void
+  setViewport: (viewport: Viewport, options?: { silent?: boolean }) => void
   loadProject: (nodes: Node[], edges: Edge[], viewport?: Viewport) => void
   restoreSnapshot: (nodes: Node[], edges: Edge[]) => void
+  layoutNodes: () => boolean
   markDirty: () => void
 }
 
@@ -92,16 +100,33 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   onConnect: (connection: Connection) => {
     recordHistory(get)
+    const nodes = get().nodes
+    const edges = get().edges
+    const sourceType = getNodeTypeFromId(nodes, connection.source)
+    const targetNode = nodes.find((n) => n.id === connection.target)
+    const targetType = targetNode?.type
+    const targetKind: ModelKind =
+      targetType === 'image'
+        ? 'image'
+        : targetType === 'video'
+          ? 'video'
+          : 'llm'
+    const compatResult = evaluateEdgeCompat({
+      sourceType,
+      sourceHandle: connection.sourceHandle,
+      targetType,
+      targetHandle: connection.targetHandle,
+      targetModelId: targetNode?.data?.modelId as string | undefined,
+      targetKind,
+      edges,
+      targetNodeId: connection.target,
+    })
+    const compat =
+      compatResult.status === 'reject'
+        ? { status: 'solid' as const }
+        : { status: compatResult.status, reason: compatResult.reason }
     set({
-      edges: addEdge(
-        {
-          ...connection,
-          type: 'smoothstep',
-          animated: true,
-          style: { stroke: 'var(--color-accent, #6366f1)', strokeWidth: 2 },
-        },
-        get().edges,
-      ),
+      edges: addEdge(connectionToEdgeParams(connection, compat), edges),
     })
   },
 
@@ -121,15 +146,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addConnection: (connection) => {
     recordHistory(get)
     set({
-      edges: addEdge(
-        {
-          ...connection,
-          type: 'smoothstep',
-          animated: true,
-          style: { stroke: 'var(--color-accent, #6366f1)', strokeWidth: 2 },
-        },
-        get().edges,
-      ),
+      edges: addEdge(connectionToEdgeParams(connection), get().edges),
     })
   },
 
@@ -156,10 +173,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     )
     if (!hasChange) return
 
+    const nextNodes = get().nodes.map((n) =>
+      n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n,
+    )
+    const shouldRefreshEdges =
+      'modelId' in data && node.type !== undefined && ['image', 'video', 'text'].includes(node.type)
     set({
-      nodes: get().nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n,
-      ),
+      nodes: nextNodes,
+      ...(shouldRefreshEdges
+        ? { edges: refreshEdgeCompatStyles(nextNodes, get().edges) }
+        : {}),
     })
     useProjectStore.getState().setDirty(true)
   },
@@ -262,16 +285,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setSelectedNodes: (ids) => set({ selectedNodeIds: ids }),
 
-  setViewport: (viewport) => {
+  setViewport: (viewport, options) => {
     set({ viewport })
-    useProjectStore.getState().setDirty(true)
+    if (!options?.silent) {
+      useProjectStore.getState().setDirty(true)
+    }
   },
 
   loadProject: (nodes, edges, viewport) => {
     clearHistory()
+    const normalizedNodes = nodes.map((node) => {
+      if (node.type !== 'text') return node
+      return {
+        ...node,
+        data: normalizeTextNodeData((node.data ?? {}) as Record<string, unknown>),
+      }
+    })
+    const migratedEdges = refreshEdgeCompatStyles(
+      normalizedNodes,
+      normalizeCanvasEdges(migrateImageOutputEdges(normalizedNodes, edges)),
+    )
     set({
-      nodes,
-      edges,
+      nodes: normalizedNodes,
+      edges: migratedEdges,
       viewport: viewport ?? { x: 0, y: 0, zoom: 1 },
       selectedNodeIds: [],
     })
@@ -279,8 +315,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   restoreSnapshot: (nodes, edges) => {
-    set({ nodes, edges })
+    set({ nodes, edges: normalizeCanvasEdges(edges) })
     useProjectStore.getState().setDirty(true)
+  },
+
+  layoutNodes: () => {
+    const { nodes, edges } = get()
+    const positions = computeCanvasLayout(nodes, edges)
+    if (positions.size === 0) return false
+
+    recordHistory(get)
+    set({
+      nodes: nodes.map((node) => {
+        const next = positions.get(node.id)
+        if (!next) return node
+        return { ...node, position: next }
+      }),
+    })
+    return true
   },
 
   markDirty: () => useProjectStore.getState().setDirty(true),

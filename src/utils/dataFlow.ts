@@ -1,5 +1,14 @@
 import type { Node, Edge } from '@xyflow/react'
-import type { ScriptRow } from '../types/node'
+import type { ComposeClipItem, ScriptRow } from '../types/node'
+import {
+  applySequentialStartTimes,
+  clipIdFromEdge,
+  isComposeVideoHandle,
+  normalizeClip,
+} from './composeSequence'
+import { textNodeOutput } from './textNodeOutput'
+
+export { textNodeOutput, textNodeOutput as textNodePromptOutput }
 
 export interface DataFlowPatch {
   nodeId: string
@@ -21,28 +30,8 @@ function valuesEqual(a: unknown, b: unknown): boolean {
   return (a ?? '') === (b ?? '')
 }
 
-/** 文本节点输出端口 prompt：优先生成结果，无有效生成内容时才回退到输入 */
-export function textNodePromptOutput(data: Record<string, unknown>): string {
-  const generated =
-    (typeof data.generatedContent === 'string' ? data.generatedContent : undefined) ??
-    (typeof data.content === 'string' ? data.content : undefined)
-  if (generated?.trim()) return generated
-
-  const input = typeof data.inputContent === 'string' ? data.inputContent : undefined
-  return input ?? ''
-}
-
-function imageOutputForHandle(
-  source: Node,
-  sourceHandle: string | null | undefined,
-): { src?: string; assetPath?: string } {
+function imageNodeOutput(source: Node): { src?: string; assetPath?: string } {
   const data = source.data as Record<string, unknown>
-  if (sourceHandle === 'reference') {
-    return {
-      src: (data.referenceSrc ?? data.imageSrc) as string | undefined,
-      assetPath: (data.referenceAssetPath ?? data.imageAssetPath) as string | undefined,
-    }
-  }
   return {
     src: data.imageSrc as string | undefined,
     assetPath: data.imageAssetPath as string | undefined,
@@ -67,13 +56,13 @@ function isDataFlowEdge(source: Node, target: Node, targetHandle: string | null 
     return true
   }
   if (source.type === 'video' && target.type === 'compose') {
-    return targetHandle === 'video1' || targetHandle === 'video2' || targetHandle === 'video3'
+    return isComposeVideoHandle(targetHandle)
   }
   if (source.type === 'video' && target.type === 'video' && targetHandle === 'video') {
     return true
   }
   if (source.type === 'compose' && target.type === 'video' && targetHandle === 'video') {
-    return sourceHandle === 'composed'
+    return true
   }
   if (source.type === 'audio' && target.type === 'compose' && targetHandle === 'audio') {
     return true
@@ -119,7 +108,7 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
 
     if (sourceNode.type === 'text' && targetHandle === 'prompt') {
       if (targetNode.type === 'image' || targetNode.type === 'video') {
-        const content = textNodePromptOutput(sourceNode.data as Record<string, unknown>)
+        const content = textNodeOutput(sourceNode.data as Record<string, unknown>)
         if (!valuesEqual(targetData.prompt, content)) {
           mergePatch(targetNode.id, { prompt: content })
         }
@@ -136,7 +125,7 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     }
 
     if (sourceNode.type === 'image' && targetNode.type === 'image' && targetHandle === 'reference') {
-      const out = imageOutputForHandle(sourceNode, sourceHandle)
+      const out = imageNodeOutput(sourceNode)
       if (out.src && !valuesEqual(targetData.referenceSrc, out.src)) {
         mergePatch(targetNode.id, {
           referenceSrc: out.src,
@@ -146,7 +135,7 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     }
 
     if (sourceNode.type === 'image' && targetNode.type === 'video') {
-      const out = imageOutputForHandle(sourceNode, sourceHandle)
+      const out = imageNodeOutput(sourceNode)
       if (targetHandle === 'firstFrame' && (out.src || out.assetPath)) {
         const patch: Record<string, unknown> = {}
         if (out.src && !valuesEqual(targetData.firstFrameSrc, out.src)) {
@@ -183,29 +172,37 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
       }
     }
 
-    if (sourceNode.type === 'video' && targetNode.type === 'compose') {
-      const handle = targetHandle as 'video1' | 'video2' | 'video3'
-      const slotIndex = handle === 'video1' ? 0 : handle === 'video2' ? 1 : 2
-      const existingClips = ((targetData.clips as Array<Record<string, unknown>>) ?? []).slice()
-      const clipId = `${edge.source}-${handle}`
-      const newClip = {
+    if (
+      sourceNode.type === 'video' &&
+      targetNode.type === 'compose' &&
+      isComposeVideoHandle(targetHandle)
+    ) {
+      const handle = targetHandle!
+      const existingClips = ((targetData.clips as ComposeClipItem[]) ?? []).slice()
+      const clipId = clipIdFromEdge(edge.source, handle)
+      const idx = existingClips.findIndex((c) => c.id === clipId)
+      const sourceDuration = (sourceNode.data.duration as number) || 5
+      const prev = idx >= 0 ? existingClips[idx] : undefined
+      const newClip = normalizeClip({
         id: clipId,
-        name: (sourceNode.data.fileName as string) || `视频${slotIndex + 1}`,
+        sourceNodeId: edge.source,
+        name: (sourceNode.data.fileName as string) || '视频',
         assetPath: sourceNode.data.videoAssetPath as string | undefined,
-        duration: (sourceNode.data.duration as number) || 5,
-        startTime: slotIndex * ((sourceNode.data.duration as number) || 5),
-      }
+        sourceDuration,
+        duration: prev?.duration ?? sourceDuration,
+        trimIn: prev?.trimIn ?? 0,
+        excluded: prev?.excluded ?? false,
+      })
 
-      while (existingClips.length <= slotIndex) {
-        existingClips.push({ id: `empty-${existingClips.length}`, duration: 0 })
-      }
-      existingClips[slotIndex] = newClip
+      const nextClips =
+        idx >= 0
+          ? existingClips.map((c, i) => (i === idx ? { ...c, ...newClip } : c))
+          : [...existingClips, newClip]
 
-      const filtered = existingClips.filter((c) => (c.duration as number) > 0)
-      const clipsJson = JSON.stringify(filtered)
+      const clipsJson = JSON.stringify(applySequentialStartTimes(nextClips))
       const currentJson = JSON.stringify((targetData.clips as unknown[]) ?? [])
       if (clipsJson !== currentJson) {
-        mergePatch(targetNode.id, { clips: filtered })
+        mergePatch(targetNode.id, { clips: applySequentialStartTimes(nextClips) })
       }
     }
 
@@ -295,26 +292,44 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
     }
 
     if (node.type === 'compose') {
-      const slots = ['video1', 'video2', 'video3'] as const
-      const rebuiltClips: Array<Record<string, unknown>> = []
-      for (const handle of slots) {
-        const edge = activeEdges.find((e) => e.target === node.id && e.targetHandle === handle)
-        if (!edge) continue
+      const videoEdges = activeEdges.filter(
+        (e) => e.target === node.id && isComposeVideoHandle(e.targetHandle),
+      )
+      const activeIds = new Set(
+        videoEdges.map((e) => clipIdFromEdge(e.source, e.targetHandle!)),
+      )
+      const existingClips = ((data.clips as ComposeClipItem[]) ?? []).slice()
+      let clips = existingClips.filter((c) => activeIds.has(c.id))
+
+      for (const edge of videoEdges) {
         const source = nodes.find((n) => n.id === edge.source)
         if (!source || source.type !== 'video') continue
-        const slotIndex = handle === 'video1' ? 0 : handle === 'video2' ? 1 : 2
-        rebuiltClips.push({
-          id: `${edge.source}-${handle}`,
-          name: (source.data.fileName as string) || `视频${slotIndex + 1}`,
+        const handle = edge.targetHandle!
+        const clipId = clipIdFromEdge(edge.source, handle)
+        const idx = clips.findIndex((c) => c.id === clipId)
+        const sourceDuration = (source.data.duration as number) || 5
+        const prev = idx >= 0 ? clips[idx] : undefined
+        const trimIn = prev?.trimIn ?? 0
+        const maxDuration = Math.max(0.5, sourceDuration - trimIn)
+        const patch = normalizeClip({
+          id: clipId,
+          sourceNodeId: edge.source,
+          name: (source.data.fileName as string) || '视频',
           assetPath: source.data.videoAssetPath as string | undefined,
-          duration: (source.data.duration as number) || 5,
-          startTime: slotIndex * ((source.data.duration as number) || 5),
+          sourceDuration,
+          duration: Math.min(prev?.duration ?? sourceDuration, maxDuration),
+          trimIn,
+          excluded: prev?.excluded ?? false,
         })
+        if (idx >= 0) clips[idx] = { ...clips[idx], ...patch }
+        else clips.push(patch)
       }
+
+      const nextClips = applySequentialStartTimes(clips)
       const currentJson = JSON.stringify((data.clips as unknown[]) ?? [])
-      const nextJson = JSON.stringify(rebuiltClips)
+      const nextJson = JSON.stringify(nextClips)
       if (currentJson !== nextJson) {
-        mergePatch(node.id, { clips: rebuiltClips })
+        mergePatch(node.id, { clips: nextClips })
       }
 
       if (!hasIncoming(node.id, 'audio')) {

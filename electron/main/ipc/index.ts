@@ -25,6 +25,7 @@ import { registerDagIpc } from './dag'
 import { registerAgentIpc } from './agent'
 import { registerStoryboardIpc } from './storyboard'
 import { registerAudioIpc } from './audio'
+import { registerCapabilityIpc } from './capability'
 import { restoreSession } from '../services/auth-service'
 import { ensureDiskSpace } from '../services/disk-space'
 import { logger } from '../services/logger'
@@ -190,6 +191,7 @@ export function registerIpcHandlers(): void {
   registerProjectIpc()
   registerFileIpc()
   registerConfigIpc()
+  registerCapabilityIpc()
   registerModelIpc()
   registerMediaIpc()
   registerHistoryIpc()

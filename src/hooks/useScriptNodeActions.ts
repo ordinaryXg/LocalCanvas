@@ -195,7 +195,7 @@ export function useScriptNodeActions(nodeId: string) {
       if (imageNodeId) {
         addConnection({
           source: imageNodeId,
-          sourceHandle: 'firstFrame',
+          sourceHandle: 'image',
           target: videoNodeId,
           targetHandle: 'firstFrame',
         })

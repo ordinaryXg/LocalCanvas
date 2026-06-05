@@ -2,9 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { assetPathToBlobUrl } from '../../utils/assetStorage'
 import type { AssetItem } from '../../types/ipc'
-import { handleError } from '../../utils/ErrorHandler'
+import { handleError, showToast } from '../../utils/ErrorHandler'
 
 type FilterType = 'all' | 'image' | 'video' | 'audio'
+
+interface AssetContextMenuState {
+  x: number
+  y: number
+  asset: AssetItem
+}
 
 const FILTER_LABELS: Record<FilterType, string> = {
   all: '全部',
@@ -13,11 +19,18 @@ const FILTER_LABELS: Record<FilterType, string> = {
   audio: '🎵',
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export function AssetPanel() {
   const projectId = useProjectStore((s) => s.currentProjectId)
   const [assets, setAssets] = useState<AssetItem[]>([])
   const [filter, setFilter] = useState<FilterType>('all')
   const [loading, setLoading] = useState(false)
+  const [contextMenu, setContextMenu] = useState<AssetContextMenuState | null>(null)
 
   const loadAssets = useCallback(async () => {
     if (!projectId) return
@@ -35,6 +48,20 @@ export function AssetPanel() {
   useEffect(() => {
     void loadAssets()
   }, [loadAssets])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const timer = window.setTimeout(() => {
+      window.addEventListener('mousedown', close)
+      window.addEventListener('scroll', close, true)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [contextMenu])
 
   const handleImport = async () => {
     if (!projectId) return
@@ -54,9 +81,6 @@ export function AssetPanel() {
     }
   }
 
-  const filteredAssets =
-    filter === 'all' ? assets : assets.filter((a) => a.type === filter)
-
   const handleDragStart = async (e: React.DragEvent, asset: AssetItem) => {
     if (!projectId) return
     try {
@@ -70,14 +94,25 @@ export function AssetPanel() {
     }
   }
 
+  const runAssetAction = async (action: () => Promise<void>) => {
+    try {
+      await action()
+    } catch (error) {
+      handleError(error, 'assetAction')
+    } finally {
+      setContextMenu(null)
+    }
+  }
+
+  const filteredAssets =
+    filter === 'all' ? assets : assets.filter((a) => a.type === filter)
+
   if (!projectId) {
-    return (
-      <div className="p-3 text-xs text-text-muted">请先打开项目</div>
-    )
+    return <div className="p-3 text-xs text-text-muted">请先打开项目</div>
   }
 
   return (
-    <div className="p-3">
+    <div className="p-3 relative">
       <div className="flex items-center justify-between mb-3">
         <div className="flex gap-1 flex-wrap">
           {(['all', 'image', 'video', 'audio'] as FilterType[]).map((f) => (
@@ -113,24 +148,152 @@ export function AssetPanel() {
               key={asset.id}
               draggable
               onDragStart={(e) => void handleDragStart(e, asset)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setContextMenu({ x: e.clientX, y: e.clientY, asset })
+              }}
               className="bg-bg-tertiary rounded p-2 cursor-grab hover:border-accent border border-transparent transition"
             >
               {asset.type === 'image' && (
                 <AssetThumbnail projectId={projectId} asset={asset} />
               )}
-              {asset.type === 'video' && (
-                <VideoAssetThumbnail asset={asset} />
-              )}
+              {asset.type === 'video' && <VideoAssetThumbnail asset={asset} />}
               {asset.type === 'audio' && (
                 <div className="w-full h-16 bg-bg-primary rounded flex items-center justify-center text-lg">
                   🎵
                 </div>
               )}
-              <div className="text-[9px] text-text-muted mt-1 truncate">{asset.name}</div>
+              <div className="text-[9px] text-text-muted mt-1 truncate" title={asset.name}>
+                {asset.name}
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {contextMenu && (
+        <AssetContextMenu
+          menu={contextMenu}
+          projectId={projectId}
+          onClose={() => setContextMenu(null)}
+          onDeleted={() => void loadAssets()}
+          runAction={runAssetAction}
+        />
+      )}
+    </div>
+  )
+}
+
+function AssetContextMenu({
+  menu,
+  projectId,
+  onClose,
+  onDeleted,
+  runAction,
+}: {
+  menu: AssetContextMenuState
+  projectId: string
+  onClose: () => void
+  onDeleted: () => void
+  runAction: (action: () => Promise<void>) => void
+}) {
+  const { asset } = menu
+
+  const copyPath = async () => {
+    try {
+      await navigator.clipboard.writeText(asset.absolutePath)
+      showToast('已复制文件路径', 'info')
+      onClose()
+    } catch {
+      showToast('复制失败', 'error')
+      onClose()
+    }
+  }
+
+  return (
+    <div
+      className="fixed z-50 bg-bg-secondary border border-border rounded-lg shadow-xl py-1 min-w-[180px]"
+      style={{ left: menu.x, top: menu.y }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="px-3 py-1.5 border-b border-border/60 mb-1">
+        <div className="text-[10px] text-text-primary truncate" title={asset.name}>
+          {asset.name}
+        </div>
+        <div className="text-[9px] text-text-muted">{formatFileSize(asset.size)}</div>
+      </div>
+
+      <button
+        type="button"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+        onClick={() =>
+          runAction(async () => {
+            await window.api.asset.open(projectId, asset.path)
+          })
+        }
+      >
+        打开文件
+      </button>
+      <button
+        type="button"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+        onClick={() =>
+          runAction(async () => {
+            await window.api.asset.revealInFolder(projectId, asset.path)
+          })
+        }
+      >
+        在文件夹中显示
+      </button>
+      <button
+        type="button"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+        onClick={() =>
+          runAction(async () => {
+            await window.api.asset.openFolder(projectId, asset.path)
+          })
+        }
+      >
+        打开所在目录
+      </button>
+      <button
+        type="button"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+        onClick={() => void copyPath()}
+      >
+        复制路径
+      </button>
+      <button
+        type="button"
+        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-tertiary"
+        onClick={() =>
+          runAction(async () => {
+            await window.api.projectExtra.openDir(projectId)
+          })
+        }
+      >
+        打开项目文件夹
+      </button>
+
+      <div className="my-1 border-t border-border/60" />
+
+      <button
+        type="button"
+        className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-bg-tertiary"
+        onClick={() => {
+          if (!confirm(`确认删除「${asset.name}」？\n文件将从项目中移除且不可恢复。`)) {
+            onClose()
+            return
+          }
+          runAction(async () => {
+            await window.api.asset.delete(projectId, asset.path)
+            showToast('已删除资产', 'info')
+            onDeleted()
+          })
+        }}
+      >
+        删除
+      </button>
     </div>
   )
 }
@@ -195,9 +358,13 @@ function AssetThumbnail({ projectId, asset }: { projectId: string; asset: AssetI
   const [src, setSrc] = useState<string>('')
 
   useEffect(() => {
-    void assetPathToBlobUrl(projectId, asset.path).then(setSrc)
+    let revoked = ''
+    void assetPathToBlobUrl(projectId, asset.path).then((url) => {
+      revoked = url
+      setSrc(url)
+    })
     return () => {
-      if (src.startsWith('blob:')) URL.revokeObjectURL(src)
+      if (revoked.startsWith('blob:')) URL.revokeObjectURL(revoked)
     }
   }, [projectId, asset.path])
 

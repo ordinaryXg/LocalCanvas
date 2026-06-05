@@ -1,5 +1,6 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { WorkflowPlan } from '../types/agent'
+import { createCanvasEdge } from './canvasEdge'
 import { generateNodeId } from './id'
 
 const COL_WIDTH = 380
@@ -30,23 +31,26 @@ export function applyWorkflowPlan(
       data: {
         ...n.data,
         ...(n.label ? { label: n.label } : {}),
-        ...(n.modelHint ? { modelId: n.modelHint } : {}),
+        ...(typeof n.data.modelId === 'string' && n.data.modelId
+          ? { modelId: n.data.modelId }
+          : n.modelHint
+            ? { modelId: n.modelHint }
+            : {}),
       },
     }
   })
 
   const edges: Edge[] = plan.edges
     .filter((e) => idMap.has(e.source) && idMap.has(e.target))
-    .map((e) => ({
-      id: generateNodeId('edge'),
-      source: idMap.get(e.source)!,
-      target: idMap.get(e.target)!,
-      sourceHandle: e.sourceHandle,
-      targetHandle: e.targetHandle,
-      type: 'smoothstep',
-      animated: true,
-      style: { stroke: 'var(--color-accent, #6366f1)', strokeWidth: 2 },
-    }))
+    .map((e) =>
+      createCanvasEdge({
+        id: generateNodeId('edge'),
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+      }),
+    )
 
   return { nodes, edges, idMap }
 }

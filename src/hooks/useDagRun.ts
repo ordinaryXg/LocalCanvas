@@ -4,6 +4,7 @@ import { topologicalSort, DagCycleError } from '../utils/dag/topologicalSort'
 import { computeDataFlowPatches } from '../utils/dataFlow'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
+import { collectLlmVisionImagesFromEdges } from '../utils/collectLlmVisionImages'
 import { importGeneratedMedia } from '../utils/generatedMedia'
 import { handleError } from '../utils/ErrorHandler'
 import type { DagRunNodeState, DagRunState } from '../types/dag'
@@ -179,15 +180,32 @@ export function useDagRun() {
             })
           } else if (node.type === 'text') {
             const modelId = (data.modelId as string) || ''
-            const prompt = (data.inputContent as string) || (data.prompt as string) || ''
-            if (!modelId || !prompt) throw new Error('文本节点缺少模型或输入')
+            const draft =
+              (data.draft as string) ||
+              (data.inputContent as string) ||
+              (data.prompt as string) ||
+              ''
+            if (!modelId || !draft) throw new Error('文本节点缺少模型或草稿')
+            const images = await collectLlmVisionImagesFromEdges(
+              nodeId,
+              nodes,
+              edges,
+              projectId,
+            )
             const { taskId } = await window.api.model.beginGenerateText({
               modelId,
               nodeId,
-              prompt,
+              prompt: draft,
+              systemPrompt: (data.systemPrompt as string) || undefined,
+              ...(images.length > 0 ? { images } : {}),
             })
             const result = await waitForGeneration(taskId, nodeId)
-            updateNodeData(nodeId, { generatedContent: result, isGenerating: false })
+            updateNodeData(nodeId, {
+              output: result,
+              outputMode: 'generated',
+              outputEdited: false,
+              isGenerating: false,
+            })
           }
 
           completed++

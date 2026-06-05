@@ -12,6 +12,7 @@ import { setMainLocale } from './i18n'
 import { setupAutoUpdater } from './services/updater'
 import './services/logger'
 import { logger } from './services/logger'
+import { maybeSyncCapabilityCacheDaily } from './services/capability-sync'
 
 function getPreloadPath(): string {
   if (is.dev) {
@@ -96,6 +97,7 @@ app.whenReady().then(() => {
     .start(getDbPath())
     .catch((err) => logger.error('Failed to start utility process', err))
   createWindow()
+  void maybeSyncCapabilityCacheDaily()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

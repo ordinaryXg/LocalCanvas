@@ -1,9 +1,28 @@
-# LocalCanvas MVP 开发步骤表
+# LocalCanvas 开发步骤表
 
-> **基于**：LocalCanvas_MVP方案.md  
+> **基于**：LocalCanvas_MVP方案.md + 各版本迭代文档（v1–v6）  
 > **技术栈**：Electron 33+ / React 19 / React Flow 12 / Zustand / Tailwind CSS 4 / FFmpeg / better-sqlite3  
-> **总周期**：7 周（Phase 1-4）  
-> **生成日期**：2026-06-04
+> **总周期**：MVP 7 周（Phase 1–4）+ v5 3.5 周 + v6 客户端 2.5 周  
+> **生成日期**：2026-06-04  
+> **最后更新**：2026-06-05（增补 v5 / v6 章节与版本索引）
+
+---
+
+## 版本文档索引
+
+| 版本 | 文档 | 核心能力 | 周期 |
+|------|------|----------|------|
+| MVP | [LocalCanvas_MVP方案.md](./LocalCanvas_MVP方案.md) | 产品愿景与范围 | — |
+| **v1** | [LocalCanvas_v1_画布基础与节点系统.md](./LocalCanvas_v1_画布基础与节点系统.md) | 画布 + 5 种节点 + 连线 + 项目存取 | 2 周 |
+| **v2** | [LocalCanvas_v2_模型配置与生成器系统.md](./LocalCanvas_v2_模型配置与生成器系统.md) | 模型配置 + 生成器 + 脚本节点 | 2.5 周 |
+| **v3** | [LocalCanvas_v3_视频合成与项目打磨.md](./LocalCanvas_v3_视频合成与项目打磨.md) | FFmpeg 合成 + 时间轴 + 项目打磨 | 2.5 周 |
+| **v4** | [LocalCanvas_v4_完善高级功能与发布.md](./LocalCanvas_v4_完善高级功能与发布.md) | 高级适配器 + 历史/工作流 + 发布 | 2 周 |
+| **v5** | [LocalCanvas_v5_Agent自动化与分镜增强.md](./LocalCanvas_v5_Agent自动化与分镜增强.md) | Agent + DAG + 分镜组 + 本地用户系统 | 3.5 周 |
+| **v6 客户端** | [LocalCanvas_v6_节点体验与能力系统.md](./LocalCanvas_v6_节点体验与能力系统.md) | 合成剪辑台 + 文本双栏 + 模型能力 Registry | 2.5 周 |
+| v6 设计原文 | [docs/v6/design/](./v6/design/) | 三份重设计详案 | — |
+| v6 云端扩展 | v5 文档 §十一 | 独立服务端 + 账号迁移 + 导演台（另建仓库） | 规划 |
+
+**本表 Phase 1–4** 对应 MVP 原始拆解（≈ v1–v4）；**Phase 5–6** 对应 v5 / v6 客户端迭代。详细步骤以各版本专文为准。
 
 ---
 
@@ -69,7 +88,10 @@ localcanvas/
 
 ---
 
-## Phase 1：画布基础 + 节点系统（第 1-2 周）
+## Phase 1：画布基础 + 节点系统（第 1-2 周）≈ v1
+
+> 详案：[LocalCanvas_v1_画布基础与节点系统.md](./LocalCanvas_v1_画布基础与节点系统.md)
+
 
 ### 1.1 Electron 窗口与主进程
 
@@ -119,7 +141,10 @@ localcanvas/
 
 ---
 
-## Phase 2：模型配置 + 生成器（第 3-4 周）
+## Phase 2：模型配置 + 生成器（第 3-4 周）≈ v2
+
+> 详案：[LocalCanvas_v2_模型配置与生成器系统.md](./LocalCanvas_v2_模型配置与生成器系统.md)
+
 
 ### 2.1 配置系统
 
@@ -166,7 +191,10 @@ localcanvas/
 
 ---
 
-## Phase 3：视频合成 + 打磨（第 5-6 周）
+## Phase 3：视频合成 + 打磨（第 5-6 周）≈ v3
+
+> 详案：[LocalCanvas_v3_视频合成与项目打磨.md](./LocalCanvas_v3_视频合成与项目打磨.md)
+
 
 ### 3.1 FFmpeg 集成
 
@@ -207,7 +235,9 @@ localcanvas/
 
 ---
 
-## Phase 4：完善 + 发布（第 7 周）
+## Phase 4：完善 + 发布（第 7 周）≈ v4
+
+> 详案：[LocalCanvas_v4_完善高级功能与发布.md](./LocalCanvas_v4_完善高级功能与发布.md)
 
 ### 4.1 自定义适配器
 
@@ -255,6 +285,111 @@ localcanvas/
 
 ---
 
+## Phase 5：Agent 自动化 + 分镜增强（v5，约 3.5 周）
+
+> 详案：[LocalCanvas_v5_Agent自动化与分镜增强.md](./LocalCanvas_v5_Agent自动化与分镜增强.md)  
+> **前置**：v4 验收通过（已发布安装包）
+
+### 5.1 本地用户系统（Week 1 上午）
+
+| # | 任务 | 关键文件 | 验收标准 |
+|---|------|----------|----------|
+| 5.1.1 | 注册 / 登录 / 登出 | `auth-service.ts`、`AuthGate.tsx` | bcrypt + 本地 session |
+| 5.1.2 | 业务数据 `user_id` 隔离 | Repository 层外键 | 多用户项目互不干扰 |
+| 5.1.3 | v6 迁移预留 | `users.sync_status`、`cloud_user_id` | 字段就绪，v5 恒为 local |
+
+### 5.2 DAG 执行引擎（Week 1）
+
+| # | 任务 | 关键文件 | 验收标准 |
+|---|------|----------|----------|
+| 5.2.1 | 拓扑排序 + 节点执行 | `topologicalSort.ts`、`useDagRun.ts` | 组内按依赖序生成 |
+| 5.2.2 | 进度面板 | `DagRunPanel.tsx` | pending→running→completed |
+| 5.2.3 | `dag_runs` 持久化 | `DagRunRepository` | 崩溃可恢复 |
+
+### 5.3 Agent 模式（Week 2）
+
+| # | 任务 | 关键文件 | 验收标准 |
+|---|------|----------|----------|
+| 5.3.1 | Agent 对话 + 计划预览 | `AgentPanel.tsx` | 自然语言 → WorkflowPlan |
+| 5.3.2 | 计划落画布 | `applyWorkflowPlan.ts` | 节点 + 连线正确 |
+| 5.3.3 | Skill 插件 | `electron/utility/services/agent/skills/` | 文生视频 / 首尾帧等 |
+| 5.3.4 | 计划解析单测 | `parseWorkflowPlan.test.ts` | JSON Schema 校验 |
+
+### 5.4 分镜组 + Slash + 后期（Week 3）
+
+| # | 任务 | 关键文件 | 验收标准 |
+|---|------|----------|----------|
+| 5.4.1 | 分镜组节点 + 宫格 | `StoryboardGroupNode.tsx` | 3×3 / 5×5 预览 |
+| 5.4.2 | Slash 命令面板 | `SlashCommandPalette.tsx` | `/grid` 等布局 |
+| 5.4.3 | 人声分离 + 字幕轨 | `AudioPostService`、字幕叠加 | 可选 API / FFmpeg |
+| 5.4.4 | i18n 补全 | `src/i18n/` | 新 UI 中英文 |
+
+---
+
+## Phase 6：节点体验 + 模型能力系统（v6 客户端，约 2.5 周）
+
+> 详案：[LocalCanvas_v6_节点体验与能力系统.md](./LocalCanvas_v6_节点体验与能力系统.md)  
+> 设计原文：[docs/v6/design/](./v6/design/)（合成 / 文本 / 能力系统三份重设计）  
+> **前置**：v5 核心功能验收通过
+
+### 6.1 合成剪辑台重设计（Week 1 Day 1）
+
+| # | 任务 | 关键文件 | 状态 | 验收标准 |
+|---|------|----------|------|----------|
+| 6.1.1 | 剪辑台大面板 75% 高 | `ComposeEditor.tsx` | ✅ | 选中 compose 自动打开 |
+| 6.1.2 | 三区布局 + 顺序时间轴 | `ComposeTimeline.tsx` | ✅ | 拖拽排序、裁切、预览 |
+| 6.1.3 | 检查器 + 专注模式 | `ComposeInspector.tsx` | ✅ | 片段入出点、字幕轨 |
+| 6.1.4 | FFmpeg `audioVolume` 混流 | `compose-service.ts` | ⬜ | 音量滑块生效 |
+| 6.1.5 | 导出取消 UX | `ComposeExportDrawer.tsx` | ⬜ | 进度 + 取消可见 |
+
+详案：[LocalCanvas_合成编辑器重设计.md](./v6/design/LocalCanvas_合成编辑器重设计.md)
+
+### 6.2 文本节点重设计（Week 1 Day 2）
+
+| # | 任务 | 关键文件 | 状态 | 验收标准 |
+|---|------|----------|------|----------|
+| 6.2.1 | `draft` / `output` / `outputMode` | `TextNodeData`、`normalizeTextNodeData` | ✅ | 迁移旧字段 |
+| 6.2.2 | 双栏编辑台 | `TextEditorPanel.tsx` | ✅ | 唯一编辑入口 |
+| 6.2.3 | 状态卡片 + 模式徽章 | `TextNode.tsx`、`TextOutputBadge` | ✅ | 下游只读 `output` |
+| 6.2.4 | Vision 多图 `image1…N` | `llmVisionSlots.ts`、`llm-vision-content.ts` | ✅ | 进 `generateText` |
+| 6.2.5 | `reasoning_content` 折叠展示 | `TextEditorPanel.tsx` | ⬜ | 不进下游 output |
+
+详案：[LocalCanvas_文本节点重设计.md](./v6/design/LocalCanvas_文本节点重设计.md)
+
+### 6.3 模型能力系统（Week 1 Day 3–4 + Week 2）
+
+| # | 任务 | 关键文件 | 状态 | 验收标准 |
+|---|------|----------|------|----------|
+| 6.3.1 | P0 内置能力目录 + Registry | `capabilities/builtin/profiles.ts` | ✅ | 30+ profile |
+| 6.3.2 | 实线/虚线边 + 生成 guard | `edge-compat.ts`、`generation-guard.ts` | ✅ | 生成前阻断虚线边 |
+| 6.3.3 | 设置页重设计 + L2 同步 | `ModelSettingsSection.tsx`、`l2-sync.ts` | ✅ | 同步厂商列表 |
+| 6.3.4 | L3 Probe + 探测缓存 | `capability-probe.ts` | ✅ | 验证能力按钮 |
+| 6.3.5 | 动态 GeneratorPanel | `generator-ui.ts` | ✅ | 首尾帧/参考图按 profile |
+| 6.3.6 | 参考媒体进 API | `resolveMediaRefForApi.ts`、`seedance-content.ts` | ✅ | Seedream/Seedance 2.0 |
+| 6.3.7 | 动态节点端口 | `node-port-ui.ts` | ✅ | 视频 reference1–9、文本 image1–N |
+| 6.3.8 | Agent Registry 选模 | `agent-model-select.ts`、`agent-service.ts` | ✅ | enrichWorkflowPlanWithModels |
+| 6.3.9 | 槽位计数 `n/max` on handle | `PortHandle.tsx` | ⬜ | 节点端口旁显示 |
+| 6.3.10 | 连线健康检查面板 | `EdgeHealthPanel.tsx`（新建） | ⬜ | 全项目虚线边一览 |
+| 6.3.11 | Seedream 多参考图端口 | 图片 `reference1…4` | ⬜ | 对齐视频 reference 模式 |
+| 6.3.12 | 项目能力 Pin | `project.json` | ⬜ | 目录升级提示 |
+
+详案：[LocalCanvas_模型能力系统重设计.md](./v6/design/LocalCanvas_模型能力系统重设计.md)  
+实施计划：[superpowers/plans/2026-06-05-model-capability-system.md](./superpowers/plans/2026-06-05-model-capability-system.md)
+
+### 6.4 v6 横切验收（Week 2.5）
+
+```bash
+npm test
+npm run build
+```
+
+- [ ] 三份设计文档 §成功标准 全部勾选
+- [ ] v6 功能清单 P0 项（§6.1–6.3 标 ✅）回归通过
+- [ ] Agent 首尾帧技能自动选 `seedance-2-0`
+- [ ] DeepSeek + 图片入边 → 生成 guard 阻断
+
+---
+
 ## 附录：开发步骤依赖关系图
 
 ```
@@ -278,13 +413,25 @@ Phase 3（合成+打磨）
   3.4 项目管理界面                           │
   3.5 深色主题                               │
                                             │
-Phase 4（完善+发布）                        │
+Phase 4（完善+发布 ≈ v4）                   │
   4.1 自定义适配器                           │
   4.2 生成历史                               │
   4.3 工作流模板                             │
   4.4 错误处理                               │
   4.5 打包发布                               │
   4.6 使用文档                               │
+                                            │
+Phase 5（v5 Agent + 分镜）                  │
+  5.1 用户系统 ──→ 5.2 DAG ──→ 5.3 Agent   │
+                          └──→ 5.4 分镜/Slash/后期
+                                            │
+Phase 6（v6 客户端体验 + 能力）              │
+  6.1 合成剪辑台（v2）                       │
+  6.2 文本双栏（v2）                         │
+  6.3 模型能力 Registry ──→ 6.4 验收发布    │
+                                            │
+v6 云端扩展（独立轨道，见 v5 §十一）         │
+  云端服务端 + 账号迁移 + 导演台             │
 ```
 
 ---
@@ -317,10 +464,26 @@ Phase 4（完善+发布）                        │
 - [ ] 音频可混入视频
 - [ ] 深色主题统一
 
-### Phase 4 验收
+### Phase 4 验收（v4）
 
 - [ ] 自定义 HTTP 端点可配置使用
 - [ ] 生成历史可查看/复用
 - [ ] 工作流可保存/加载
 - [ ] 各种错误有友好提示
 - [ ] Windows 安装包可正常安装运行
+
+### Phase 5 验收（v5）
+
+- [ ] 本地注册/登录/登出；项目按 `user_id` 隔离
+- [ ] Agent 对话 → 计划预览 → 落画布 → DAG 执行
+- [ ] 分镜组宫格 + 批量重生成
+- [ ] Slash `/grid` 布局可用
+- [ ] 详见 [v5 验收标准](./LocalCanvas_v5_Agent自动化与分镜增强.md#八v5-验收标准)
+
+### Phase 6 验收（v6 客户端）
+
+- [ ] 合成：连线 → 剪辑台 → 导出 ≤ 5 分钟（熟练用户）
+- [ ] 文本：连线只传 `output`；Vision 多图进 LLM
+- [ ] 能力：虚线边生成前 100% 阻断；Agent Registry 选模
+- [ ] `npm test` + `npm run build` 全绿
+- [ ] 详见 [v6 验收标准](./LocalCanvas_v6_节点体验与能力系统.md#五验收标准)

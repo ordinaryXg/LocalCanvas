@@ -10,6 +10,8 @@ export interface GenerateImageParams {
   steps?: number
   cfg?: number
   referenceImage?: string
+  /** 多参考图（Seedream 等） */
+  referenceImages?: string[]
   referenceStrength?: number
   batchSize?: number
   nodeId?: string
@@ -24,6 +26,10 @@ export interface GenerateVideoParams {
   model: string
   firstFrame?: string
   lastFrame?: string
+  /** Seedance 2.0 风格/角色参考图（≤9） */
+  referenceImages?: string[]
+  referenceVideo?: string
+  referenceAudio?: string
   seed?: number
   steps?: number
   cfg?: number
@@ -45,6 +51,9 @@ export interface GenerateTextParams {
   maxTokens?: number
   temperature?: number
   stream?: boolean
+  thinkingPreset?: 'off' | 'balanced' | 'deep'
+  /** Vision 多图（OpenAI 兼容 image_url） */
+  images?: string[]
   nodeId?: string
   taskId?: string
 }

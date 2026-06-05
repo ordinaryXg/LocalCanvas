@@ -46,7 +46,11 @@ export function handleError(error: unknown, context?: string): void {
   console.error('[ErrorHandler]', context, error)
 
   if (error instanceof AdapterError) {
-    toastHandler?.(resolveAdapterMessage(error), 'error')
+    const hint = getCapabilityProbeHint(error)
+    toastHandler?.(
+      hint ? `${resolveAdapterMessage(error)}。${hint}` : resolveAdapterMessage(error),
+      'error',
+    )
     return
   }
 
@@ -61,6 +65,19 @@ export function handleError(error: unknown, context?: string): void {
   }
 
   toastHandler?.(t('error.UNKNOWN'), 'error')
+}
+
+/** 生成失败时若疑似能力不匹配，提示用户去设置页探测 */
+export function getCapabilityProbeHint(error: unknown): string | null {
+  const text = error instanceof Error ? error.message : String(error)
+  if (
+    /unsupported.*multimodal|invalid_image|image.*not.*support|不支持.*图|参考图|multimodal/i.test(
+      text,
+    )
+  ) {
+    return '能力可能不匹配，请在「设置 → 已接入模型」对该模型点击「验证能力」'
+  }
+  return null
 }
 
 export function getErrorMessage(error: unknown): string {

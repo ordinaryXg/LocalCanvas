@@ -5,11 +5,11 @@
   --color-text-primary: #1e293b;
   --color-text-secondary: #475569;
   --color-text-muted: #94a3b8;
-  --color-accent: #6366f1;
-  --color-accent-hover: #5254d4;
+  --color-accent: #8a90a8;
+  --color-accent-hover: #7a8096;
   --color-border: #e2e8f0;
-  --color-danger: #ef4444;
-  --color-success: #22c55e;
+  --color-danger: #c48a8a;
+  --color-success: #7f9a7e;
   --scrollbar-size: 8px;
   --scrollbar-track: transparent;
   --scrollbar-thumb: color-mix(in srgb, var(--color-text-muted) 55%, var(--color-bg-tertiary));

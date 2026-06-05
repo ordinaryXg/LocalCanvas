@@ -51,6 +51,8 @@ function migrateSchema(database: Database.Database): void {
   }
 
   migrateV5Schema(database)
+  migrateV6CapabilityCache(database)
+  migrateV7CapabilityProbe(database)
 }
 
 function migrateV5Schema(database: Database.Database): void {
@@ -138,6 +140,50 @@ function migrateV5Schema(database: Database.Database): void {
       database.exec(`ALTER TABLE ${table} ADD COLUMN user_id TEXT`)
     }
   }
+}
+
+function migrateV7CapabilityProbe(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS capability_probe_cache (
+      config_id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      profile_json TEXT NOT NULL,
+      confidence TEXT NOT NULL,
+      probed_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_capability_probe_expires ON capability_probe_cache(expires_at);
+  `)
+}
+
+function migrateV6CapabilityCache(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS capability_cache (
+      id TEXT PRIMARY KEY,
+      provider_key TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      profile_key TEXT NOT NULL,
+      in_catalog INTEGER NOT NULL DEFAULT 0,
+      confidence TEXT NOT NULL,
+      synced_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      catalog_version INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_capability_cache_provider ON capability_cache(provider_key);
+    CREATE INDEX IF NOT EXISTS idx_capability_cache_expires ON capability_cache(expires_at);
+
+    CREATE TABLE IF NOT EXISTS capability_sync_meta (
+      provider_key TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      last_sync_at TEXT,
+      last_error TEXT,
+      model_count INTEGER NOT NULL DEFAULT 0
+    );
+  `)
 }
 
 function initSchema(database: Database.Database): void {

@@ -1,5 +1,12 @@
 import type { ProjectData, ProjectSummary } from './project'
 import type { AppConfig, ConnectionTestResult } from './config'
+import type {
+  CapabilityCacheStatus,
+  CapabilityProbeRequest,
+  CapabilityProbeResult,
+  CapabilitySyncResult,
+  ProbedProfileEntry,
+} from './capability-sync'
 
 export interface ModelProgressEvent {
   taskId?: string
@@ -40,6 +47,8 @@ export interface GenerateImageRequest {
   batchSize?: number
   steps?: number
   cfg?: number
+  referenceImage?: string
+  referenceImages?: string[]
 }
 
 export interface GenerateVideoRequest {
@@ -51,6 +60,9 @@ export interface GenerateVideoRequest {
   duration: number
   firstFrame?: string
   lastFrame?: string
+  referenceImages?: string[]
+  referenceVideo?: string
+  referenceAudio?: string
   camera?: string
   ratio?: string
   resolution?: string
@@ -64,6 +76,8 @@ export interface GenerateTextRequest {
   systemPrompt?: string
   maxTokens?: number
   temperature?: number
+  thinkingPreset?: 'off' | 'balanced' | 'deep'
+  images?: string[]
 }
 
 export interface GenerateAudioRequest {
@@ -148,6 +162,7 @@ export interface ComposeClip {
   path: string
   startTime: number
   duration: number
+  trimIn?: number
 }
 
 export interface ComposeProgressEvent {
@@ -313,6 +328,13 @@ export interface LocalCanvasAPI {
     exists: () => Promise<boolean>
     needsOnboarding: () => Promise<boolean>
   }
+  capability: {
+    sync: () => Promise<CapabilitySyncResult>
+    getStatus: () => Promise<CapabilityCacheStatus>
+    probe: (request: CapabilityProbeRequest) => Promise<CapabilityProbeResult>
+    listProbedProfiles: () => Promise<ProbedProfileEntry[]>
+    getProbedProfile: (configId: string) => Promise<import('./capability').ModelCapabilityProfile | null>
+  }
   model: {
     beginGenerateImage: (payload: GenerateImageRequest) => Promise<{ taskId: string }>
     generateImage: (payload: GenerateImageRequest) => Promise<string>
@@ -353,6 +375,10 @@ export interface LocalCanvasAPI {
     list: (projectId: string) => Promise<AssetItem[]>
     import: (projectId: string, filePath: string) => Promise<AssetItem>
     thumbnail: (filePath: string) => Promise<string>
+    delete: (projectId: string, relativePath: string) => Promise<{ success: boolean }>
+    revealInFolder: (projectId: string, relativePath: string) => Promise<{ success: boolean }>
+    open: (projectId: string, relativePath: string) => Promise<{ success: boolean }>
+    openFolder: (projectId: string, relativePath: string) => Promise<{ success: boolean }>
   }
   ffmpeg: {
     detect: (userPath?: string) => Promise<{ path: string }>

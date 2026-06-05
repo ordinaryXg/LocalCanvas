@@ -1,17 +1,40 @@
 import type { Node, Edge } from '@xyflow/react'
+import type { ThinkingPreset } from './capability'
 
 export type NodeType = 'text' | 'image' | 'video' | 'audio' | 'script' | 'compose' | 'storyboard' | 'group'
 
+export type TextOutputMode = 'passthrough' | 'generated'
+
+export interface TextEditorLayout {
+  splitRatio?: number
+}
+
 export interface TextNodeData {
-  /** 节点内直接编辑的输入内容 */
-  inputContent?: string
-  /** LLM 生成结果 */
-  generatedContent?: string
-  /** @deprecated 兼容旧项目，读取时回退到 generatedContent */
-  content?: string
-  prompt?: string
+  /** 节点显示名 */
+  title?: string
+  /** 草稿：用户输入 / LLM 输入源 */
+  draft?: string
+  /** 输出：唯一连线下游的内容 */
+  output?: string
+  /** 输出模式（显式） */
+  outputMode?: TextOutputMode
+  /** generated 模式下 output 是否被手改 */
+  outputEdited?: boolean
   systemPrompt?: string
   modelId?: string
+  /** LLM 思考档位：快速 / 标准 / 深度 */
+  thinkingPreset?: ThinkingPreset
+  isGenerating?: boolean
+  editorLayout?: TextEditorLayout
+  /** @deprecated 加载时迁移到 draft */
+  inputContent?: string
+  /** @deprecated 加载时迁移到 output */
+  generatedContent?: string
+  /** @deprecated 加载时迁移到 output */
+  content?: string
+  /** @deprecated 不再写入 */
+  prompt?: string
+  /** @deprecated 合并到 modelId */
   llmModel?: string
   [key: string]: unknown
 }
@@ -76,26 +99,46 @@ export interface ScriptNodeData {
 
 export interface ComposeClipItem {
   id: string
+  sourceNodeId?: string
   name?: string
   assetPath?: string
   absolutePath?: string
+  /** 相对源文件的入点（秒） */
+  trimIn?: number
+  /** 使用时长（秒） */
   duration: number
+  /** 源文件总时长，用于裁切上限 */
+  sourceDuration?: number
+  /** 顺序模式：由引擎计算 */
   startTime?: number
+  /** 从成片排除但保持连线 */
+  excluded?: boolean
+  thumbnailPath?: string
+}
+
+export interface ComposeEditorLayout {
+  previewHeight?: number
+  inspectorOpen?: boolean
+  pixelsPerSecond?: number
 }
 
 export interface ComposeNodeData {
   clips?: ComposeClipItem[]
   audioAssetPath?: string
   audioSrc?: string
+  audioVolume?: number
+  subtitleCues?: Array<{ id: string; startTime: number; endTime: number; text: string }>
+  subtitlePath?: string
+  subtitleFileName?: string
+  burnSubtitles?: boolean
   outputPath?: string
-  showTimeline?: boolean
-  isComposing?: boolean
-  composeProgress?: number
+  editorLayout?: ComposeEditorLayout
   [key: string]: unknown
 }
 
 export type PortType =
   | 'prompt'
+  | 'image'
   | 'reference'
   | 'firstFrame'
   | 'lastFrame'
@@ -115,11 +158,11 @@ export interface NodeTypeMeta {
 }
 
 export const NODE_TYPE_META: NodeTypeMeta[] = [
-  { type: 'text', label: '文本', icon: '📝', color: '#8b5cf6' },
-  { type: 'image', label: '图片', icon: '🖼️', color: '#06b6d4' },
-  { type: 'video', label: '视频', icon: '🎥', color: '#f43f5e' },
-  { type: 'audio', label: '音频', icon: '🎵', color: '#22c55e' },
-  { type: 'script', label: '脚本', icon: '🎬', color: '#f59e0b' },
-  { type: 'compose', label: '合成', icon: '🎞️', color: '#6366f1' },
-  { type: 'storyboard', label: '分镜组', icon: '🎞️', color: '#a855f7' },
+  { type: 'text', label: '文本', icon: '📝', color: '#9a8fa6' },
+  { type: 'image', label: '图片', icon: '🖼️', color: '#6e9598' },
+  { type: 'video', label: '视频', icon: '🎥', color: '#b89090' },
+  { type: 'audio', label: '音频', icon: '🎵', color: '#8fa88f' },
+  { type: 'script', label: '脚本', icon: '🎬', color: '#b8a67a' },
+  { type: 'compose', label: '合成', icon: '🎞️', color: '#8a90a8' },
+  { type: 'storyboard', label: '分镜组', icon: '🎞️', color: '#a08fa8' },
 ]

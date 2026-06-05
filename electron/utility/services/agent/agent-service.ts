@@ -4,6 +4,8 @@ import type { WorkflowPlan } from '../../../../src/types/agent'
 import { parseWorkflowPlan } from '../../../../src/utils/parseWorkflowPlan'
 import { WORKFLOW_PLANNER_SYSTEM_PROMPT } from './prompts/workflow-planner'
 import { matchSkill, buildSkillPlan } from './skills/index'
+import { buildModelCatalogSection } from '../../../../src/capabilities/agent-catalog'
+import { enrichWorkflowPlanWithModels } from '../../../../src/capabilities/agent-plan-enrich'
 
 export interface AgentChatRequest {
   message: string
@@ -36,10 +38,12 @@ export async function agentChat(
   const disabled = request.disabledSkills ?? []
   const matched = matchSkill(intent, disabled)
   if (matched) {
-    const plan = matched.buildPlan(context)
+    const enriched = enrichWorkflowPlanWithModels(matched.buildPlan(context), config)
+    const warn =
+      enriched.warnings.length > 0 ? `\n\n⚠ ${enriched.warnings.join('\n')}` : ''
     return {
-      reply: `已匹配技能「${matched.name}」：${plan.summary}\n\n确认后将工作流添加到画布。`,
-      plan,
+      reply: `已匹配技能「${matched.name}」：${enriched.plan.summary}\n\n确认后将工作流添加到画布。${warn}`,
+      plan: enriched.plan,
       skillId: matched.id,
     }
   }
@@ -53,26 +57,30 @@ export async function agentChat(
 
   try {
     const adapter = adapters.getLLMAdapter(llmId)
+    const catalog = buildModelCatalogSection(config)
     const raw = await adapter.generateText({
       prompt: `用户意图：\n${intent}\n\n请生成工作流计划 JSON。`,
-      systemPrompt: WORKFLOW_PLANNER_SYSTEM_PROMPT,
+      systemPrompt: `${WORKFLOW_PLANNER_SYSTEM_PROMPT}\n\n${catalog}`,
       model: '',
       maxTokens: 4096,
       temperature: 0.3,
       nodeId: 'agent',
     })
 
-    const plan = parseWorkflowPlan(raw, intent)
+    const enriched = enrichWorkflowPlanWithModels(parseWorkflowPlan(raw, intent), config)
+    const warn =
+      enriched.warnings.length > 0 ? `\n\n⚠ ${enriched.warnings.join('\n')}` : ''
     return {
-      reply: `${plan.summary}\n\n共 ${plan.nodes.length} 个节点，${plan.edges.length} 条连线。确认后添加到画布。`,
-      plan,
+      reply: `${enriched.plan.summary}\n\n共 ${enriched.plan.nodes.length} 个节点，${enriched.plan.edges.length} 条连线。确认后添加到画布。${warn}`,
+      plan: enriched.plan,
     }
   } catch (err) {
     const fallback = buildSkillPlan('text-to-video', context)
     if (fallback && !disabled.includes('text-to-video')) {
+      const enriched = enrichWorkflowPlanWithModels(fallback, config)
       return {
-        reply: `LLM 规划失败，已回退到「文生图生视频」模板：${fallback.summary}`,
-        plan: fallback,
+        reply: `LLM 规划失败，已回退到「文生图生视频」模板：${enriched.plan.summary}`,
+        plan: enriched.plan,
         skillId: 'text-to-video',
       }
     }

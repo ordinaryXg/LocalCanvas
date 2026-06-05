@@ -7,9 +7,10 @@ interface PortHandleProps {
   color: string
   /** 垂直位置，如 '28%' */
   top: string
+  disabled?: boolean
 }
 
-export function PortHandle({ id, type, color, top }: PortHandleProps) {
+export function PortHandle({ id, type, color, top, disabled }: PortHandleProps) {
   const isInput = type === 'target'
   const icon = getPortIcon(id)
   const hint = getPortHint(id, type)
@@ -21,12 +22,14 @@ export function PortHandle({ id, type, color, top }: PortHandleProps) {
         type={type}
         position={isInput ? Position.Left : Position.Right}
         id={id}
+        isConnectable={disabled ? false : isInput ? 1 : undefined}
         style={{
           top,
-          background: color,
+          background: disabled ? 'var(--color-text-muted)' : color,
           width: 10,
           height: 10,
           border: '2px solid var(--color-bg-primary, #1a1a1a)',
+          opacity: disabled ? 0.45 : 1,
         }}
       />
       <div

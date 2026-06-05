@@ -173,6 +173,17 @@ export function saveProject(data: ProjectData): void {
   const db = getDatabase()
   const now = new Date().toISOString()
 
+  const existingNodeCount = (
+    db.prepare('SELECT COUNT(*) AS c FROM nodes WHERE project_id = ?').get(data.id) as {
+      c: number
+    }
+  ).c
+
+  if (data.nodes.length === 0 && existingNodeCount > 0) {
+    logger.warn('Blocked save: refusing to overwrite project with empty canvas', data.id)
+    throw new Error('不能保存空画布：项目中仍有节点数据，请重新打开项目')
+  }
+
   const saveAll = db.transaction(() => {
     db.prepare(
       `UPDATE projects SET name = ?, updated_at = ?, viewport_x = ?, viewport_y = ?, viewport_zoom = ?
@@ -221,7 +232,7 @@ export function saveProject(data: ProjectData): void {
         edge.target,
         edge.sourceHandle ?? null,
         edge.targetHandle ?? null,
-        edge.type ?? 'smoothstep',
+        edge.type ?? 'default',
         JSON.stringify(edge.data ?? {}),
       )
     }

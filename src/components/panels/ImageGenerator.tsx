@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react'
 import type { ImageModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
-import { handleError } from '../../utils/ErrorHandler'
+import { handleError, showToast } from '../../utils/ErrorHandler'
+import {
+  assertNoWarnEdgesForNode,
+  GenerationBlockedError,
+} from '../../capabilities/generation-guard'
+import { getImageGeneratorUi } from '../../capabilities/generator-ui'
+import { ModelCapabilityBadges } from './ModelCapabilityBadges'
+import { NodeImageThumb } from '../common/NodeImageThumb'
+import { resolveImageRefFromNodeId } from '../../utils/resolveImageRefForApi'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
 import { ResizableTextarea } from '../common/ResizableTextarea'
@@ -24,6 +32,7 @@ const RATIO_MAP: Record<string, [number, number]> = {
 export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const nodes = useCanvasStore((s) => s.nodes)
+  const edges = useCanvasStore((s) => s.edges)
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
   const node = nodes.find((n) => n.id === nodeId)
   const data = (node?.data ?? {}) as Record<string, unknown>
@@ -49,6 +58,11 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
     })
   }, [modelId])
 
+  const selectedModel = imageModels.find((m) => m.id === modelId)
+  const ui = getImageGeneratorUi(modelId, selectedModel?.model)
+  const referenceEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'reference')
+  const hasReferenceConnection = !!referenceEdge
+
   const handleGenerate = async () => {
     if (!modelId || !prompt || !currentProjectId) return
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
@@ -59,6 +73,10 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
     const finalNegative = [negativePrompt, preset?.negativePrompt].filter(Boolean).join(', ')
 
     try {
+      assertNoWarnEdgesForNode(nodeId, nodes, edges, 'image')
+      const referenceImage = referenceEdge
+        ? await resolveImageRefFromNodeId(referenceEdge.source, nodes, currentProjectId)
+        : undefined
       const resultPath = await run(() =>
         window.api.model.beginGenerateImage({
           modelId,
@@ -68,6 +86,7 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
           width,
           height,
           batchSize,
+          ...(referenceImage ? { referenceImage } : {}),
         }),
       )
 
@@ -90,6 +109,11 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
         progress: 100,
       })
     } catch (err) {
+      if (err instanceof GenerationBlockedError) {
+        showToast(err.message, 'error')
+        updateNodeData(nodeId, { isGenerating: false })
+        return
+      }
       handleError(err, 'imageGenerate')
       updateNodeData(nodeId, { isGenerating: false, error: String(err) })
     }
@@ -116,6 +140,29 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
             className="w-full bg-bg-tertiary text-text-primary text-xs p-2 rounded outline-none"
           />
         </div>
+        {hasReferenceConnection && (
+          <div className="flex gap-2 items-center flex-wrap">
+            <div
+              className="w-16 h-16 rounded overflow-hidden border border-border"
+              title="参考图"
+            >
+              <NodeImageThumb
+                projectId={currentProjectId}
+                nodeId={referenceEdge?.source}
+                alt="参考图"
+              />
+            </div>
+            {ui.supportsReferenceImage ? (
+              <span className="text-[10px] text-text-muted">
+                已接入参考图（最多 {ui.maxReferenceImages} 张）
+              </span>
+            ) : (
+              <span className="text-[10px] text-amber-300">
+                当前模型不支持参考图，请断开连线或更换模型
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="w-56 space-y-2">
@@ -139,7 +186,10 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
             <label className="text-[10px] text-text-muted">模型</label>
             <select
               value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
+              onChange={(e) => {
+                setModelId(e.target.value)
+                updateNodeData(nodeId, { modelId: e.target.value })
+              }}
               className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
             >
               <option value="">选择模型</option>
@@ -149,6 +199,11 @@ export function ImageGenerator({ nodeId }: ImageGeneratorProps) {
                 </option>
               ))}
             </select>
+            {modelId && (
+              <div className="mt-1">
+                <ModelCapabilityBadges profile={ui.profile} compact />
+              </div>
+            )}
           </div>
           <div className="w-20">
             <label className="text-[10px] text-text-muted">比例</label>

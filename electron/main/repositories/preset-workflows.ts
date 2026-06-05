@@ -15,7 +15,7 @@ export function installPresetWorkflows(): void {
     ],
     edges: [
       { id: 'e1', source: 'text-1', sourceHandle: 'prompt', target: 'image-1', targetHandle: 'prompt' },
-      { id: 'e2', source: 'image-1', sourceHandle: 'firstFrame', target: 'video-1', targetHandle: 'firstFrame' },
+      { id: 'e2', source: 'image-1', sourceHandle: 'image', target: 'video-1', targetHandle: 'firstFrame' },
     ],
     isPreset: true,
   })
@@ -41,8 +41,8 @@ export function installPresetWorkflows(): void {
     edges: [
       { id: 'e1', source: 'text-start', sourceHandle: 'prompt', target: 'image-start', targetHandle: 'prompt' },
       { id: 'e2', source: 'text-end', sourceHandle: 'prompt', target: 'image-end', targetHandle: 'prompt' },
-      { id: 'e3', source: 'image-start', sourceHandle: 'firstFrame', target: 'video-1', targetHandle: 'firstFrame' },
-      { id: 'e4', source: 'image-end', sourceHandle: 'lastFrame', target: 'video-1', targetHandle: 'lastFrame' },
+      { id: 'e3', source: 'image-start', sourceHandle: 'image', target: 'video-1', targetHandle: 'firstFrame' },
+      { id: 'e4', source: 'image-end', sourceHandle: 'image', target: 'video-1', targetHandle: 'lastFrame' },
     ],
     isPreset: true,
   })

@@ -6,6 +6,7 @@ import { PortHandle } from './PortHandle'
 interface PortDef {
   id: string
   top?: string
+  disabled?: boolean
 }
 
 interface BaseNodeProps {
@@ -132,6 +133,7 @@ export function BaseNode({
             type="target"
             color={color}
             top={portTop(i, input.top)}
+            disabled={input.disabled}
           />
         ))}
 

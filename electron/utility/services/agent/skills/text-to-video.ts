@@ -18,7 +18,7 @@ export const textToVideoSkill: AgentSkill = {
           tempId: 'text-1',
           type: 'text',
           label: '画面描述',
-          data: { inputContent: intent, modelId: defaultLlm ?? '' },
+          data: { draft: intent, output: intent, outputMode: 'passthrough', modelId: defaultLlm ?? '' },
           modelHint: defaultLlm,
         },
         {
@@ -38,7 +38,7 @@ export const textToVideoSkill: AgentSkill = {
       ],
       edges: [
         { source: 'text-1', sourceHandle: 'prompt', target: 'image-1', targetHandle: 'prompt' },
-        { source: 'image-1', sourceHandle: 'firstFrame', target: 'video-1', targetHandle: 'firstFrame' },
+        { source: 'image-1', sourceHandle: 'image', target: 'video-1', targetHandle: 'firstFrame' },
         { source: 'text-1', sourceHandle: 'prompt', target: 'video-1', targetHandle: 'prompt' },
       ],
     }

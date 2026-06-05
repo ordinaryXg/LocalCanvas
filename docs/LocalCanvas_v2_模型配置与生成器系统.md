@@ -502,7 +502,9 @@ ScriptNode 按钮：「生成分镜图」「Seedance 视频」
 
 ---
 
-## 十二、v2 → v3 衔接
+## 十二、版本衔接说明
+
+### 12.1 v2 → v3
 
 | v2 产出 | v3 扩展 |
 |---------|---------|
@@ -511,6 +513,19 @@ ScriptNode 按钮：「生成分镜图」「Seedance 视频」
 | 无时间轴 | 时间轴编辑器 |
 | 无导出 | MP4 导出 |
 | 无音频混合 | 音频+视频混流 |
+
+### 12.2 v2 → v6（模型能力系统）
+
+v2 的 `portCompat.ts` 按节点类型硬编码连线规则；v6 引入 **CapabilityRegistry**，由 `ModelCapabilityProfile` 驱动实线/虚线边、动态端口与 Agent 选模。
+
+| v2 产出 | v6 扩展 |
+|---------|---------|
+| `SettingsPanel` endpoint + model 字符串 | 能力徽章 + L2 同步 + L3 Probe |
+| 固定视频/图片端口 | 按 profile 动态显示/灰显（首尾帧、reference1–9、image1–N） |
+| `TextGenerator` 单栏 | `TextEditorPanel` 双栏 + Vision 多图 |
+| Agent 硬编码 modelHint | `enrichWorkflowPlanWithModels` Registry 选模 |
+
+详案：[LocalCanvas_模型能力系统重设计.md](./v6/design/LocalCanvas_模型能力系统重设计.md) · 总览：[v6](./LocalCanvas_v6_节点体验与能力系统.md) · [开发步骤表 Phase 6](./LocalCanvas_开发步骤表.md#phase-6节点体验--模型能力系统v6-客户端约-25-周)
 
 ---
 
@@ -521,6 +536,16 @@ ScriptNode 按钮：「生成分镜图」「Seedance 视频」
 | 本地自托管推理引擎 | 不在 v2 范围，v2 聚焦远程 HTTP API |
 | 本地 SD / FLUX 推理 | 请使用对应云端 API |
 | WebSocket 本地进度 | 仅远端 API 轮询 |
+
+---
+
+## 十四、全版本文档索引
+
+| 版本 | 文档 |
+|------|------|
+| 开发步骤总表 | [LocalCanvas_开发步骤表.md](./LocalCanvas_开发步骤表.md) |
+| v6 客户端 | [LocalCanvas_v6_节点体验与能力系统.md](./LocalCanvas_v6_节点体验与能力系统.md) |
+| v6 设计原文 | [docs/v6/design/](./v6/design/) |
 
 ---
 

@@ -18,13 +18,21 @@ export const firstLastFrameSkill: AgentSkill = {
           tempId: 'text-start',
           type: 'text',
           label: '起始画面',
-          data: { inputContent: `${intent}（起始画面）` },
+          data: {
+            draft: `${intent}（起始画面）`,
+            output: `${intent}（起始画面）`,
+            outputMode: 'passthrough',
+          },
         },
         {
           tempId: 'text-end',
           type: 'text',
           label: '结束画面',
-          data: { inputContent: `${intent}（结束画面）` },
+          data: {
+            draft: `${intent}（结束画面）`,
+            output: `${intent}（结束画面）`,
+            outputMode: 'passthrough',
+          },
           position: { x: 0, y: 240 },
         },
         {
@@ -52,8 +60,8 @@ export const firstLastFrameSkill: AgentSkill = {
       edges: [
         { source: 'text-start', sourceHandle: 'prompt', target: 'image-start', targetHandle: 'prompt' },
         { source: 'text-end', sourceHandle: 'prompt', target: 'image-end', targetHandle: 'prompt' },
-        { source: 'image-start', sourceHandle: 'firstFrame', target: 'video-1', targetHandle: 'firstFrame' },
-        { source: 'image-end', sourceHandle: 'lastFrame', target: 'video-1', targetHandle: 'lastFrame' },
+        { source: 'image-start', sourceHandle: 'image', target: 'video-1', targetHandle: 'firstFrame' },
+        { source: 'image-end', sourceHandle: 'image', target: 'video-1', targetHandle: 'lastFrame' },
       ],
     }
   },

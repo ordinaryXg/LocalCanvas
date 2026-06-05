@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
-  Controls,
   MiniMap,
   Panel,
   ReactFlowProvider,
   useReactFlow,
+  ConnectionLineType,
   type Connection,
   BackgroundVariant,
   type Node,
@@ -27,18 +27,26 @@ import { useAgentStore } from '../../stores/agentStore'
 import { ContextMenu, NodePicker, useContextMenuHandlers, type ContextMenuState } from './ContextMenu'
 import { CanvasToolbar } from './CanvasToolbar'
 import { GeneratorPanel } from '../panels/GeneratorPanel'
+import { ComposeEditor } from '../compose/ComposeEditor'
+import { useComposeEditorStore } from '../../stores/composeEditorStore'
 import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from '../../utils/portCompat'
+import { evaluateEdgeCompat } from '../../capabilities/edge-compat'
+import type { ModelKind } from '../../types/capability'
 import { useDataFlow } from '../../hooks/useDataFlow'
 import { useFileDrop, useSidebarNodeDrop, useAssetDrop, useKeyboardShortcuts } from '../../hooks/useKeyboard'
 import { useAutoSave, useManualSave } from '../../hooks/useAutoSave'
 import { generateNodeId } from '../../utils/id'
 import { CANVAS_MIN_ZOOM, CANVAS_MAX_ZOOM } from '../../utils/constants'
+import { CANVAS_EDGE_STYLE, CANVAS_EDGE_TYPE } from '../../utils/canvasEdge'
+import { CanvasControls } from './CanvasControls'
 import { useDagRun } from '../../hooks/useDagRun'
 import { DagRunPanel } from '../panels/DagRunPanel'
 import { SlashCommandPalette } from './SlashCommandPalette'
 import { useCanvasStore as getCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { showToast } from '../../utils/ErrorHandler'
+import { fitViewAndSyncViewport, viewportLikelyShowsNodes } from '../../utils/canvasViewport'
+import { hydrateProjectNodes } from '../../utils/assetStorage'
 
 const nodeTypes = {
   text: TextNode,
@@ -60,10 +68,16 @@ function CanvasInner() {
     onConnect,
     addNode,
     setViewport,
+    layoutNodes,
+    loadProject,
   } = useCanvasStore()
 
   const reactFlow = useReactFlow()
+  const currentProjectId = useProjectStore((s) => s.currentProjectId)
+  const bootstrappedProjectRef = useRef<string | null>(null)
+  const reloadAttemptedRef = useRef<string | null>(null)
   const [zoom, setZoom] = useState(100)
+  const [isInteractive, setIsInteractive] = useState(true)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null)
   const [middleMouseDown, setMiddleMouseDown] = useState(false)
@@ -73,7 +87,22 @@ function CanvasInner() {
   const middleMouseDownRef = useRef(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
+  const composeEditorNodeId = useComposeEditorStore((s) => s.activeNodeId)
+  const composeEditorDismissed = useComposeEditorStore((s) => s.dismissed)
+  const openComposeEditor = useComposeEditorStore((s) => s.open)
+  const clearComposeEditor = useComposeEditorStore((s) => s.clear)
   const { runState, startRun, dismiss } = useDagRun()
+
+  useEffect(() => {
+    const composeNode = nodes.find(
+      (n) => selectedNodeIds.includes(n.id) && n.type === 'compose',
+    )
+    if (composeNode) {
+      openComposeEditor(composeNode.id)
+    } else {
+      clearComposeEditor()
+    }
+  }, [selectedNodeIds, nodes, openComposeEditor, clearComposeEditor])
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -209,7 +238,8 @@ function CanvasInner() {
   const isValidConnection: IsValidConnection = useCallback(
     (connection) => {
       const sourceType = getNodeTypeFromId(nodes, connection.source)
-      const targetType = getNodeTypeFromId(nodes, connection.target)
+      const targetNode = nodes.find((n) => n.id === connection.target)
+      const targetType = targetNode?.type ?? getNodeTypeFromId(nodes, connection.target)
       if (
         !isPortCompatible(
           sourceType,
@@ -220,6 +250,19 @@ function CanvasInner() {
       ) {
         return false
       }
+      const targetKind: ModelKind =
+        targetType === 'image' ? 'image' : targetType === 'video' ? 'video' : 'llm'
+      const compat = evaluateEdgeCompat({
+        sourceType,
+        sourceHandle: connection.sourceHandle,
+        targetType,
+        targetHandle: connection.targetHandle,
+        targetModelId: targetNode?.data?.modelId as string | undefined,
+        targetKind,
+        edges,
+        targetNodeId: connection.target,
+      })
+      if (compat.status === 'reject') return false
       return isTargetHandleAvailable(
         edges,
         connection.target,
@@ -246,10 +289,6 @@ function CanvasInner() {
     },
     [],
   )
-
-  const handleMoveEnd = useCallback(() => {
-    setViewport(reactFlow.getViewport())
-  }, [reactFlow, setViewport])
 
   const handlePaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
@@ -282,8 +321,8 @@ function CanvasInner() {
 
   const defaultEdgeOptions = useMemo(
     () => ({
-      type: 'smoothstep' as const,
-      style: { stroke: 'var(--color-accent)', strokeWidth: 2 },
+      type: CANVAS_EDGE_TYPE,
+      style: CANVAS_EDGE_STYLE,
       animated: true,
       interactionWidth: 24,
       deletable: true,
@@ -291,6 +330,58 @@ function CanvasInner() {
     }),
     [],
   )
+
+  const handleAutoLayout = useCallback(() => {
+    const applied = layoutNodes()
+    if (!applied) {
+      showToast('没有可排版的顶层节点', 'info')
+      return
+    }
+    void fitViewAndSyncViewport(reactFlow, setViewport, { padding: 0.2, duration: 320 })
+    showToast('已自动排版', 'info')
+  }, [layoutNodes, reactFlow, setViewport])
+
+  useEffect(() => {
+    if (!currentProjectId) {
+      bootstrappedProjectRef.current = null
+      reloadAttemptedRef.current = null
+      return
+    }
+
+    if (nodes.length === 0) {
+      if (reloadAttemptedRef.current === currentProjectId) return
+      reloadAttemptedRef.current = currentProjectId
+      void (async () => {
+        try {
+          const data = await window.api.project.load(currentProjectId)
+          const rawNodes = data.nodes as Node[]
+          if (rawNodes.length === 0) return
+          const hydrated = await hydrateProjectNodes(currentProjectId, rawNodes)
+          loadProject(hydrated, data.edges as Edge[], data.viewport)
+        } catch {
+          /* 由 openProject 负责主流程，此处仅兜底 */
+        }
+      })()
+      return
+    }
+
+    if (bootstrappedProjectRef.current === currentProjectId) return
+
+    const frame = requestAnimationFrame(() => {
+      void (async () => {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        const latestNodes = useCanvasStore.getState().nodes
+        if (!viewportLikelyShowsNodes(reactFlow, latestNodes, canvasRef.current)) {
+          await fitViewAndSyncViewport(reactFlow, setViewport, { duration: 0 })
+        } else {
+          await reactFlow.setViewport(viewport, { duration: 0 })
+        }
+        bootstrappedProjectRef.current = currentProjectId
+      })()
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [currentProjectId, nodes.length, loadProject, reactFlow, setViewport, viewport])
 
   const handleEdgeClick = useCallback(
     (_event: React.MouseEvent, edge: Edge) => {
@@ -309,26 +400,25 @@ function CanvasInner() {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onlyRenderVisibleElements
-        nodeExtent={[
-          [-5000, -5000],
-          [5000, 5000],
-        ]}
         onConnect={handleConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
-        defaultViewport={viewport}
-        fitView={nodes.length > 0 && viewport.x === 0 && viewport.y === 0 && viewport.zoom === 1}
+        viewport={viewport}
+        onViewportChange={setViewport}
         minZoom={CANVAS_MIN_ZOOM}
         maxZoom={CANVAS_MAX_ZOOM}
-        selectionOnDrag
-        panOnDrag={[1]}
+        nodesDraggable={isInteractive}
+        nodesConnectable={isInteractive}
+        elementsSelectable={isInteractive}
+        edgesReconnectable={isInteractive}
+        selectionOnDrag={isInteractive}
+        panOnDrag={isInteractive ? [1] : false}
         panOnScroll={false}
-        zoomOnScroll={!middleMouseDown}
+        zoomOnScroll={isInteractive && !middleMouseDown}
+        connectionLineType={ConnectionLineType.Bezier}
         deleteKeyCode={['Delete', 'Backspace']}
         onEdgeClick={handleEdgeClick}
         onMove={handleMove}
-        onMoveEnd={handleMoveEnd}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
@@ -342,21 +432,25 @@ function CanvasInner() {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
-        <Controls className="controls-dark" position="bottom-left" />
+        <CanvasControls
+          isInteractive={isInteractive}
+          onInteractiveChange={setIsInteractive}
+          onAutoLayout={handleAutoLayout}
+        />
         <MiniMap
           pannable
           zoomable={false}
           nodeColor={(node) => {
             const colors: Record<string, string> = {
-              text: '#8b5cf6',
-              image: '#06b6d4',
-              video: '#f43f5e',
-              audio: '#22c55e',
-              script: '#f59e0b',
-              compose: '#6366f1',
-              storyboard: '#a855f7',
+              text: '#9a8fa6',
+              image: '#6e9598',
+              video: '#b89090',
+              audio: '#8fa88f',
+              script: '#b8a67a',
+              compose: '#8a90a8',
+              storyboard: '#a08fa8',
             }
-            return colors[node.type || 'text'] || '#6366f1'
+            return colors[node.type || 'text'] || '#8a90a8'
           }}
           maskColor="rgba(0,0,0,0.7)"
           className="minimap-dark minimap-pannable"
@@ -369,6 +463,9 @@ function CanvasInner() {
 
       <CanvasToolbar />
       <GeneratorPanel />
+      {composeEditorNodeId && !composeEditorDismissed && (
+        <ComposeEditor nodeId={composeEditorNodeId} />
+      )}
       <ContextMenu
         menu={contextMenu}
         onClose={() => setContextMenu(null)}

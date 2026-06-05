@@ -7,6 +7,7 @@ import {
   mergeAudioVideo,
   cleanupTemp,
   getVideoInfo,
+  trimVideo,
 } from './ffmpeg-service'
 import { burnSubtitles } from './ffmpeg-subtitle'
 import { validateConcatCompatibility } from './ffmpeg'
@@ -37,6 +38,7 @@ export interface ComposeClip {
   path: string
   startTime: number
   duration: number
+  trimIn?: number
 }
 
 export interface ComposeOptions {
@@ -60,7 +62,35 @@ export async function compose(
   let { reencode = false } = options
 
   const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime)
-  const videoPaths = sortedClips.map((c) => c.path)
+
+  if (sortedClips.length === 0) {
+    throw new Error('No video clips to compose')
+  }
+
+  const videoPaths: string[] = []
+  for (const clip of sortedClips) {
+    const trimIn = clip.trimIn ?? 0
+    let needsTrim = trimIn > 0.05
+
+    if (!needsTrim) {
+      try {
+        const info = await getVideoInfo(clip.path)
+        needsTrim = clip.duration < info.duration - 0.15
+      } catch {
+        needsTrim = false
+      }
+    }
+
+    if (needsTrim) {
+      const trimmedOutput = join(getTempDir(), `trim-${uuid()}.mp4`)
+      await trimVideo(clip.path, trimIn, trimIn + clip.duration, trimmedOutput)
+      videoPaths.push(trimmedOutput)
+    } else {
+      videoPaths.push(clip.path)
+    }
+
+    if (composeCancelled) throw new Error('Compose cancelled')
+  }
 
   if (videoPaths.length === 0) {
     throw new Error('No video clips to compose')

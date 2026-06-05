@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react'
+import { createCanvasEdge } from './canvasEdge'
 import { generateNodeId } from './id'
 
 interface WorkflowNode {
@@ -36,16 +37,15 @@ export function remapWorkflowToCanvas(
     parentId: n.parentId ? idMap.get(n.parentId) : undefined,
   }))
 
-  const edges: Edge[] = workflowEdges.map((e) => ({
-    id: generateNodeId('edge'),
-    source: idMap.get(e.source)!,
-    target: idMap.get(e.target)!,
-    sourceHandle: e.sourceHandle,
-    targetHandle: e.targetHandle,
-    type: 'smoothstep',
-    animated: true,
-    style: { stroke: 'var(--color-accent, #6366f1)', strokeWidth: 2 },
-  }))
+  const edges: Edge[] = workflowEdges.map((e) =>
+    createCanvasEdge({
+      id: generateNodeId('edge'),
+      source: idMap.get(e.source)!,
+      target: idMap.get(e.target)!,
+      sourceHandle: e.sourceHandle,
+      targetHandle: e.targetHandle,
+    }),
+  )
 
   return { nodes, edges }
 }

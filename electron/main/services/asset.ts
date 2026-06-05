@@ -1,5 +1,5 @@
-import { join, extname, basename } from 'path'
-import { existsSync, readdirSync, copyFileSync, statSync, symlinkSync } from 'fs'
+import { join, extname, basename, resolve, relative } from 'path'
+import { existsSync, readdirSync, copyFileSync, statSync, symlinkSync, unlinkSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getProjectAssetsPath } from './project'
 import { logger } from './logger'
@@ -116,4 +116,27 @@ export function importAsset(projectId: string, filePath: string): Asset {
     size: stat.size,
     modifiedAt: stat.mtime.toISOString(),
   }
+}
+
+function resolveAssetAbsolutePath(projectId: string, relativePath: string): string {
+  const base = resolve(getProjectAssetsPath(projectId))
+  const absolutePath = resolve(base, relativePath)
+  const rel = relative(base, absolutePath)
+  if (rel.startsWith('..') || resolve(absolutePath) === base) {
+    throw new Error('Invalid asset path')
+  }
+  return absolutePath
+}
+
+export function deleteAsset(projectId: string, relativePath: string): void {
+  const absolutePath = resolveAssetAbsolutePath(projectId, relativePath)
+  if (!existsSync(absolutePath)) {
+    throw new Error(`Asset not found: ${relativePath}`)
+  }
+  unlinkSync(absolutePath)
+  logger.info('Asset deleted', projectId, relativePath)
+}
+
+export function getAssetAbsolutePath(projectId: string, relativePath: string): string {
+  return resolveAssetAbsolutePath(projectId, relativePath)
 }

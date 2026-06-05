@@ -18,6 +18,8 @@ export function registerModelIpc(): void {
         width: number
         height: number
         batchSize?: number
+        referenceImage?: string
+        referenceImages?: string[]
       },
     ) => {
       try {
@@ -27,6 +29,8 @@ export function registerModelIpc(): void {
           width: payload.width,
           height: payload.height,
           batchSize: payload.batchSize,
+          referenceImage: payload.referenceImage,
+          referenceImages: payload.referenceImages,
         })
         trackGenerationStart(
           result.taskId,
@@ -58,6 +62,8 @@ export function registerModelIpc(): void {
         width: number
         height: number
         batchSize?: number
+        referenceImage?: string
+        referenceImages?: string[]
       },
     ) => {
       try {
@@ -67,6 +73,8 @@ export function registerModelIpc(): void {
           width: payload.width,
           height: payload.height,
           batchSize: payload.batchSize,
+          referenceImage: payload.referenceImage,
+          referenceImages: payload.referenceImages,
         })
       } catch (error) {
         logger.error('model:generateImage failed', error)
@@ -88,6 +96,9 @@ export function registerModelIpc(): void {
         duration: number
         firstFrame?: string
         lastFrame?: string
+        referenceImages?: string[]
+        referenceVideo?: string
+        referenceAudio?: string
         camera?: string
         ratio?: string
         resolution?: string
@@ -102,6 +113,9 @@ export function registerModelIpc(): void {
           duration: payload.duration,
           firstFrame: payload.firstFrame,
           lastFrame: payload.lastFrame,
+          referenceImages: payload.referenceImages,
+          referenceVideo: payload.referenceVideo,
+          referenceAudio: payload.referenceAudio,
           camera: payload.camera,
           ratio: payload.ratio,
           resolution: payload.resolution,
@@ -133,6 +147,9 @@ export function registerModelIpc(): void {
         duration: number
         firstFrame?: string
         lastFrame?: string
+        referenceImages?: string[]
+        referenceVideo?: string
+        referenceAudio?: string
         camera?: string
         ratio?: string
         resolution?: string
@@ -147,6 +164,9 @@ export function registerModelIpc(): void {
           duration: payload.duration,
           firstFrame: payload.firstFrame,
           lastFrame: payload.lastFrame,
+          referenceImages: payload.referenceImages,
+          referenceVideo: payload.referenceVideo,
+          referenceAudio: payload.referenceAudio,
           camera: payload.camera,
           ratio: payload.ratio,
           resolution: payload.resolution,
@@ -170,6 +190,8 @@ export function registerModelIpc(): void {
         systemPrompt?: string
         maxTokens?: number
         temperature?: number
+        thinkingPreset?: 'off' | 'balanced' | 'deep'
+        images?: string[]
       },
     ) => {
       try {
@@ -178,6 +200,8 @@ export function registerModelIpc(): void {
           systemPrompt: payload.systemPrompt,
           maxTokens: payload.maxTokens,
           temperature: payload.temperature,
+          thinkingPreset: payload.thinkingPreset,
+          images: payload.images,
         })
         trackGenerationStart(result.taskId, 'text', payload.modelId, payload.nodeId, payload.prompt, getActiveProjectId() ?? undefined)
         return result
@@ -199,6 +223,8 @@ export function registerModelIpc(): void {
         systemPrompt?: string
         maxTokens?: number
         temperature?: number
+        thinkingPreset?: 'off' | 'balanced' | 'deep'
+        images?: string[]
       },
     ) => {
       try {
@@ -207,6 +233,8 @@ export function registerModelIpc(): void {
           systemPrompt: payload.systemPrompt,
           maxTokens: payload.maxTokens,
           temperature: payload.temperature,
+          thinkingPreset: payload.thinkingPreset,
+          images: payload.images,
         })
       } catch (error) {
         logger.error('model:generateText failed', error)

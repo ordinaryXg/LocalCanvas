@@ -20,6 +20,10 @@ import {
   type SeedanceRatio,
   type SeedanceResolution,
 } from '../../../../src/constants/seedance'
+import {
+  buildSeedanceContent,
+  type SeedanceContentItem,
+} from '../../../../src/capabilities/seedance-content'
 import { isTaskCancelled, cancelledError } from '../task-cancellation'
 
 export interface SeedanceAdapterOptions {
@@ -29,12 +33,6 @@ export interface SeedanceAdapterOptions {
   createEndpoint?: string
   pollEndpoint?: string
   defaultParams?: Record<string, unknown>
-}
-
-interface SeedanceContentItem {
-  type: 'text' | 'image_url'
-  text?: string
-  image_url?: { url: string }
 }
 
 /**
@@ -88,20 +86,30 @@ export class SeedanceAdapter extends ModelAdapter {
     const watermark = this.defaultParams.watermark ?? false
 
     const promptText = this.buildPrompt(params.prompt, params.camera)
-    const content: SeedanceContentItem[] = [{ type: 'text', text: promptText }]
-
-    if (params.firstFrame) {
-      content.push({
-        type: 'image_url',
-        image_url: { url: await this.resolveImageRef(params.firstFrame) },
-      })
-    }
-    if (caps.supportsLastFrame && params.lastFrame) {
-      content.push({
-        type: 'image_url',
-        image_url: { url: await this.resolveImageRef(params.lastFrame) },
-      })
-    }
+    const isV2 = isSeedanceV2Model(this.model)
+    const content = buildSeedanceContent({
+      promptText,
+      isV2,
+      firstFrame: params.firstFrame
+        ? await this.resolveMediaRef(params.firstFrame)
+        : undefined,
+      lastFrame:
+        caps.supportsLastFrame && params.lastFrame
+          ? await this.resolveMediaRef(params.lastFrame)
+          : undefined,
+      referenceImages:
+        isV2 && params.referenceImages?.length
+          ? await Promise.all(params.referenceImages.map((r) => this.resolveMediaRef(r)))
+          : undefined,
+      referenceVideo:
+        isV2 && params.referenceVideo
+          ? await this.resolveMediaRef(params.referenceVideo)
+          : undefined,
+      referenceAudio:
+        isV2 && params.referenceAudio
+          ? await this.resolveMediaRef(params.referenceAudio)
+          : undefined,
+    })
 
     const ratio = this.resolveRatio(params, content)
 
@@ -189,7 +197,7 @@ export class SeedanceAdapter extends ModelAdapter {
     return `${prompt}. Camera: ${cameraHint}.`
   }
 
-  private async resolveImageRef(ref: string): Promise<string> {
+  private async resolveMediaRef(ref: string): Promise<string> {
     if (ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('data:')) {
       return ref
     }
@@ -199,24 +207,42 @@ export class SeedanceAdapter extends ModelAdapter {
         'openai',
         AdapterErrorCode.INVALID_PARAMS,
         false,
-        '首帧/尾帧请使用已保存的图片节点（重新上传后重试）',
+        '请使用已保存到项目的媒体节点（重新上传后重试）',
       )
     }
     const filePath = ref.startsWith('file:') ? fileURLToPath(ref) : ref
     try {
       const buf = await readFile(filePath)
-      const ext = filePath.split('.').pop()?.toLowerCase() ?? 'png'
-      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+      const ext = filePath.split('.').pop()?.toLowerCase() ?? 'bin'
+      const mime = this.mimeFromExt(ext)
       return `data:${mime};base64,${buf.toString('base64')}`
     } catch {
       throw new AdapterError(
-        `Cannot read image: ${ref}`,
+        `Cannot read media: ${ref}`,
         'openai',
         AdapterErrorCode.INVALID_PARAMS,
         false,
-        '无法读取首帧/尾帧图片文件',
+        '无法读取参考媒体文件',
       )
     }
+  }
+
+  private mimeFromExt(ext: string): string {
+    const map: Record<string, string> = {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      webp: 'image/webp',
+      gif: 'image/gif',
+      mp4: 'video/mp4',
+      webm: 'video/webm',
+      mov: 'video/quicktime',
+      mp3: 'audio/mpeg',
+      wav: 'audio/wav',
+      ogg: 'audio/ogg',
+      m4a: 'audio/mp4',
+    }
+    return map[ext] ?? `application/${ext}`
   }
 
   private async pollUntilDone(

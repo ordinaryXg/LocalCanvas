@@ -1,8 +1,8 @@
 import { ipcMain, shell } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { app } from 'electron'
 import { statSync } from 'fs'
-import { listAssets, importAsset } from '../services/asset'
+import { listAssets, importAsset, deleteAsset, getAssetAbsolutePath } from '../services/asset'
 import { getThumbnail } from '../services/thumbnail'
 import { getUtilityClient } from '../services/utility-client'
 import { ensureFFmpeg } from '../services/ffmpeg-setup'
@@ -36,6 +36,49 @@ export function registerMediaIpc(): void {
       return await getThumbnail(filePath)
     } catch (error) {
       logger.error('asset:thumbnail failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('asset:delete', (_e, projectId: string, relativePath: string) => {
+    try {
+      deleteAsset(projectId, relativePath)
+      return { success: true }
+    } catch (error) {
+      logger.error('asset:delete failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('asset:revealInFolder', (_e, projectId: string, relativePath: string) => {
+    try {
+      const absolutePath = getAssetAbsolutePath(projectId, relativePath)
+      shell.showItemInFolder(absolutePath)
+      return { success: true }
+    } catch (error) {
+      logger.error('asset:revealInFolder failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('asset:open', (_e, projectId: string, relativePath: string) => {
+    try {
+      const absolutePath = getAssetAbsolutePath(projectId, relativePath)
+      void shell.openPath(absolutePath)
+      return { success: true }
+    } catch (error) {
+      logger.error('asset:open failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('asset:openFolder', (_e, projectId: string, relativePath: string) => {
+    try {
+      const absolutePath = getAssetAbsolutePath(projectId, relativePath)
+      void shell.openPath(dirname(absolutePath))
+      return { success: true }
+    } catch (error) {
+      logger.error('asset:openFolder failed', error)
       throw error
     }
   })

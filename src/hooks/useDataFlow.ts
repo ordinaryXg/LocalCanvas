@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { computeDataFlowPatches } from '../utils/dataFlow'
+import { textNodeOutput } from '../utils/textNodeOutput'
 
 function dataFlowSourceSignature(
   nodes: Array<{ id: string; type?: string; data: Record<string, unknown> }>,
@@ -10,7 +11,8 @@ function dataFlowSourceSignature(
     .map((n) => {
       const d = n.data
       if (n.type === 'text') {
-        return `${n.id}:${d.inputContent ?? ''}:${d.generatedContent ?? d.content ?? ''}`
+        const downstream = textNodeOutput(d)
+        return `${n.id}:${d.draft ?? d.inputContent ?? ''}:${downstream}:${d.outputMode ?? ''}:${d.outputEdited ? 1 : 0}`
       }
       if (n.type === 'script') {
         const rows = (d.scriptRows as Array<{ prompt?: string }> | undefined) ?? []

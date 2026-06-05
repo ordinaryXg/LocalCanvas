@@ -2,17 +2,16 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { useCanvasStore } from '../../stores/canvasStore'
 import { ImageGenerator } from './ImageGenerator'
 import { VideoGenerator } from './VideoGenerator'
-import { TextGenerator } from './TextGenerator'
+import { TextEditorPanel } from '../text/TextEditorPanel'
 import { ScriptGenerator } from './ScriptGenerator'
 import { AudioGenerator } from './AudioGenerator'
-import { ComposeGenerator } from './ComposeGenerator'
 import { StoryboardGenerator } from './StoryboardGenerator'
 
-const GENERATOR_NODE_TYPES = new Set(['text', 'image', 'video', 'audio', 'script', 'compose', 'storyboard'])
+const GENERATOR_NODE_TYPES = new Set(['text', 'image', 'video', 'audio', 'script', 'storyboard'])
 
 const MIN_PANEL_HEIGHT = 160
 const DEFAULT_PANEL_HEIGHT = 280
-const DEFAULT_COMPOSE_PANEL_HEIGHT = 420
+const DEFAULT_TEXT_PANEL_HEIGHT = 400
 const MAX_PANEL_HEIGHT_RATIO = 0.78
 
 export function GeneratorPanel() {
@@ -29,8 +28,8 @@ export function GeneratorPanel() {
   useEffect(() => {
     if (selectedNode) {
       setCollapsed(false)
-      if (selectedNode.type === 'compose') {
-        setPanelHeight((h) => Math.max(h, DEFAULT_COMPOSE_PANEL_HEIGHT))
+      if (selectedNode.type === 'text') {
+        setPanelHeight((h) => Math.max(h, DEFAULT_TEXT_PANEL_HEIGHT))
       }
     }
   }, [selectedNode?.id, selectedNode?.type])
@@ -64,12 +63,11 @@ export function GeneratorPanel() {
   if (!selectedNode || collapsed) return null
 
   const labels: Record<string, string> = {
-    text: '📝 文本生成器',
+    text: '📝 文本编辑',
     image: '🖼️ 图像生成器',
     video: '🎥 视频生成器',
     audio: '🎵 音频生成器',
     script: '🎬 脚本生成器',
-    compose: '🎞️ 合成编辑器',
   }
 
   return (
@@ -101,12 +99,11 @@ export function GeneratorPanel() {
             </button>
           </div>
 
-          {selectedNode.type === 'text' && <TextGenerator nodeId={selectedNode.id} />}
+          {selectedNode.type === 'text' && <TextEditorPanel nodeId={selectedNode.id} />}
           {selectedNode.type === 'image' && <ImageGenerator nodeId={selectedNode.id} />}
           {selectedNode.type === 'video' && <VideoGenerator nodeId={selectedNode.id} />}
           {selectedNode.type === 'audio' && <AudioGenerator nodeId={selectedNode.id} />}
           {selectedNode.type === 'script' && <ScriptGenerator nodeId={selectedNode.id} />}
-          {selectedNode.type === 'compose' && <ComposeGenerator nodeId={selectedNode.id} />}
           {selectedNode.type === 'storyboard' && <StoryboardGenerator nodeId={selectedNode.id} />}
         </div>
       </div>

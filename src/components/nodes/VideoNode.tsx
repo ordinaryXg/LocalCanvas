@@ -1,4 +1,4 @@
-import { memo, useRef, useCallback, useState, useEffect } from 'react'
+import { memo, useRef, useCallback, useState, useEffect, useMemo } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
 import { VideoPreview } from '../common/VideoPreview'
@@ -10,6 +10,8 @@ import { trimVideoAsset, resolveAssetAbsolutePath } from '../../hooks/useCompose
 import { handleError } from '../../utils/ErrorHandler'
 import { generateNodeId } from '../../utils/id'
 import { NodeImageThumb } from '../common/NodeImageThumb'
+import { getVideoNodePorts } from '../../capabilities/node-port-ui'
+import { listVideoReferenceHandles } from '../../utils/videoReferenceSlots'
 
 function FrameSlot({
   label,
@@ -50,6 +52,7 @@ function FrameSlot({
 
 function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const uploadMedia = useNodeMediaUpload(id, 'video')
+  const edges = useCanvasStore((s) => s.edges)
   const addNode = useCanvasStore((s) => s.addNode)
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const projectId = useProjectStore((s) => s.currentProjectId)
@@ -65,6 +68,23 @@ function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
     typeof data.videoAssetPath === 'string' ? data.videoAssetPath : undefined
   const inlineVideoSrc = typeof data.videoSrc === 'string' ? data.videoSrc : undefined
   const hasVideo = !!(inlineVideoSrc || videoAssetPath)
+  const modelId = typeof data.modelId === 'string' ? data.modelId : undefined
+
+  const inputPorts = useMemo(() => {
+    const inbound = edges.filter((e) => e.target === id && e.targetHandle)
+    const slotDisabled: Partial<Record<string, boolean>> = {}
+    for (const handle of ['video', 'firstFrame', 'lastFrame', 'audio'] as const) {
+      if (inbound.some((e) => e.targetHandle === handle)) {
+        slotDisabled[handle] = true
+      }
+    }
+    for (const handle of listVideoReferenceHandles(9)) {
+      if (inbound.some((e) => e.targetHandle === handle)) {
+        slotDisabled[handle] = true
+      }
+    }
+    return getVideoNodePorts(modelId, undefined, slotDisabled)
+  }, [edges, id, modelId])
 
   const { src: mediaSrc, loading: mediaLoading, load: loadMedia } = useLazyAssetBlob(
     projectId,
@@ -188,13 +208,7 @@ function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
         defaultWidth={280}
         minWidth={240}
         minHeight={360}
-        inputs={[
-          { id: 'video', top: '14%' },
-          { id: 'prompt', top: '32%' },
-          { id: 'firstFrame', top: '50%' },
-          { id: 'lastFrame', top: '66%' },
-          { id: 'audio', top: '82%' },
-        ]}
+        inputs={inputPorts}
         outputs={[{ id: 'video', top: '50%' }]}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">

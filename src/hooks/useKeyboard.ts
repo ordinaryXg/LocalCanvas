@@ -179,9 +179,7 @@ export function useAssetDrop() {
 }
 
 export function useKeyboardShortcuts(saveProject: () => Promise<void>) {
-  const { nodes, edges, restoreSnapshot, groupNodes, removeNodes, selectedNodeIds } =
-    useCanvasStore()
-  const duplicateNode = useCanvasStore((s) => s.duplicateNode)
+  const { nodes, edges, restoreSnapshot, groupNodes, selectedNodeIds } = useCanvasStore()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -212,17 +210,9 @@ export function useKeyboardShortcuts(saveProject: () => Promise<void>) {
         e.preventDefault()
         void saveProject()
       }
-
-      if (mod && e.key === 'c') {
-        const selected = nodes.find((n) => n.selected)
-        if (selected) {
-          e.preventDefault()
-          duplicateNode(selected.id)
-        }
-      }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [nodes, edges, restoreSnapshot, groupNodes, removeNodes, selectedNodeIds, duplicateNode, saveProject])
+  }, [nodes, edges, restoreSnapshot, groupNodes, selectedNodeIds, saveProject])
 }

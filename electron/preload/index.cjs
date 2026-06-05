@@ -74,6 +74,13 @@ contextBridge.exposeInMainWorld('api', {
     exists: () => ipcRenderer.invoke('config:exists'),
     needsOnboarding: () => ipcRenderer.invoke('config:needsOnboarding'),
   },
+  capability: {
+    sync: () => ipcRenderer.invoke('capability:sync'),
+    getStatus: () => ipcRenderer.invoke('capability:getStatus'),
+    probe: (request) => ipcRenderer.invoke('capability:probe', request),
+    listProbedProfiles: () => ipcRenderer.invoke('capability:listProbedProfiles'),
+    getProbedProfile: (configId) => ipcRenderer.invoke('capability:getProbedProfile', configId),
+  },
   model: {
     beginGenerateImage: (payload) => ipcRenderer.invoke('model:beginGenerateImage', payload),
     generateImage: (payload) => ipcRenderer.invoke('model:generateImage', payload),
@@ -106,6 +113,13 @@ contextBridge.exposeInMainWorld('api', {
     list: (projectId) => ipcRenderer.invoke('asset:list', projectId),
     import: (projectId, filePath) => ipcRenderer.invoke('asset:import', projectId, filePath),
     thumbnail: (filePath) => ipcRenderer.invoke('asset:thumbnail', filePath),
+    delete: (projectId, relativePath) =>
+      ipcRenderer.invoke('asset:delete', projectId, relativePath),
+    revealInFolder: (projectId, relativePath) =>
+      ipcRenderer.invoke('asset:revealInFolder', projectId, relativePath),
+    open: (projectId, relativePath) => ipcRenderer.invoke('asset:open', projectId, relativePath),
+    openFolder: (projectId, relativePath) =>
+      ipcRenderer.invoke('asset:openFolder', projectId, relativePath),
   },
   ffmpeg: {
     detect: (userPath) => ipcRenderer.invoke('ffmpeg:detect', userPath),
