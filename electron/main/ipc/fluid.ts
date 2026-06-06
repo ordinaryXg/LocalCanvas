@@ -38,10 +38,11 @@ import { getDatabase } from '../database'
 import { logger } from '../services/logger'
 import { compileDownResonance, projectUp } from '../../utility/services/fluid/fluid-compiler'
 import { detectCliffs } from '../../utility/services/fluid/affect-math'
-import { applyResolution } from '../../utility/services/fluid/chorus'
+import { applyResolution, normalizeChorusResolution } from '../../utility/services/fluid/chorus'
 import type { ChorusResolution, ResonanceSummary } from '../../../src/types/fluid'
 import { METAPHOR_INJECT_PREFIX } from '../../../src/types/fluid'
 import type { Node, Edge } from '@xyflow/react'
+import { parseLlmJson } from '../../utility/services/fluid/parse-llm-json'
 
 async function defaultLlmId(): Promise<string> {
   const config = await readConfig()
@@ -49,15 +50,19 @@ async function defaultLlmId(): Promise<string> {
 }
 
 async function llmJson<T>(prompt: string, system: string): Promise<T | null> {
+  if (!prompt.trim()) return null
   try {
     const modelId = await defaultLlmId()
+    if (!modelId) return null
     const raw = await getUtilityClient().generateText(modelId, 'fluid-llm', {
       prompt,
       systemPrompt: system,
     })
-    const match = raw.match(/\{[\s\S]*\}/)
-    if (!match) return null
-    return JSON.parse(match[0]) as T
+    const parsed = parseLlmJson<T>(raw)
+    if (!parsed) {
+      logger.warn('fluid llmJson: no valid JSON in response', raw.slice(0, 200))
+    }
+    return parsed
   } catch (e) {
     logger.warn('fluid llmJson failed', e)
     return null
@@ -239,19 +244,20 @@ export function registerFluidIpc(): void {
       `你是内在合唱团编排器。输出 JSON { utterances: [{voiceId, text, stance}], resolution: { tuningAdjustments, promptModifiers, blockers } }。
       voiceId 取 impulse,skeptic,nostalgic,perfectionist,bystander,dormant。每人1-2句中文。`,
     )
-    return (
-      result ?? {
-        utterances: [
-          { voiceId: 'dormant', text: '……还需要更多共振源。', stance: 'propose' },
-        ],
-        resolution: { tuningAdjustments: [], promptModifiers: [], blockers: [] },
-      }
-    )
+    const fallback = {
+      utterances: [{ voiceId: 'dormant', text: '……还需要更多共振源。', stance: 'propose' }],
+      resolution: normalizeChorusResolution(null),
+    }
+    if (!result) return fallback
+    return {
+      utterances: Array.isArray(result.utterances) ? result.utterances : fallback.utterances,
+      resolution: normalizeChorusResolution(result.resolution),
+    }
   })
   ipcMain.handle(
     'chorus:apply',
     (_e, projectId: string, resolution: ChorusResolution) => {
-      const field = applyResolution(getResonanceField(projectId), resolution)
+      const field = applyResolution(getResonanceField(projectId), normalizeChorusResolution(resolution))
       for (const s of field.sources) {
         patchResonanceSource(s.id, { gravity: s.gravity })
       }
@@ -281,20 +287,28 @@ export function registerFluidIpc(): void {
 
   ipcMain.handle('probe:getBudget', (_e, projectId: string) => getProbeBudget(projectId))
   ipcMain.handle('probe:notifyChange', async (_e, projectId: string) => {
+    const field = getResonanceField(projectId)
+    const compiled = compileResonancePrompt(projectId)
+    const promptText = compiled.prompt?.trim()
+    if (field.sources.length === 0 || !promptText) {
+      return { skipped: true, reason: 'empty_prompt' }
+    }
     if (!incrementProbeBudget(projectId)) {
       return { skipped: true, reason: 'budget' }
     }
     try {
       const config = await readConfig()
       const modelId = config.settings.default_image_model
-      const compiled = compileResonancePrompt(projectId)
+      if (!modelId) {
+        return { skipped: true, reason: 'no_image_model' }
+      }
       const probeDir = join(getProjectAssetsPath(projectId), '.probe')
       await mkdir(probeDir, { recursive: true })
       const fileName = `ghost-${Date.now()}.png`
       const outPath = join(probeDir, fileName)
       const resultPath = await getUtilityClient().generateImage(modelId, 'fluid-probe', {
-        prompt: compiled.prompt,
-        negativePrompt: compiled.negativePrompt,
+        prompt: promptText,
+        negativePrompt: compiled.negativePrompt || undefined,
         width: 512,
         height: 288,
       })
@@ -305,7 +319,7 @@ export function registerFluidIpc(): void {
         projectId,
         thumbPath: `.probe/${fileName}`,
         assetPath: `.probe/${fileName}`,
-        compiledPrompt: compiled.prompt,
+        compiledPrompt: promptText,
         resonanceHash: getRecentResonanceHash(projectId),
         status: 'shown' as const,
         createdAt: new Date().toISOString(),

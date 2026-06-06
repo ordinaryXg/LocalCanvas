@@ -20,7 +20,13 @@ export function useBreathCycle() {
       timer.current = setTimeout(() => {
         setPhase('hold')
         if (FLUID_PROBE && projectId) {
-          void window.api.probe.notifyChange(projectId)
+          void window.api.probe.notifyChange(projectId).then((result) => {
+            if (result && 'id' in result) {
+              setPhase('exhale')
+            } else {
+              setPhase('idle')
+            }
+          })
         }
       }, INHALE_MS)
     }
