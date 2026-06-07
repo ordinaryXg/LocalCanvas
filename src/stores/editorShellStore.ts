@@ -1,0 +1,132 @@
+import { create } from 'zustand'
+import { GENERATABLE_NODE_TYPES } from '../constants/editorFeatures'
+
+export type EditorMode = 'canvas' | 'generate' | 'edit'
+export type DockDrawer = 'nodes' | 'tools' | 'assets' | 'history' | null
+
+const LS_DRAWER_HEIGHT = 'lc-generator-drawer-ratio'
+const LS_INSPECTOR_WIDTH = 'lc-inspector-width'
+
+function readDrawerRatio(): number {
+  try {
+    const raw = localStorage.getItem(LS_DRAWER_HEIGHT)
+    if (!raw) return 0.4
+    const n = parseFloat(raw)
+    if (Number.isNaN(n)) return 0.4
+    return Math.min(0.7, Math.max(0.25, n))
+  } catch {
+    return 0.4
+  }
+}
+
+function readInspectorWidth(): number {
+  try {
+    const raw = localStorage.getItem(LS_INSPECTOR_WIDTH)
+    if (!raw) return 280
+    const n = parseInt(raw, 10)
+    if (Number.isNaN(n)) return 280
+    return Math.min(360, Math.max(240, n))
+  } catch {
+    return 280
+  }
+}
+
+interface EditorShellState {
+  mode: EditorMode
+  openDrawer: DockDrawer
+  generatorDrawerOpen: boolean
+  generatorDrawerHeightRatio: number
+  inspectorCollapsed: boolean
+  inspectorWidth: number
+  agentExpanded: boolean
+  agentPinned: boolean
+  shortcutsOpen: boolean
+  focusStyleChips: boolean
+  scrollToGeneratorWarnings: boolean
+
+  setMode: (mode: EditorMode) => void
+  toggleDrawer: (drawer: Exclude<DockDrawer, null>) => void
+  closeDrawer: () => void
+  setGeneratorDrawerOpen: (open: boolean) => void
+  setGeneratorDrawerHeightRatio: (ratio: number) => void
+  setInspectorCollapsed: (collapsed: boolean) => void
+  setInspectorWidth: (width: number) => void
+  setAgentExpanded: (expanded: boolean) => void
+  setAgentPinned: (pinned: boolean) => void
+  setShortcutsOpen: (open: boolean) => void
+  requestFocusStyleChips: () => void
+  clearFocusStyleChips: () => void
+  requestScrollToGeneratorWarnings: () => void
+  clearScrollToGeneratorWarnings: () => void
+  openGenerateForSelection: (nodeId: string, nodeType: string | undefined) => void
+  openEditForCompose: (nodeId: string) => void
+}
+
+export const useEditorShellStore = create<EditorShellState>((set, get) => ({
+  mode: 'canvas',
+  openDrawer: 'nodes',
+  generatorDrawerOpen: false,
+  generatorDrawerHeightRatio: readDrawerRatio(),
+  inspectorCollapsed: false,
+  inspectorWidth: readInspectorWidth(),
+  agentExpanded: false,
+  agentPinned: false,
+  shortcutsOpen: false,
+  focusStyleChips: false,
+  scrollToGeneratorWarnings: false,
+
+  setMode: (mode) => set({ mode }),
+
+  toggleDrawer: (drawer) => {
+    const current = get().openDrawer
+    set({ openDrawer: current === drawer ? null : drawer })
+  },
+
+  closeDrawer: () => set({ openDrawer: null }),
+
+  setGeneratorDrawerOpen: (open) => set({ generatorDrawerOpen: open }),
+
+  setGeneratorDrawerHeightRatio: (ratio) => {
+    const clamped = Math.min(0.7, Math.max(0.25, ratio))
+    try {
+      localStorage.setItem(LS_DRAWER_HEIGHT, String(clamped))
+    } catch {
+      /* ignore */
+    }
+    set({ generatorDrawerHeightRatio: clamped })
+  },
+
+  setInspectorCollapsed: (collapsed) => set({ inspectorCollapsed: collapsed }),
+
+  setInspectorWidth: (width) => {
+    const clamped = Math.min(360, Math.max(240, width))
+    try {
+      localStorage.setItem(LS_INSPECTOR_WIDTH, String(clamped))
+    } catch {
+      /* ignore */
+    }
+    set({ inspectorWidth: clamped })
+  },
+
+  setAgentExpanded: (expanded) => set({ agentExpanded: expanded }),
+  setAgentPinned: (pinned) => set({ agentPinned: pinned, agentExpanded: pinned ? true : get().agentExpanded }),
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
+
+  requestFocusStyleChips: () => set({ focusStyleChips: true, generatorDrawerOpen: true }),
+  clearFocusStyleChips: () => set({ focusStyleChips: false }),
+
+  requestScrollToGeneratorWarnings: () =>
+    set({ scrollToGeneratorWarnings: true, generatorDrawerOpen: true }),
+  clearScrollToGeneratorWarnings: () => set({ scrollToGeneratorWarnings: false }),
+
+  openGenerateForSelection: (nodeId, nodeType) => {
+    if (!nodeType || !GENERATABLE_NODE_TYPES.has(nodeType)) return
+    set({ mode: 'generate', generatorDrawerOpen: true })
+    void nodeId
+  },
+
+  openEditForCompose: (nodeId) => {
+    void nodeId
+    set({ mode: 'edit', openDrawer: null, inspectorCollapsed: true })
+  },
+}))

@@ -93,8 +93,8 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
   }
 
   return (
-    <div className="w-full h-full bg-bg-primary flex items-center justify-center">
-      <div className="w-[640px] px-4">
+    <div className="w-full h-full flex items-center justify-center bg-[var(--studio-bg)]">
+      <div className="w-[720px] max-w-full px-4">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">LocalCanvas</h1>
@@ -112,6 +112,26 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {[
+            { label: '空白画布', name: '未命名项目' },
+            { label: '分镜组', name: '分镜项目' },
+            { label: '文本→视频', name: '文本视频链路' },
+          ].map((tpl) => (
+            <button
+              key={tpl.label}
+              type="button"
+              disabled={creating}
+              onClick={() => {
+                setNewName(tpl.name)
+              }}
+              className="text-xs px-3 py-1.5 rounded-full border border-[var(--studio-border)] text-text-muted hover:text-white hover:border-[var(--studio-accent)] transition"
+            >
+              {tpl.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex gap-2 mb-8">

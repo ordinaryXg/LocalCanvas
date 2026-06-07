@@ -139,7 +139,27 @@ textarea::placeholder {
 }
 
 .react-flow__edge-path {
-  stroke: var(--color-accent);
+  stroke-width: 2;
+}
+
+.canvas-space-pan .react-flow__pane {
+  cursor: grab;
+}
+
+.canvas-space-pan .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.canvas-space-pan .react-flow__node {
+  pointer-events: none;
+}
+
+.canvas-space-pan .react-flow__handle {
+  pointer-events: none;
+}
+
+.canvas-space-pan .react-flow__edge {
+  pointer-events: none;
 }
 
 .react-flow__handle {

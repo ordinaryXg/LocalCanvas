@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import type { Node, Edge } from '@xyflow/react'
 import { useCanvasStore } from '../stores/canvasStore'
@@ -176,6 +176,49 @@ export function useAssetDrop() {
   )
 
   return { onDragOver, onDrop }
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable
+}
+
+/** 按住空格：仅平移画布，不可选中/拖拽节点 */
+export function useSpacePan(options?: { disabled?: boolean }) {
+  const disabled = options?.disabled ?? false
+  const [spacePanHeld, setSpacePanHeld] = useState(false)
+
+  useEffect(() => {
+    if (disabled) {
+      setSpacePanHeld(false)
+      return
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return
+      if (isTypingTarget(e.target)) return
+      e.preventDefault()
+      if (!e.repeat) setSpacePanHeld(true)
+    }
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpacePanHeld(false)
+    }
+
+    const reset = () => setSpacePanHeld(false)
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', reset)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', reset)
+    }
+  }, [disabled])
+
+  return spacePanHeld
 }
 
 export function useKeyboardShortcuts(saveProject: () => Promise<void>) {

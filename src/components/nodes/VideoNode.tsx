@@ -12,6 +12,7 @@ import { generateNodeId } from '../../utils/id'
 import { NodeImageThumb } from '../common/NodeImageThumb'
 import { getVideoNodePorts } from '../../capabilities/node-port-ui'
 import { listVideoReferenceHandles } from '../../utils/videoReferenceSlots'
+import { nodeDisplayTitle } from '../../utils/nodeNaming'
 
 function FrameSlot({
   label,
@@ -199,9 +200,10 @@ function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
   return (
     <>
       <BaseNode
+        nodeId={id}
         color="var(--node-video)"
         icon={<span className="text-sm">🎥</span>}
-        title="视频"
+        title={nodeDisplayTitle({ type: 'video', data }, '视频')}
         selected={selected}
         width={width}
         height={height}

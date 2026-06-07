@@ -5,6 +5,7 @@ import { PortHandle } from './PortHandle'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
 import { useProjectStore } from '../../stores/projectStore'
+import { nodeDisplayTitle } from '../../utils/nodeNaming'
 
 function AudioNodeComponent({ id, data, selected }: NodeProps) {
   const uploadMedia = useNodeMediaUpload(id, 'audio')
@@ -41,9 +42,10 @@ function AudioNodeComponent({ id, data, selected }: NodeProps) {
 
   return (
     <BaseNode
+      nodeId={id}
       color="var(--node-audio)"
       icon={<span className="text-sm">🎵</span>}
-      title="音频"
+      title={nodeDisplayTitle({ type: 'audio', data }, '音频')}
       selected={selected}
       width={200}
     >

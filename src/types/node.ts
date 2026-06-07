@@ -40,6 +40,8 @@ export interface TextNodeData {
 }
 
 export interface ImageNodeData {
+  /** 节点显示名 */
+  title?: string
   imageSrc?: string
   imageAssetPath?: string
   referenceSrc?: string
@@ -55,6 +57,7 @@ export interface ImageNodeData {
 }
 
 export interface VideoNodeData {
+  title?: string
   videoSrc?: string
   videoAssetPath?: string
   fileName?: string
@@ -74,6 +77,7 @@ export interface VideoNodeData {
 }
 
 export interface AudioNodeData {
+  title?: string
   audioSrc?: string
   audioAssetPath?: string
   fileName?: string

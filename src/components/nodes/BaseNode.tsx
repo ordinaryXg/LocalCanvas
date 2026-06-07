@@ -1,5 +1,5 @@
 import { NodeResizer } from '@xyflow/react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type KeyboardEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { PortHandle } from './PortHandle'
 
@@ -14,6 +14,7 @@ interface BaseNodeProps {
   color: string
   icon: ReactNode
   title: string
+  badge?: string
   children: ReactNode
   inputs?: PortDef[]
   outputs?: PortDef[]
@@ -25,6 +26,10 @@ interface BaseNodeProps {
   autoSize?: boolean
   minWidth?: number
   minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
+  /** 双击标题可编辑（需 nodeId） */
+  editableTitle?: boolean
 }
 
 const HEADER_HEIGHT = 32
@@ -38,6 +43,7 @@ export function BaseNode({
   color,
   icon,
   title,
+  badge,
   children,
   inputs = [],
   outputs = [],
@@ -49,12 +55,43 @@ export function BaseNode({
   autoSize = false,
   minWidth = 180,
   minHeight = 80,
+  maxWidth,
+  maxHeight,
+  editableTitle = true,
 }: BaseNodeProps) {
   const cardRef = useRef<HTMLDivElement>(null)
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const lastMeasuredRef = useRef({ width: 0, height: 0 })
   const updateNodeSize = useCanvasStore((s) => s.updateNodeSize)
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [draftTitle, setDraftTitle] = useState(title)
   const boxWidth = Math.max(minWidth, width ?? defaultWidth)
   const boxHeight = Math.max(minHeight, height ?? minHeight)
+  const canEditTitle = editableTitle && !!nodeId
+
+  useEffect(() => {
+    if (!editingTitle) setDraftTitle(title)
+  }, [title, editingTitle])
+
+  useEffect(() => {
+    if (editingTitle) titleInputRef.current?.focus()
+  }, [editingTitle])
+
+  const commitTitle = () => {
+    setEditingTitle(false)
+    const next = draftTitle.trim()
+    if (!nodeId || !next || next === title) return
+    updateNodeData(nodeId, { title: next })
+  }
+
+  const onTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') commitTitle()
+    if (event.key === 'Escape') {
+      setDraftTitle(title)
+      setEditingTitle(false)
+    }
+  }
 
   useEffect(() => {
     if (!autoSize || !nodeId || !cardRef.current) return
@@ -91,6 +128,8 @@ export function BaseNode({
           isVisible={!!selected}
           minWidth={minWidth}
           minHeight={minHeight}
+          maxWidth={maxWidth}
+          maxHeight={maxHeight}
           lineClassName="border-accent"
           handleClassName="h-2 w-2 bg-accent border border-white rounded-sm"
         />
@@ -113,7 +152,31 @@ export function BaseNode({
           style={{ backgroundColor: color, height: HEADER_HEIGHT }}
         >
           {icon}
-          <span className="truncate">{title}</span>
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={onTitleKeyDown}
+              className="flex-1 min-w-0 bg-white/15 text-white text-xs px-1 py-0 rounded outline-none nodrag"
+            />
+          ) : (
+            <span
+              className={`truncate flex-1 ${canEditTitle ? 'cursor-text' : ''}`}
+              title={canEditTitle ? '双击编辑名称' : title}
+              onDoubleClick={() => {
+                if (canEditTitle) setEditingTitle(true)
+              }}
+            >
+              {title}
+            </span>
+          )}
+          {badge && !editingTitle && (
+            <span className="shrink-0 px-1.5 py-0.5 rounded bg-white/20 text-[9px] font-normal truncate max-w-[72px]">
+              {badge}
+            </span>
+          )}
         </div>
 
         <div

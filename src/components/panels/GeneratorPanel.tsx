@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useCanvasStore } from '../../stores/canvasStore'
-import { ImageGenerator } from './ImageGenerator'
-import { VideoGenerator } from './VideoGenerator'
-import { TextEditorPanel } from '../text/TextEditorPanel'
-import { ScriptGenerator } from './ScriptGenerator'
-import { AudioGenerator } from './AudioGenerator'
-import { StoryboardGenerator } from './StoryboardGenerator'
+import { GeneratorContent } from './GeneratorContent'
 
 const GENERATOR_NODE_TYPES = new Set(['text', 'image', 'video', 'audio', 'script', 'storyboard'])
 
@@ -62,14 +57,6 @@ export function GeneratorPanel() {
 
   if (!selectedNode || collapsed) return null
 
-  const labels: Record<string, string> = {
-    text: '📝 文本编辑',
-    image: '🖼️ 图像生成器',
-    video: '🎥 视频生成器',
-    audio: '🎵 音频生成器',
-    script: '🎬 脚本生成器',
-  }
-
   return (
     <div className="absolute bottom-0 left-0 right-0 z-40 pointer-events-none">
       <div
@@ -87,24 +74,31 @@ export function GeneratorPanel() {
           <span className="w-10 h-1 rounded-full bg-border group-hover:bg-accent/60 transition-colors" />
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto lc-scroll px-6 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-text-muted">{labels[selectedNode.type ?? '']}</span>
-            <button
-              type="button"
-              onClick={() => setCollapsed(true)}
-              className="text-text-muted hover:text-white text-xs"
-            >
-              收起 ▼
-            </button>
-          </div>
+        <div className="flex items-center justify-between px-6 py-2 border-b border-border shrink-0">
+          <span className="text-xs text-text-muted truncate">
+            {selectedNode.type === 'image'
+              ? `🖼️ 图片 · ${(selectedNode.data as Record<string, unknown>).fileName as string || '图片'}`
+              : selectedNode.type === 'video'
+                ? `🎥 视频 · ${(selectedNode.data as Record<string, unknown>).fileName as string || '视频'}`
+                : selectedNode.type === 'text'
+                  ? '📝 文本'
+                  : selectedNode.type ?? '节点'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="text-text-muted hover:text-white text-xs shrink-0"
+          >
+            收起 ▼
+          </button>
+        </div>
 
-          {selectedNode.type === 'text' && <TextEditorPanel nodeId={selectedNode.id} />}
-          {selectedNode.type === 'image' && <ImageGenerator nodeId={selectedNode.id} />}
-          {selectedNode.type === 'video' && <VideoGenerator nodeId={selectedNode.id} />}
-          {selectedNode.type === 'audio' && <AudioGenerator nodeId={selectedNode.id} />}
-          {selectedNode.type === 'script' && <ScriptGenerator nodeId={selectedNode.id} />}
-          {selectedNode.type === 'storyboard' && <StoryboardGenerator nodeId={selectedNode.id} />}
+        <div className="flex-1 min-h-0 overflow-y-auto lc-scroll px-6 py-3">
+          <GeneratorContent
+            nodeId={selectedNode.id}
+            nodeType={selectedNode.type ?? 'text'}
+            embedded
+          />
         </div>
       </div>
     </div>

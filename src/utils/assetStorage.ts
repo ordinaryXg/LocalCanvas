@@ -42,6 +42,17 @@ export function stripTransientMediaFields(
   delete out.referenceSrc
   delete out.firstFrameSrc
   delete out.lastFrameSrc
+
+  if (Array.isArray(out.frames)) {
+    out.frames = out.frames.map((frame) => {
+      if (!frame || typeof frame !== 'object') return frame
+      const f = { ...(frame as Record<string, unknown>) }
+      delete f.imageSrc
+      delete f.videoSrc
+      return f
+    })
+  }
+
   return out
 }
 
@@ -137,10 +148,102 @@ export async function ensureNodeAssetsOnDisk(
       }
     }
 
+    if (node.type === 'storyboard' && Array.isArray(data.frames)) {
+      data.frames = await persistStoryboardFrameAssets(projectId, data.frames)
+    }
+
     updated.push({ ...node, data })
   }
 
   return updated
+}
+
+async function persistStoryboardFrameAssets(
+  projectId: string,
+  frames: unknown[],
+): Promise<unknown[]> {
+  const next: unknown[] = []
+
+  for (const item of frames) {
+    if (!item || typeof item !== 'object') {
+      next.push(item)
+      continue
+    }
+
+    let frame = { ...(item as Record<string, unknown>) }
+
+    const imagePath = frame.imagePath as string | undefined
+    const imageSrc = frame.imageSrc as string | undefined
+    if (!imagePath && imageSrc && (imageSrc.startsWith('blob:') || imageSrc.startsWith('data:'))) {
+      try {
+        const { relativePath, blobUrl } = await dataUrlToAsset(projectId, 'image', imageSrc)
+        frame = { ...frame, imagePath: relativePath, imageSrc: blobUrl }
+      } catch {
+        /* 保留原 frame */
+      }
+    }
+
+    const videoPath = frame.videoPath as string | undefined
+    const videoSrc = frame.videoSrc as string | undefined
+    if (!videoPath && videoSrc && (videoSrc.startsWith('blob:') || videoSrc.startsWith('data:'))) {
+      try {
+        const { relativePath, blobUrl } = await dataUrlToAsset(projectId, 'video', videoSrc)
+        frame = { ...frame, videoPath: relativePath, videoSrc: blobUrl }
+      } catch {
+        /* 保留原 frame */
+      }
+    }
+
+    next.push(frame)
+  }
+
+  return next
+}
+
+async function hydrateStoryboardFrames(
+  projectId: string,
+  frames: unknown[],
+): Promise<unknown[]> {
+  const next: unknown[] = []
+
+  for (const item of frames) {
+    if (!item || typeof item !== 'object') {
+      next.push(item)
+      continue
+    }
+
+    const frame = { ...(item as Record<string, unknown>) }
+    const imagePath =
+      (frame.imagePath as string | undefined) ?? (frame.imageAssetPath as string | undefined)
+    const videoPath =
+      (frame.videoPath as string | undefined) ?? (frame.videoAssetPath as string | undefined)
+    if (imagePath && !frame.imagePath) frame.imagePath = imagePath
+    if (videoPath && !frame.videoPath) frame.videoPath = videoPath
+
+    if (imagePath) {
+      try {
+        frame.imageSrc = await assetPathToBlobUrl(projectId, imagePath)
+      } catch {
+        delete frame.imageSrc
+      }
+    } else {
+      delete frame.imageSrc
+    }
+
+    if (videoPath) {
+      try {
+        frame.videoSrc = await assetPathToBlobUrl(projectId, videoPath)
+      } catch {
+        delete frame.videoSrc
+      }
+    } else {
+      delete frame.videoSrc
+    }
+
+    next.push(frame)
+  }
+
+  return next
 }
 
 export async function hydrateProjectNodes(
@@ -179,6 +282,10 @@ export async function hydrateProjectNodes(
       } catch {
         /* ignore */
       }
+    }
+
+    if (node.type === 'storyboard' && Array.isArray(data.frames)) {
+      data.frames = await hydrateStoryboardFrames(projectId, data.frames)
     }
 
     hydrated.push({ ...node, data })

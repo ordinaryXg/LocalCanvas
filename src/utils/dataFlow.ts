@@ -291,6 +291,12 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
       }
     }
 
+    if ((node.type === 'image' || node.type === 'video') && !hasIncoming(node.id, 'prompt')) {
+      if (data.prompt !== undefined && data.prompt !== '') {
+        mergePatch(node.id, { prompt: undefined })
+      }
+    }
+
     if (node.type === 'compose') {
       const videoEdges = activeEdges.filter(
         (e) => e.target === node.id && isComposeVideoHandle(e.targetHandle),

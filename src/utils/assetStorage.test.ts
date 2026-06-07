@@ -18,4 +18,20 @@ describe('assetStorage', () => {
     expect(out.prompt).toBe('hello')
     expect(out).not.toHaveProperty('imageSrc')
   })
+
+  it('stripTransientMediaFields strips storyboard frame blob URLs', () => {
+    const out = stripTransientMediaFields({
+      frames: [
+        {
+          id: 'f1',
+          sequence: 1,
+          imagePath: 'images/frame.png',
+          imageSrc: 'blob:http://localhost/y',
+        },
+      ],
+    })
+    const frames = out.frames as Array<Record<string, unknown>>
+    expect(frames[0].imagePath).toBe('images/frame.png')
+    expect(frames[0]).not.toHaveProperty('imageSrc')
+  })
 })

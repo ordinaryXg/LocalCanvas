@@ -7,6 +7,8 @@ import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
 import { useProjectStore } from '../../stores/projectStore'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { getImageNodePorts } from '../../capabilities/node-port-ui'
+import { getStylePreset } from '../../constants/stylePresets'
+import { nodeDisplayTitle } from '../../utils/nodeNaming'
 
 function ImageNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const uploadMedia = useNodeMediaUpload(id, 'image')
@@ -68,16 +70,21 @@ function ImageNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const hasReference = typeof data.referenceSrc === 'string' && data.referenceSrc.length > 0
   const previewSrc = mediaSrc ?? inlineImageSrc
   const fileName = typeof data.fileName === 'string' ? data.fileName : '图片'
+  const displayTitle = nodeDisplayTitle({ type: 'image', data }, '图片')
+  const styleId = typeof data.styleId === 'string' ? data.styleId : ''
+  const stylePreset = styleId ? getStylePreset(styleId) : undefined
 
   return (
     <>
       <BaseNode
+        nodeId={id}
         color="var(--node-image)"
         icon={<span className="text-sm">🖼️</span>}
-        title="图片"
+        title={displayTitle}
         selected={selected}
         width={width}
         height={height}
+        badge={stylePreset ? stylePreset.name : undefined}
         defaultWidth={240}
         minWidth={200}
         minHeight={280}
@@ -86,7 +93,7 @@ function ImageNodeComponent({ id, data, selected, width, height }: NodeProps) {
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
           <div
-            className="w-full h-[140px] shrink-0 bg-bg-tertiary rounded flex items-center justify-center cursor-pointer overflow-hidden"
+            className="w-full flex-1 min-h-[80px] bg-bg-tertiary rounded flex items-center justify-center cursor-pointer overflow-hidden"
             onDrop={handleFileDrop}
             onDragOver={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}

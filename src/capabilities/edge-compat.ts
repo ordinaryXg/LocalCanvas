@@ -28,14 +28,22 @@ export interface EvaluateEdgeCompatInput {
   targetKind?: ModelKind
   edges?: Edge[]
   targetNodeId?: string
+  /** 重算已有连线样式时排除自身，避免「唯一合法入线」被误判为槽位已满 */
+  excludeEdgeId?: string
 }
 
 function countEdgesToSlot(
   edges: Edge[],
   targetNodeId: string,
   targetHandle: string,
+  excludeEdgeId?: string,
 ): number {
-  return edges.filter((e) => e.target === targetNodeId && e.targetHandle === targetHandle).length
+  return edges.filter(
+    (e) =>
+      e.target === targetNodeId &&
+      e.targetHandle === targetHandle &&
+      e.id !== excludeEdgeId,
+  ).length
 }
 
 function findSlotForModality(
@@ -63,6 +71,7 @@ export function evaluateEdgeCompat(input: EvaluateEdgeCompatInput): EdgeCompatRe
     targetKind = 'llm',
     edges = [],
     targetNodeId,
+    excludeEdgeId,
   } = input
 
   if (
@@ -104,12 +113,13 @@ export function evaluateEdgeCompat(input: EvaluateEdgeCompatInput): EdgeCompatRe
   const { slot, inferred } = match
 
   if (targetNodeId && targetHandle && slot.max_count > 0) {
+    const pool = excludeEdgeId ? edges.filter((e) => e.id !== excludeEdgeId) : edges
     const existing =
       slot.id === 'reference_image' && isVideoReferenceImageHandle(targetHandle)
-        ? countVideoReferenceEdges(edges, targetNodeId)
+        ? countVideoReferenceEdges(pool, targetNodeId)
         : slot.id === 'image' && isLlmVisionImageHandle(targetHandle)
-          ? countLlmVisionImageEdges(edges, targetNodeId)
-          : countEdgesToSlot(edges, targetNodeId, targetHandle)
+          ? countLlmVisionImageEdges(pool, targetNodeId)
+          : countEdgesToSlot(pool, targetNodeId, targetHandle)
     if (existing >= slot.max_count) {
       return {
         status: 'dashed_warn',
@@ -185,6 +195,7 @@ export function collectInboundEdgeWarnings(
       targetKind: kindForNodeType(targetNode.type),
       edges,
       targetNodeId: nodeId,
+      excludeEdgeId: edge.id,
     })
     if (result.status === 'dashed_warn' && result.reason) {
       warnings.push(result.reason)

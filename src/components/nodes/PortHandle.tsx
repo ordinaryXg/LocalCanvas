@@ -23,6 +23,7 @@ export function PortHandle({ id, type, color, top, disabled }: PortHandleProps) 
         position={isInput ? Position.Left : Position.Right}
         id={id}
         isConnectable={disabled ? false : isInput ? 1 : undefined}
+        title={hint}
         style={{
           top,
           background: disabled ? 'var(--color-text-muted)' : color,
@@ -32,22 +33,22 @@ export function PortHandle({ id, type, color, top, disabled }: PortHandleProps) 
           opacity: disabled ? 0.45 : 1,
         }}
       />
-      <div
-        className={`absolute z-10 flex items-center pointer-events-none ${
-          isInput ? 'left-2.5' : 'right-2.5'
-        }`}
-        style={{ top, transform: 'translateY(-50%)' }}
-        title={hint}
-      >
-        <span
-          className={`flex h-4 min-w-4 items-center justify-center rounded border border-border/80 bg-bg-primary/95 px-0.5 shadow-sm ${
-            isCharIcon ? 'text-[9px] font-medium text-text-primary' : 'text-[10px] leading-none'
-          }`}
-          aria-label={hint}
+      {isInput && (
+        <div
+          className="absolute z-10 flex items-center pointer-events-none left-2.5"
+          style={{ top, transform: 'translateY(-50%)' }}
+          title={hint}
         >
-          {icon}
-        </span>
-      </div>
+          <span
+            className={`flex h-4 min-w-4 items-center justify-center rounded border border-border/80 bg-bg-primary/95 px-0.5 shadow-sm ${
+              isCharIcon ? 'text-[9px] font-medium text-text-primary' : 'text-[10px] leading-none'
+            }`}
+            aria-label={hint}
+          >
+            {icon}
+          </span>
+        </div>
+      )}
     </>
   )
 }

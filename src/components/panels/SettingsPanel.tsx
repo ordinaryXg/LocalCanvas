@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import type { AppConfig } from '../../types/config'
 import { useI18nStore, useT, type Locale } from '../../i18n'
 import { ModelSettingsSection } from './ModelSettingsSection'
+import {
+  isEditorShell,
+  setEditorShellEnabled,
+  isLegacyLayoutForced,
+  setLegacyLayoutEnabled,
+} from '../../constants/editorFeatures'
 
 type TabId = 'models' | 'settings'
 
@@ -26,6 +32,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       return []
     }
   })
+  const [useEditorShellUi, setUseEditorShellUi] = useState(() => isEditorShell())
+  const [useLegacyLayout, setUseLegacyLayout] = useState(() => isLegacyLayoutForced())
 
   useEffect(() => {
     void window.api.config.read().then(setConfig)
@@ -121,6 +129,55 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             />
           ) : (
             <div className="space-y-4 max-w-lg">
+              <div className="rounded-lg border border-[var(--studio-border)] p-3 space-y-3">
+                <h3 className="text-sm font-medium text-text-primary">界面（v8）</h3>
+                <label className="flex items-center gap-2 text-xs text-text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useEditorShellUi && !useLegacyLayout}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setUseEditorShellUi(on)
+                      setEditorShellEnabled(on)
+                      if (on) {
+                        setUseLegacyLayout(false)
+                        setLegacyLayoutEnabled(false)
+                      }
+                    }}
+                  />
+                  使用新版编辑器壳层（Dock + 检查器）
+                </label>
+                <label className="flex items-center gap-2 text-xs text-text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useLegacyLayout}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setUseLegacyLayout(on)
+                      setLegacyLayoutEnabled(on)
+                      if (on) setUseEditorShellUi(false)
+                    }}
+                  />
+                  使用经典布局（v6 侧栏，需重启编辑器视图）
+                </label>
+                <button
+                  type="button"
+                  className="text-xs text-[var(--studio-accent)] hover:underline"
+                  onClick={() => {
+                    try {
+                      localStorage.removeItem('editorCoachDone')
+                    } catch {
+                      /* ignore */
+                    }
+                    setStatusMsg({ ok: true, text: '已重置引导，下次打开新版编辑器将显示' })
+                  }}
+                >
+                  重置界面引导
+                </button>
+                <p className="text-[10px] text-text-muted">
+                  切换布局后请关闭并重新打开项目以生效。
+                </p>
+              </div>
               <p className="text-xs text-text-muted">
                 默认模型也可在「已接入模型」卡片上点击「设为默认」。
               </p>

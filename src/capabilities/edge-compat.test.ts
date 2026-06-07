@@ -25,6 +25,30 @@ describe('evaluateEdgeCompat', () => {
     expect(r.status).toBe('solid')
   })
 
+  it('keeps text to image prompt solid when re-evaluating the only inbound edge', () => {
+    const edges = [
+      {
+        id: 'e-text-img',
+        source: 'text-1',
+        target: 'img-1',
+        sourceHandle: 'prompt',
+        targetHandle: 'prompt',
+      },
+    ]
+    const r = evaluateEdgeCompat({
+      sourceType: 'text',
+      sourceHandle: 'prompt',
+      targetType: 'image',
+      targetHandle: 'prompt',
+      targetModelId: 'seedream-4-5',
+      targetKind: 'image',
+      edges,
+      targetNodeId: 'img-1',
+      excludeEdgeId: 'e-text-img',
+    })
+    expect(r.status).toBe('solid')
+  })
+
   it('warns image to deepseek llm', () => {
     const r = evaluateEdgeCompat({
       sourceType: 'image',

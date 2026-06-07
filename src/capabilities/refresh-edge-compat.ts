@@ -25,6 +25,7 @@ export function refreshEdgeCompatStyles(nodes: Node[], edges: Edge[]): Edge[] {
       targetKind: kindForNodeType(targetType),
       edges,
       targetNodeId: edge.target,
+      excludeEdgeId: edge.id,
     })
     if (result.status === 'reject') return edge
     const status = result.status

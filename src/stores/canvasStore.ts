@@ -24,12 +24,15 @@ import type { ModelKind } from '../types/capability'
 import { migrateImageOutputEdges, getNodeTypeFromId } from '../utils/portCompat'
 import { refreshEdgeCompatStyles } from '../capabilities/refresh-edge-compat'
 import { normalizeTextNodeData } from '../utils/textNodeOutput'
+import { withDefaultNodeTitle } from '../utils/nodeNaming'
 
 interface CanvasState {
   nodes: Node[]
   edges: Edge[]
   viewport: Viewport
   selectedNodeIds: string[]
+  /** 非空时 Canvas 会将视口移至该节点 */
+  focusNodeRequestId: string | null
 
   setNodes: (nodes: Node[]) => void
   setEdges: (edges: Edge[]) => void
@@ -46,6 +49,8 @@ interface CanvasState {
   removeEdge: (edgeId: string) => void
   groupNodes: (ids: string[]) => void
   setSelectedNodes: (ids: string[]) => void
+  selectAndFocusNode: (nodeId: string) => void
+  clearFocusNodeRequest: () => void
   setViewport: (viewport: Viewport, options?: { silent?: boolean }) => void
   loadProject: (nodes: Node[], edges: Edge[], viewport?: Viewport) => void
   restoreSnapshot: (nodes: Node[], edges: Edge[]) => void
@@ -67,6 +72,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
   selectedNodeIds: [],
+  focusNodeRequestId: null,
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -80,12 +86,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     if (shouldRecord) recordHistory(get)
 
-    set({ nodes: applyNodeChanges(changes, get().nodes) })
-
-    const selected = get()
-      .nodes.filter((n) => n.selected)
-      .map((n) => n.id)
-    set({ selectedNodeIds: selected })
+    const nextNodes = applyNodeChanges(changes, get().nodes)
+    const selected = nextNodes.filter((n) => n.selected).map((n) => n.id)
+    set({ nodes: nextNodes, selectedNodeIds: selected })
   },
 
   onEdgesChange: (changes: EdgeChange[]) => {
@@ -136,7 +139,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (node.selected) {
       nodes = nodes.map((n) => ({ ...n, selected: false }))
     }
-    nodes = [...nodes, node]
+    const data = withDefaultNodeTitle(
+      node.type,
+      nodes,
+      (node.data ?? {}) as Record<string, unknown>,
+    )
+    nodes = [...nodes, { ...node, data }]
     set({
       nodes,
       selectedNodeIds: node.selected ? [node.id] : nodes.filter((n) => n.selected).map((n) => n.id),
@@ -159,7 +167,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       id: generateNodeId(node.type ?? 'node'),
       position: { x: node.position.x + 40, y: node.position.y + 40 },
       selected: false,
-      data: { ...node.data },
+      data: withDefaultNodeTitle(node.type, get().nodes, {
+        ...(node.data as Record<string, unknown>),
+      }),
     }
     set({ nodes: [...get().nodes, copy] })
   },
@@ -283,7 +293,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ nodes: [...updatedNodes, groupNode] })
   },
 
-  setSelectedNodes: (ids) => set({ selectedNodeIds: ids }),
+  setSelectedNodes: (ids) => {
+    const idSet = new Set(ids)
+    set({
+      selectedNodeIds: ids,
+      nodes: get().nodes.map((n) => ({ ...n, selected: idSet.has(n.id) })),
+      edges: get().edges.map((e) => ({ ...e, selected: false })),
+    })
+  },
+
+  selectAndFocusNode: (nodeId) => {
+    if (!get().nodes.some((n) => n.id === nodeId)) return
+    set({
+      selectedNodeIds: [nodeId],
+      focusNodeRequestId: nodeId,
+      nodes: get().nodes.map((n) => ({ ...n, selected: n.id === nodeId })),
+      edges: get().edges.map((e) => ({ ...e, selected: false })),
+    })
+  },
+
+  clearFocusNodeRequest: () => set({ focusNodeRequestId: null }),
 
   setViewport: (viewport, options) => {
     set({ viewport })
@@ -310,6 +339,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       edges: migratedEdges,
       viewport: viewport ?? { x: 0, y: 0, zoom: 1 },
       selectedNodeIds: [],
+      focusNodeRequestId: null,
     })
     useProjectStore.getState().setDirty(false)
   },

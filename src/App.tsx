@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { StartPage } from './components/project/StartPage'
-import { Canvas } from './components/canvas/Canvas'
-import { Sidebar } from './components/sidebar/Sidebar'
 import { OnboardingGuide } from './components/panels/OnboardingGuide'
 import { SettingsPanel } from './components/panels/SettingsPanel'
 import { ConfirmDialog } from './components/common/ConfirmDialog'
+import { EditorShell } from './layouts/EditorShell'
+import { LegacyAppLayout } from './layouts/LegacyAppLayout'
+import { isEditorShell } from './constants/editorFeatures'
 import { useCanvasStore } from './stores/canvasStore'
 import { useProjectStore } from './stores/projectStore'
 import { useThemeStore } from './stores/themeStore'
@@ -147,16 +148,16 @@ export default function App() {
 
   return (
     <AuthGate>
-    <div className="w-screen h-screen flex bg-bg-primary overflow-hidden">
-      <Sidebar
-        onBack={backToStart}
-        onOpenSettings={() => setShowSettings(true)}
-        onToggleTheme={toggleTheme}
-        theme={theme}
-      />
-      <main className="flex-1 min-w-0 relative">
-        <Canvas />
-      </main>
+      {isEditorShell() ? (
+        <EditorShell onBack={backToStart} onOpenSettings={() => setShowSettings(true)} />
+      ) : (
+        <LegacyAppLayout
+          onBack={backToStart}
+          onOpenSettings={() => setShowSettings(true)}
+          onToggleTheme={toggleTheme}
+          theme={theme}
+        />
+      )}
       {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showLeaveConfirm && (
@@ -171,7 +172,6 @@ export default function App() {
         />
       )}
       {toast && <Toast {...toast} />}
-    </div>
     </AuthGate>
   )
 }

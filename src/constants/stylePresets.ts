@@ -56,3 +56,15 @@ export function applyStyleToPrompt(basePrompt: string, preset: StylePreset): str
   if (trimmed.startsWith(preset.promptPrefix.trim())) return trimmed
   return `${preset.promptPrefix}${trimmed}`
 }
+
+export function buildEffectiveNegative(baseNegative: string, styleId: string): string {
+  const preset = getStylePreset(styleId)
+  if (!preset) return baseNegative
+  return [baseNegative, preset.negativePrompt].filter(Boolean).join(', ')
+}
+
+export function buildEffectivePromptPreview(basePrompt: string, styleId: string): string {
+  const preset = getStylePreset(styleId)
+  if (!preset) return basePrompt
+  return applyStyleToPrompt(basePrompt, preset)
+}

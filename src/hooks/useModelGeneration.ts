@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ModelCompleteEvent, ModelErrorEvent, ModelProgressEvent } from '../types/ipc'
 
 type BeginFn = () => Promise<{ taskId: string }>
@@ -8,6 +8,11 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
   const [progress, setProgress] = useState(0)
   const [lastError, setLastError] = useState<string | null>(null)
   const taskIdRef = useRef<string | null>(null)
+  const onProgressRef = useRef(onProgress)
+
+  useEffect(() => {
+    onProgressRef.current = onProgress
+  }, [onProgress])
 
   const run = useCallback(
     async (begin: BeginFn): Promise<string> => {
@@ -32,7 +37,7 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
               (p.nodeId === nodeId && (!p.taskId || p.taskId === taskId))
             ) {
               setProgress(p.percentage)
-              onProgress?.(p.percentage)
+              onProgressRef.current?.(p.percentage)
             }
           })
 
@@ -69,7 +74,7 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
         setIsGenerating(false)
       }
     },
-    [nodeId, onProgress],
+    [nodeId],
   )
 
   const cancel = useCallback(async () => {

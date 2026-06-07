@@ -28,12 +28,13 @@ import { ContextMenu, NodePicker, useContextMenuHandlers, type ContextMenuState 
 import { CanvasToolbar } from './CanvasToolbar'
 import { GeneratorPanel } from '../panels/GeneratorPanel'
 import { ComposeEditor } from '../compose/ComposeEditor'
+import { isEditorShell } from '../../constants/editorFeatures'
 import { useComposeEditorStore } from '../../stores/composeEditorStore'
 import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from '../../utils/portCompat'
 import { evaluateEdgeCompat } from '../../capabilities/edge-compat'
 import type { ModelKind } from '../../types/capability'
 import { useDataFlow } from '../../hooks/useDataFlow'
-import { useFileDrop, useSidebarNodeDrop, useAssetDrop, useKeyboardShortcuts } from '../../hooks/useKeyboard'
+import { useFileDrop, useSidebarNodeDrop, useAssetDrop, useKeyboardShortcuts, useSpacePan } from '../../hooks/useKeyboard'
 import { useAutoSave, useManualSave } from '../../hooks/useAutoSave'
 import { generateNodeId } from '../../utils/id'
 import { CANVAS_MIN_ZOOM, CANVAS_MAX_ZOOM } from '../../utils/constants'
@@ -44,8 +45,9 @@ import { DagRunPanel } from '../panels/DagRunPanel'
 import { SlashCommandPalette } from './SlashCommandPalette'
 import { useCanvasStore as getCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useEditorShellStore } from '../../stores/editorShellStore'
 import { showToast } from '../../utils/ErrorHandler'
-import { fitViewAndSyncViewport, viewportLikelyShowsNodes } from '../../utils/canvasViewport'
+import { fitViewAndSyncViewport, focusNodeInView, viewportLikelyShowsNodes } from '../../utils/canvasViewport'
 import { hydrateProjectNodes } from '../../utils/assetStorage'
 
 const nodeTypes = {
@@ -87,6 +89,8 @@ function CanvasInner() {
   const middleMouseDownRef = useRef(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
+  const focusNodeRequestId = useCanvasStore((s) => s.focusNodeRequestId)
+  const clearFocusNodeRequest = useCanvasStore((s) => s.clearFocusNodeRequest)
   const composeEditorNodeId = useComposeEditorStore((s) => s.activeNodeId)
   const composeEditorDismissed = useComposeEditorStore((s) => s.dismissed)
   const openComposeEditor = useComposeEditorStore((s) => s.open)
@@ -94,6 +98,7 @@ function CanvasInner() {
   const { runState, startRun, dismiss } = useDagRun()
 
   useEffect(() => {
+    if (isEditorShell()) return
     const composeNode = nodes.find(
       (n) => selectedNodeIds.includes(n.id) && n.type === 'compose',
     )
@@ -103,6 +108,18 @@ function CanvasInner() {
       clearComposeEditor()
     }
   }, [selectedNodeIds, nodes, openComposeEditor, clearComposeEditor])
+
+  useEffect(() => {
+    if (!focusNodeRequestId) return
+    const exists = nodes.some((n) => n.id === focusNodeRequestId)
+    if (!exists) {
+      clearFocusNodeRequest()
+      return
+    }
+    void focusNodeInView(reactFlow, focusNodeRequestId, setViewport).finally(() => {
+      clearFocusNodeRequest()
+    })
+  }, [focusNodeRequestId, nodes, reactFlow, setViewport, clearFocusNodeRequest])
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -144,6 +161,7 @@ function CanvasInner() {
   useAutoSave()
   useDataFlow()
   useKeyboardShortcuts(saveProject)
+  const spacePanHeld = useSpacePan({ disabled: slashOpen })
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -223,7 +241,21 @@ function CanvasInner() {
         return
       }
       if (cmd.id === 'style') {
-        showToast('请在右侧生成器面板选择「风格模板」', 'info')
+        const store = getCanvasStore.getState()
+        const imageOrVideo = store.nodes.find(
+          (n) =>
+            selectedNodeIds.includes(n.id) &&
+            (n.type === 'image' || n.type === 'video'),
+        )
+        if (!imageOrVideo) {
+          showToast('请先选中一个图片或视频节点', 'info')
+          return
+        }
+        if (!selectedNodeIds.includes(imageOrVideo.id)) {
+          store.setSelectedNodes([imageOrVideo.id])
+        }
+        useEditorShellStore.getState().requestFocusStyleChips()
+        return
       }
     },
     [selectedNodeIds, startRun],
@@ -393,8 +425,13 @@ function CanvasInner() {
     [],
   )
 
+  const canvasEditable = isInteractive && !spacePanHeld
+
   return (
-    <div ref={canvasRef} className="w-full h-full relative">
+    <div
+      ref={canvasRef}
+      className={`w-full h-full relative${spacePanHeld ? ' canvas-space-pan' : ''}`}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -407,14 +444,14 @@ function CanvasInner() {
         onViewportChange={setViewport}
         minZoom={CANVAS_MIN_ZOOM}
         maxZoom={CANVAS_MAX_ZOOM}
-        nodesDraggable={isInteractive}
-        nodesConnectable={isInteractive}
-        elementsSelectable={isInteractive}
-        edgesReconnectable={isInteractive}
-        selectionOnDrag={isInteractive}
-        panOnDrag={isInteractive ? [1] : false}
+        nodesDraggable={canvasEditable}
+        nodesConnectable={canvasEditable}
+        elementsSelectable={canvasEditable}
+        edgesReconnectable={canvasEditable}
+        selectionOnDrag={canvasEditable}
+        panOnDrag={spacePanHeld ? [0, 1] : isInteractive ? [1] : false}
         panOnScroll={false}
-        zoomOnScroll={isInteractive && !middleMouseDown}
+        zoomOnScroll={isInteractive && !middleMouseDown && !spacePanHeld}
         connectionLineType={ConnectionLineType.Bezier}
         deleteKeyCode={['Delete', 'Backspace']}
         onEdgeClick={handleEdgeClick}
@@ -462,8 +499,8 @@ function CanvasInner() {
       </ReactFlow>
 
       <CanvasToolbar />
-      <GeneratorPanel />
-      {composeEditorNodeId && !composeEditorDismissed && (
+      {!isEditorShell() && <GeneratorPanel />}
+      {!isEditorShell() && composeEditorNodeId && !composeEditorDismissed && (
         <ComposeEditor nodeId={composeEditorNodeId} />
       )}
       <ContextMenu

@@ -47,3 +47,19 @@ export function viewportLikelyShowsNodes(
     return false
   }
 }
+
+/** 将视口平移至指定节点并居中（不改变 zoom 上限） */
+export async function focusNodeInView(
+  reactFlow: ReactFlowInstance,
+  nodeId: string,
+  setViewport: (vp: Viewport, options?: { silent?: boolean }) => void,
+  options?: { padding?: number; duration?: number; maxZoom?: number },
+): Promise<void> {
+  await reactFlow.fitView({
+    nodes: [{ id: nodeId }],
+    padding: options?.padding ?? 0.45,
+    duration: options?.duration ?? 280,
+    maxZoom: options?.maxZoom ?? 1.15,
+  })
+  setViewport(reactFlow.getViewport(), { silent: true })
+}

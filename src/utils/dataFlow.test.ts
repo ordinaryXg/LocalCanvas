@@ -319,4 +319,26 @@ describe('computeDataFlowPatches', () => {
       },
     ])
   })
+
+  it('clears image prompt when text edge removed', () => {
+    const nodes: Node[] = [
+      { id: 't1', type: 'text', position: { x: 0, y: 0 }, data: { output: 'hello' } },
+      { id: 'i1', type: 'image', position: { x: 0, y: 0 }, data: { prompt: 'hello' } },
+    ]
+    const patches = computeDataFlowPatches(nodes, [])
+    expect(patches).toEqual([{ nodeId: 'i1', data: { prompt: undefined } }])
+  })
+
+  it('clears video prompt when upstream disconnected', () => {
+    const nodes: Node[] = [
+      {
+        id: 'v1',
+        type: 'video',
+        position: { x: 0, y: 0 },
+        data: { prompt: 'scene description' },
+      },
+    ]
+    const patches = computeDataFlowPatches(nodes, [])
+    expect(patches).toEqual([{ nodeId: 'v1', data: { prompt: undefined } }])
+  })
 })
