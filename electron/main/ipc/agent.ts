@@ -61,6 +61,19 @@ export function registerAgentIpc(): void {
     }))
   })
 
+  ipcMain.handle('agent:getSession', (_e, sessionId: string) => {
+    const session = agentSessionRepository.findById(sessionId)
+    if (!session) return null
+    return {
+      id: session.id,
+      title: session.title,
+      projectId: session.projectId,
+      messages: session.messages,
+      lastPlan: session.lastPlan,
+      updatedAt: session.updatedAt,
+    }
+  })
+
   ipcMain.handle('agent:listSkills', async () => {
     return getUtilityClient().listAgentSkills()
   })

@@ -39,6 +39,7 @@ export async function runCompose(
   reencode?: boolean,
   subtitlePath?: string,
   burnSubtitles?: boolean,
+  audioVolume?: number,
 ): Promise<string> {
   const resolvedClips: ComposeClip[] = []
 
@@ -69,6 +70,7 @@ export async function runCompose(
   const result = await window.api.compose.start({
     clips: resolvedClips,
     audioPath,
+    audioVolume,
     outputName,
     reencode,
     subtitlePath,

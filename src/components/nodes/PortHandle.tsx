@@ -8,9 +8,10 @@ interface PortHandleProps {
   /** 垂直位置，如 '28%' */
   top: string
   disabled?: boolean
+  slotLabel?: string
 }
 
-export function PortHandle({ id, type, color, top, disabled }: PortHandleProps) {
+export function PortHandle({ id, type, color, top, disabled, slotLabel }: PortHandleProps) {
   const isInput = type === 'target'
   const icon = getPortIcon(id)
   const hint = getPortHint(id, type)
@@ -35,7 +36,7 @@ export function PortHandle({ id, type, color, top, disabled }: PortHandleProps) 
       />
       {isInput && (
         <div
-          className="absolute z-10 flex items-center pointer-events-none left-2.5"
+          className="absolute z-10 flex items-center gap-0.5 pointer-events-none left-2.5"
           style={{ top, transform: 'translateY(-50%)' }}
           title={hint}
         >
@@ -47,6 +48,9 @@ export function PortHandle({ id, type, color, top, disabled }: PortHandleProps) 
           >
             {icon}
           </span>
+          {slotLabel && (
+            <span className="text-[8px] font-mono text-text-muted tabular-nums">{slotLabel}</span>
+          )}
         </div>
       )}
     </>

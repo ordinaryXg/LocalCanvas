@@ -16,10 +16,6 @@ export function Dock() {
   const t = useT()
   const openDrawer = useEditorShellStore((s) => s.openDrawer)
   const toggleDrawer = useEditorShellStore((s) => s.toggleDrawer)
-  const mode = useEditorShellStore((s) => s.mode)
-
-  if (mode === 'edit') return null
-
   return (
     <div className="flex h-full shrink-0">
       <nav

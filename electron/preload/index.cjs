@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('api', {
   agent: {
     chat: (payload) => ipcRenderer.invoke('agent:chat', payload),
     listSessions: (projectId) => ipcRenderer.invoke('agent:listSessions', projectId),
+    getSession: (sessionId) => ipcRenderer.invoke('agent:getSession', sessionId),
     listSkills: () => ipcRenderer.invoke('agent:listSkills'),
   },
   dag: {

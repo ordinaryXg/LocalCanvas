@@ -159,6 +159,7 @@ export function registerMediaIpc(): void {
       payload: {
         clips: Array<{ id: string; path: string; startTime: number; duration: number }>
         audioPath?: string
+        audioVolume?: number
         outputName?: string
         reencode?: boolean
         subtitlePath?: string

@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { GENERATABLE_NODE_TYPES } from '../constants/editorFeatures'
+import { useCanvasStore } from './canvasStore'
+import { useComposeEditorStore } from './composeEditorStore'
 
-export type EditorMode = 'canvas' | 'generate' | 'edit'
+export type EditorMode = 'canvas' | 'workbench'
 export type DockDrawer = 'nodes' | 'tools' | 'assets' | 'history' | null
 
 const LS_DRAWER_HEIGHT = 'lc-generator-drawer-ratio'
@@ -58,8 +60,8 @@ interface EditorShellState {
   clearFocusStyleChips: () => void
   requestScrollToGeneratorWarnings: () => void
   clearScrollToGeneratorWarnings: () => void
-  openGenerateForSelection: (nodeId: string, nodeType: string | undefined) => void
-  openEditForCompose: (nodeId: string) => void
+  openWorkbenchForGenerate: (nodeId: string, nodeType: string | undefined) => void
+  openWorkbenchForCompose: (nodeId: string) => void
 }
 
 export const useEditorShellStore = create<EditorShellState>((set, get) => ({
@@ -119,14 +121,15 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
     set({ scrollToGeneratorWarnings: true, generatorDrawerOpen: true }),
   clearScrollToGeneratorWarnings: () => set({ scrollToGeneratorWarnings: false }),
 
-  openGenerateForSelection: (nodeId, nodeType) => {
+  openWorkbenchForGenerate: (nodeId, nodeType) => {
     if (!nodeType || !GENERATABLE_NODE_TYPES.has(nodeType)) return
-    set({ mode: 'generate', generatorDrawerOpen: true })
+    set({ mode: 'workbench', generatorDrawerOpen: false, openDrawer: null })
     void nodeId
   },
 
-  openEditForCompose: (nodeId) => {
-    void nodeId
-    set({ mode: 'edit', openDrawer: null, inspectorCollapsed: true })
+  openWorkbenchForCompose: (nodeId) => {
+    useCanvasStore.getState().setSelectedNodes([nodeId])
+    useComposeEditorStore.getState().open(nodeId)
+    set({ mode: 'workbench', openDrawer: null, inspectorCollapsed: true })
   },
 }))

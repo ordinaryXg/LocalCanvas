@@ -4,7 +4,7 @@
 > **技术栈**：Electron 33+ / React 19 / React Flow 12 / Zustand / Tailwind CSS 4 / FFmpeg / better-sqlite3  
 > **总周期**：MVP 7 周（Phase 1–4）+ v5 3.5 周 + v6 客户端 2.5 周  
 > **生成日期**：2026-06-04  
-> **最后更新**：2026-06-05（增补 v5 / v6 章节与版本索引）
+> **最后更新**：2026-06-08（文档结构：根目录 v1–v10 索引 + `docs/vN/` 详案）
 
 ---
 
@@ -19,10 +19,17 @@
 | **v4** | [LocalCanvas_v4_完善高级功能与发布.md](./LocalCanvas_v4_完善高级功能与发布.md) | 高级适配器 + 历史/工作流 + 发布 | 2 周 |
 | **v5** | [LocalCanvas_v5_Agent自动化与分镜增强.md](./LocalCanvas_v5_Agent自动化与分镜增强.md) | Agent + DAG + 分镜组 + 本地用户系统 | 3.5 周 |
 | **v6 客户端** | [LocalCanvas_v6_节点体验与能力系统.md](./LocalCanvas_v6_节点体验与能力系统.md) | 合成剪辑台 + 文本双栏 + 模型能力 Registry | 2.5 周 |
-| v6 设计原文 | [docs/v6/design/](./v6/design/) | 三份重设计详案 | — |
+| v6 详案 / 设计 | [v6/](./v6/) · [design/](./v6/design/) | 完整文档 + 三份重设计详案 | — |
+| v7 | [v7/README.md](./v7/README.md) | 未单独发版（v6 → v8） | — |
 | v6 云端扩展 | v5 文档 §十一 | 独立服务端 + 账号迁移 + 导演台（另建仓库） | 规划 |
+| **v8** | [LocalCanvas_v8_界面与体验重设计.md](./LocalCanvas_v8_界面与体验重设计.md) | EditorShell、三模式、Drawer、Inspector | 3 周 |
+| v8 详案 / 设计 | [v8/](./v8/) · [design/](./v8/design/) | 完整文档 + 界面专文 | — |
+| **v9** | [LocalCanvas_v9_精简优化与体验收官.md](./LocalCanvas_v9_精简优化与体验收官.md) | 冗余精简、性能、UI 统一、跨版本功能债收尾 | 2.5 周 |
+| v9 详案 | [v9/LocalCanvas_v9_精简优化与体验收官.md](./v9/LocalCanvas_v9_精简优化与体验收官.md) | 完整收官记录 + 包体报告 | — |
+| **v10** | [LocalCanvas_v10_项目优化与技术债归集.md](./LocalCanvas_v10_项目优化与技术债归集.md) | 技术债归集、工程/体验持续改进 | 待定 |
+| v10 详案 | [v10/LocalCanvas_v10_项目优化与技术债归集.md](./v10/LocalCanvas_v10_项目优化与技术债归集.md) | 完整债务表 + Wave 路线 | — |
 
-**本表 Phase 1–4** 对应 MVP 原始拆解（≈ v1–v4）；**Phase 5–6** 对应 v5 / v6 客户端迭代。详细步骤以各版本专文为准。
+**本表 Phase 1–4** 对应 MVP 原始拆解（≈ v1–v4）；**Phase 5–6** 对应 v5 / v6 客户端迭代；**v8 / v9 / v10** 以各版本专文为准。跨版本未完成债务以 **v10 §一** 为唯一归集入口。
 
 ---
 
@@ -90,7 +97,7 @@ localcanvas/
 
 ## Phase 1：画布基础 + 节点系统（第 1-2 周）≈ v1
 
-> 详案：[LocalCanvas_v1_画布基础与节点系统.md](./LocalCanvas_v1_画布基础与节点系统.md)
+> 详案：[v1/LocalCanvas_v1_画布基础与节点系统.md](./v1/LocalCanvas_v1_画布基础与节点系统.md)
 
 
 ### 1.1 Electron 窗口与主进程
@@ -143,7 +150,7 @@ localcanvas/
 
 ## Phase 2：模型配置 + 生成器（第 3-4 周）≈ v2
 
-> 详案：[LocalCanvas_v2_模型配置与生成器系统.md](./LocalCanvas_v2_模型配置与生成器系统.md)
+> 详案：[v2/LocalCanvas_v2_模型配置与生成器系统.md](./v2/LocalCanvas_v2_模型配置与生成器系统.md)
 
 
 ### 2.1 配置系统
@@ -193,7 +200,7 @@ localcanvas/
 
 ## Phase 3：视频合成 + 打磨（第 5-6 周）≈ v3
 
-> 详案：[LocalCanvas_v3_视频合成与项目打磨.md](./LocalCanvas_v3_视频合成与项目打磨.md)
+> 详案：[v3/LocalCanvas_v3_视频合成与项目打磨.md](./v3/LocalCanvas_v3_视频合成与项目打磨.md)
 
 
 ### 3.1 FFmpeg 集成
@@ -237,7 +244,7 @@ localcanvas/
 
 ## Phase 4：完善 + 发布（第 7 周）≈ v4
 
-> 详案：[LocalCanvas_v4_完善高级功能与发布.md](./LocalCanvas_v4_完善高级功能与发布.md)
+> 详案：[v4/LocalCanvas_v4_完善高级功能与发布.md](./v4/LocalCanvas_v4_完善高级功能与发布.md)
 
 ### 4.1 自定义适配器
 
@@ -287,7 +294,7 @@ localcanvas/
 
 ## Phase 5：Agent 自动化 + 分镜增强（v5，约 3.5 周）
 
-> 详案：[LocalCanvas_v5_Agent自动化与分镜增强.md](./LocalCanvas_v5_Agent自动化与分镜增强.md)  
+> 详案：[v5/LocalCanvas_v5_Agent自动化与分镜增强.md](./v5/LocalCanvas_v5_Agent自动化与分镜增强.md)  
 > **前置**：v4 验收通过（已发布安装包）
 
 ### 5.1 本地用户系统（Week 1 上午）
@@ -328,8 +335,8 @@ localcanvas/
 
 ## Phase 6：节点体验 + 模型能力系统（v6 客户端，约 2.5 周）
 
-> 详案：[LocalCanvas_v6_节点体验与能力系统.md](./LocalCanvas_v6_节点体验与能力系统.md)  
-> 设计原文：[docs/v6/design/](./v6/design/)（合成 / 文本 / 能力系统三份重设计）  
+> 详案：[v6/LocalCanvas_v6_节点体验与能力系统.md](./v6/LocalCanvas_v6_节点体验与能力系统.md)  
+> 设计原文：[v6/design/](./v6/design/)（合成 / 文本 / 能力系统三份重设计）  
 > **前置**：v5 核心功能验收通过
 
 ### 6.1 合成剪辑台重设计（Week 1 Day 1）
@@ -374,7 +381,7 @@ localcanvas/
 | 6.3.12 | 项目能力 Pin | `project.json` | ⬜ | 目录升级提示 |
 
 详案：[LocalCanvas_模型能力系统重设计.md](./v6/design/LocalCanvas_模型能力系统重设计.md)  
-实施计划：[superpowers/plans/2026-06-05-model-capability-system.md](./superpowers/plans/2026-06-05-model-capability-system.md)
+实施记录：[附录 D](./v6/design/LocalCanvas_模型能力系统重设计.md#附录-d实施记录2026-06-05)
 
 ### 6.4 v6 横切验收（Week 2.5）
 
@@ -478,7 +485,7 @@ v6 云端扩展（独立轨道，见 v5 §十一）         │
 - [ ] Agent 对话 → 计划预览 → 落画布 → DAG 执行
 - [ ] 分镜组宫格 + 批量重生成
 - [ ] Slash `/grid` 布局可用
-- [ ] 详见 [v5 验收标准](./LocalCanvas_v5_Agent自动化与分镜增强.md#八v5-验收标准)
+- [ ] 详见 [v5 验收标准](./v5/LocalCanvas_v5_Agent自动化与分镜增强.md#八v5-验收标准)
 
 ### Phase 6 验收（v6 客户端）
 
@@ -486,4 +493,4 @@ v6 云端扩展（独立轨道，见 v5 §十一）         │
 - [ ] 文本：连线只传 `output`；Vision 多图进 LLM
 - [ ] 能力：虚线边生成前 100% 阻断；Agent Registry 选模
 - [ ] `npm test` + `npm run build` 全绿
-- [ ] 详见 [v6 验收标准](./LocalCanvas_v6_节点体验与能力系统.md#五验收标准)
+- [ ] 详见 [v6 验收标准](./v6/LocalCanvas_v6_节点体验与能力系统.md#五验收标准)

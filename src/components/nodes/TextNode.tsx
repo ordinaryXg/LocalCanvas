@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
 import { getTextNodePorts } from '../../capabilities/node-port-ui'
+import { applyPortSlotLabels, getTextPortSlotLabels } from '../../capabilities/port-slot-labels'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { listLlmVisionImageHandles } from '../../utils/llmVisionSlots'
 import { TextOutputBadge } from '../text/TextOutputBadge'
@@ -25,7 +26,9 @@ function TextNodeComponent({ id, data: rawData, selected, width, height }: NodeP
     if (inbound.some((e) => e.targetHandle === 'image')) {
       slotDisabled.image1 = true
     }
-    return getTextNodePorts(modelId, undefined, slotDisabled)
+    const ports = getTextNodePorts(modelId, undefined, slotDisabled)
+    const labels = getTextPortSlotLabels(id, edges, modelId)
+    return applyPortSlotLabels(ports, labels)
   }, [edges, id, modelId])
 
   const output = data.output ?? ''

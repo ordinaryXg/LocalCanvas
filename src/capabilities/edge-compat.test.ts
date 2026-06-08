@@ -143,6 +143,28 @@ describe('evaluateEdgeCompat', () => {
     expect(r.reason).toContain('已满')
   })
 
+  it('allows video to compose slot as solid (no capability profile)', () => {
+    const r = evaluateEdgeCompat({
+      sourceType: 'video',
+      sourceHandle: 'video',
+      targetType: 'compose',
+      targetHandle: 'video1',
+      targetKind: 'llm',
+    })
+    expect(r.status).toBe('solid')
+  })
+
+  it('allows audio to compose audio as solid', () => {
+    const r = evaluateEdgeCompat({
+      sourceType: 'audio',
+      sourceHandle: 'audio',
+      targetType: 'compose',
+      targetHandle: 'audio',
+      targetKind: 'llm',
+    })
+    expect(r.status).toBe('solid')
+  })
+
   it('warns when reference image slots are full on seedance 2.0', () => {
     const edges = Array.from({ length: 9 }, (_, i) => ({
       id: `e${i}`,

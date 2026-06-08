@@ -273,6 +273,7 @@ export interface LocalCanvasAPI {
       disabledSkills?: string[]
     }) => Promise<import('./agent').AgentChatResult>
     listSessions: (projectId?: string) => Promise<import('./agent').AgentSessionSummary[]>
+    getSession: (sessionId: string) => Promise<import('./agent').AgentSessionDetail | null>
     listSkills: () => Promise<{ skills: Array<{ id: string; name: string; description: string }> }>
   }
   dag: {
@@ -397,6 +398,7 @@ export interface LocalCanvasAPI {
     start: (payload: {
       clips: ComposeClip[]
       audioPath?: string
+      audioVolume?: number
       subtitlePath?: string
       burnSubtitles?: boolean
       outputName?: string

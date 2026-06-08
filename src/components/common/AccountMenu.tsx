@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { UserProfilePanel } from './UserProfilePanel'
 import { useT } from '../../i18n'
 import { useUserStore } from '../../stores/userStore'
 
@@ -6,6 +7,7 @@ export function AccountMenu() {
   const t = useT()
   const { user, isGuest, setAuth } = useUserStore()
   const [open, setOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const label = isGuest ? t('auth.guest') : (user?.displayName ?? user?.username ?? t('auth.user'))
 
@@ -37,13 +39,25 @@ export function AccountMenu() {
               </div>
             )}
             {!isGuest && (
-              <button
-                type="button"
-                onClick={() => void handleLogout()}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary text-text-primary"
-              >
-                {t('auth.logout')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileOpen(true)
+                    setOpen(false)
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary text-text-primary"
+                >
+                  账号资料
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-bg-tertiary text-text-primary"
+                >
+                  {t('auth.logout')}
+                </button>
+              </>
             )}
             {isGuest && (
               <div className="px-3 py-2 text-[10px] text-text-muted">{t('auth.guestHint')}</div>
@@ -51,6 +65,7 @@ export function AccountMenu() {
           </div>
         </>
       )}
+      {profileOpen && <UserProfilePanel onClose={() => setProfileOpen(false)} />}
     </div>
   )
 }

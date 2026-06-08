@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStoryboardGroup } from '../../hooks/useStoryboardGroup'
+import { syncStoryboardToCanvas } from '../../utils/storyboardSyncToCanvas'
 import { useT } from '../../i18n'
 import { useProjectStore } from '../../stores/projectStore'
 import { handleError, showToast } from '../../utils/ErrorHandler'
@@ -11,9 +12,17 @@ interface StoryboardGeneratorProps {
 export function StoryboardGenerator({ nodeId }: StoryboardGeneratorProps) {
   const t = useT()
   const projectId = useProjectStore((s) => s.currentProjectId)
-  const { frames, selectedFrameIds, layout, setLayout, regenerateSelectedImages, generating } =
-    useStoryboardGroup(nodeId)
+  const {
+    frames,
+    selectedFrameIds,
+    layout,
+    setLayout,
+    regenerateSelectedImages,
+    regenerateSelectedVideos,
+    generating,
+  } = useStoryboardGroup(nodeId)
   const [exporting, setExporting] = useState<'png' | 'pdf' | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   const handleExport = async (format: 'png' | 'pdf') => {
     if (!projectId || frames.length === 0) return
@@ -94,7 +103,30 @@ export function StoryboardGenerator({ nodeId }: StoryboardGeneratorProps) {
         onClick={() => void regenerateSelectedImages()}
         className="w-full py-2 rounded bg-accent text-white disabled:opacity-50"
       >
-        {generating ? t('storyboard.regenerating') : t('storyboard.regenSelected')}
+        {generating === 'image' ? t('storyboard.regenerating') : t('storyboard.regenSelected')}
+      </button>
+      <button
+        type="button"
+        disabled={!!generating || selectedFrameIds.length === 0}
+        onClick={() => void regenerateSelectedVideos()}
+        className="w-full py-2 rounded border border-border hover:border-accent/50 disabled:opacity-50"
+      >
+        {generating === 'video' ? '视频生成中…' : '重生成选中帧（视频）'}
+      </button>
+      <button
+        type="button"
+        disabled={!!syncing || frames.length === 0 || !projectId}
+        onClick={() => {
+          if (!projectId) return
+          setSyncing(true)
+          void syncStoryboardToCanvas(nodeId, projectId)
+            .then((n) => showToast(`已同步 ${n} 个图片节点到画布`, 'info'))
+            .catch((err) => handleError(err, 'storyboardSync'))
+            .finally(() => setSyncing(false))
+        }}
+        className="w-full py-2 rounded border border-[var(--studio-accent)] text-[var(--studio-accent)] hover:bg-[var(--studio-accent-muted)] disabled:opacity-50"
+      >
+        {syncing ? '同步中…' : '同步到画布'}
       </button>
       <div className="flex gap-2">
         <button

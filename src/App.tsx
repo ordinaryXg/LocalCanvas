@@ -1,10 +1,25 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import { StartPage } from './components/project/StartPage'
 import { OnboardingGuide } from './components/panels/OnboardingGuide'
-import { SettingsPanel } from './components/panels/SettingsPanel'
 import { ConfirmDialog } from './components/common/ConfirmDialog'
-import { EditorShell } from './layouts/EditorShell'
-import { LegacyAppLayout } from './layouts/LegacyAppLayout'
+
+const EditorShell = lazy(() =>
+  import('./layouts/EditorShell').then((m) => ({ default: m.EditorShell })),
+)
+const LegacyAppLayout = lazy(() =>
+  import('./layouts/LegacyAppLayout').then((m) => ({ default: m.LegacyAppLayout })),
+)
+const SettingsPanel = lazy(() =>
+  import('./components/panels/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
+)
+
+function EditorLoading() {
+  return (
+    <div className="w-screen h-screen flex items-center justify-center bg-bg-primary text-text-muted text-sm">
+      加载编辑器…
+    </div>
+  )
+}
 import { isEditorShell } from './constants/editorFeatures'
 import { useCanvasStore } from './stores/canvasStore'
 import { useProjectStore } from './stores/projectStore'
@@ -140,7 +155,11 @@ export default function App() {
           onOpenSettings={() => setShowSettings(true)}
         />
         {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
-        {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+        {showSettings && (
+          <Suspense fallback={null}>
+            <SettingsPanel onClose={() => setShowSettings(false)} />
+          </Suspense>
+        )}
         {toast && <Toast {...toast} />}
       </AuthGate>
     )
@@ -148,18 +167,24 @@ export default function App() {
 
   return (
     <AuthGate>
-      {isEditorShell() ? (
-        <EditorShell onBack={backToStart} onOpenSettings={() => setShowSettings(true)} />
-      ) : (
-        <LegacyAppLayout
-          onBack={backToStart}
-          onOpenSettings={() => setShowSettings(true)}
-          onToggleTheme={toggleTheme}
-          theme={theme}
-        />
-      )}
+      <Suspense fallback={<EditorLoading />}>
+        {isEditorShell() ? (
+          <EditorShell onBack={backToStart} onOpenSettings={() => setShowSettings(true)} />
+        ) : (
+          <LegacyAppLayout
+            onBack={backToStart}
+            onOpenSettings={() => setShowSettings(true)}
+            onToggleTheme={toggleTheme}
+            theme={theme}
+          />
+        )}
+      </Suspense>
       {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <Suspense fallback={null}>
+          <SettingsPanel onClose={() => setShowSettings(false)} />
+        </Suspense>
+      )}
       {showLeaveConfirm && (
         <ConfirmDialog
           title={t('app.unsavedTitle')}

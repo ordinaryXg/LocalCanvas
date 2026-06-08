@@ -47,6 +47,7 @@ interface CanvasState {
   updateNodeSize: (nodeId: string, width: number, height: number) => void
   removeNodes: (ids: string[]) => void
   removeEdge: (edgeId: string) => void
+  removeEdges: (edgeIds: string[]) => void
   groupNodes: (ids: string[]) => void
   setSelectedNodes: (ids: string[]) => void
   selectAndFocusNode: (nodeId: string) => void
@@ -249,6 +250,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   removeEdge: (edgeId) => {
     recordHistory(get)
     set({ edges: get().edges.filter((e) => e.id !== edgeId) })
+    useProjectStore.getState().setDirty(true)
+  },
+
+  removeEdges: (edgeIds) => {
+    if (edgeIds.length === 0) return
+    recordHistory(get)
+    const drop = new Set(edgeIds)
+    set({ edges: get().edges.filter((e) => !drop.has(e.id)) })
     useProjectStore.getState().setDirty(true)
   },
 

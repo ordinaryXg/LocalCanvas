@@ -2,8 +2,7 @@ import { useEditorShellStore, type EditorMode } from '../../stores/editorShellSt
 
 const MODES: { id: EditorMode; label: string }[] = [
   { id: 'canvas', label: '画布' },
-  { id: 'generate', label: '生成' },
-  { id: 'edit', label: '剪辑' },
+  { id: 'workbench', label: '工作台' },
 ]
 
 export function ModeSwitcher() {
@@ -19,11 +18,7 @@ export function ModeSwitcher() {
       {MODES.map((m) => {
         const active = mode === m.id
         const activeClass =
-          m.id === 'canvas'
-            ? 'bg-[var(--mode-canvas)]'
-            : m.id === 'generate'
-              ? 'bg-[var(--mode-generate)]'
-              : 'bg-[var(--mode-edit)]'
+          m.id === 'canvas' ? 'bg-[var(--mode-canvas)]' : 'bg-[var(--mode-generate)]'
         return (
           <button
             key={m.id}

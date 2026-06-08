@@ -417,6 +417,7 @@ export class UtilityClient {
   async compose(payload: {
     clips: Array<{ id: string; path: string; startTime: number; duration: number }>
     audioPath?: string
+    audioVolume?: number
     subtitlePath?: string
     burnSubtitles?: boolean
     outputName?: string

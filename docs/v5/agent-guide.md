@@ -180,6 +180,6 @@ Agent「脚本成片」会预置 **合成节点**。选中合成节点后打开 
 
 ## 相关文档
 
-- [快速入门](./quick-start.md) — 安装、首次配置、第一次创作
-- [模型配置](./model-config.md) — 能力目录、选模与 `profile_key`
-- [工作流模板](./workflow-templates.md) — 预置模板与 Agent 技能对照
+- [快速入门](../../README.md#快速开始) — 安装、首次配置、第一次创作
+- [模型配置](../v2/model-config.md) — 能力目录、选模与 `profile_key`
+- [工作流模板](../v4/workflow-templates.md) — 预置模板与 Agent 技能对照

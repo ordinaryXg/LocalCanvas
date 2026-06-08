@@ -219,15 +219,3 @@ export async function testConnection(
   }
 }
 
-/** @deprecated Use readConfig() — kept for backward compatibility */
-export interface LegacyAppConfig {
-  version: string
-  dataPath: string
-}
-
-export function getAppConfig(): LegacyAppConfig {
-  return {
-    version: '2.0.0',
-    dataPath: join(app.getPath('userData'), 'LocalCanvas'),
-  }
-}

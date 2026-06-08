@@ -2,7 +2,7 @@ import { memo } from 'react'
 import type { NodeProps } from '@xyflow/react'
 import { BaseNode } from './BaseNode'
 import { useCanvasStore } from '../../stores/canvasStore'
-import { useComposeEditorStore } from '../../stores/composeEditorStore'
+import { useEditorShellStore } from '../../stores/editorShellStore'
 import type { ComposeClipItem } from '../../types/node'
 import {
   getActiveClips,
@@ -13,7 +13,7 @@ import {
 
 function ComposeNodeComponent({ id, data, selected, width, height }: NodeProps) {
   const edges = useCanvasStore((s) => s.edges)
-  const openEditor = useComposeEditorStore((s) => s.open)
+  const openWorkbenchForCompose = useEditorShellStore((s) => s.openWorkbenchForCompose)
 
   const clips = (data.clips as ComposeClipItem[] | undefined) ?? []
   const active = getActiveClips(clips)
@@ -60,7 +60,7 @@ function ComposeNodeComponent({ id, data, selected, width, height }: NodeProps) 
 
         <button
           type="button"
-          onClick={() => openEditor(id)}
+          onClick={() => openWorkbenchForCompose(id)}
           className="shrink-0 w-full text-[10px] px-2 py-1.5 bg-accent/20 text-accent border border-accent/30 rounded hover:bg-accent hover:text-white transition nodrag"
         >
           打开剪辑台

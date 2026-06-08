@@ -41,6 +41,15 @@ export interface AgentChatResult {
   message?: string
 }
 
+export interface AgentSessionDetail {
+  id: string
+  title?: string
+  projectId?: string
+  messages: AgentMessage[]
+  lastPlan?: WorkflowPlan
+  updatedAt: string
+}
+
 export interface AgentSessionSummary {
   id: string
   title?: string

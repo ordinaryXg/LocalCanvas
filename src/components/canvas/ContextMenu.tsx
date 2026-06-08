@@ -23,9 +23,10 @@ interface ContextMenuProps {
   menu: ContextMenuState | null
   onClose: () => void
   onRunGroup?: (nodeIds: string[]) => void
+  onRunUntil?: (nodeIds: string[], untilNodeId: string) => void
 }
 
-export function ContextMenu({ menu, onClose, onRunGroup }: ContextMenuProps) {
+export function ContextMenu({ menu, onClose, onRunGroup, onRunUntil }: ContextMenuProps) {
   const t = useT()
   const reactFlow = useReactFlow()
   const { nodes, edges, addNode, removeNodes, removeEdge, groupNodes, duplicateNode, selectedNodeIds } =
@@ -145,6 +146,20 @@ export function ContextMenu({ menu, onClose, onRunGroup }: ContextMenuProps) {
               }}
             >
               ▶ {t('dag.runGroup')}
+            </button>
+          )}
+          {onRunUntil && (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-xs text-accent hover:bg-bg-tertiary"
+              onClick={() => {
+                const ids =
+                  selectedNodeIds.length > 1 ? selectedNodeIds : [menu.nodeId!]
+                onRunUntil(ids, menu.nodeId!)
+                onClose()
+              }}
+            >
+              ▶ 执行到此节点
             </button>
           )}
           {scriptNode?.type === 'script' && (

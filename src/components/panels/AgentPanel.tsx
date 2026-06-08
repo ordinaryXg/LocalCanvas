@@ -7,7 +7,7 @@ import { applyWorkflowPlan } from '../../utils/applyWorkflowPlan'
 import { WorkflowPlanPreview } from './WorkflowPlanPreview'
 import { handleError } from '../../utils/ErrorHandler'
 import { useT } from '../../i18n'
-import type { WorkflowPlan } from '../../types/agent'
+import type { AgentSessionSummary, WorkflowPlan } from '../../types/agent'
 
 function loadDisabledSkills(): string[] {
   try {
@@ -21,6 +21,8 @@ function loadDisabledSkills(): string[] {
 export function AgentPanel() {
   const t = useT()
   const [input, setInput] = useState('')
+  const [sessions, setSessions] = useState<AgentSessionSummary[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const {
     messages,
@@ -31,6 +33,7 @@ export function AgentPanel() {
     setPendingPlan,
     setSending,
     setSessionId,
+    setMessages,
   } = useAgentStore()
   const addNode = useCanvasStore((s) => s.addNode)
   const addConnection = useCanvasStore((s) => s.addConnection)
@@ -41,6 +44,26 @@ export function AgentPanel() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, pendingPlan])
+
+  useEffect(() => {
+    void window.api.agent.listSessions(currentProjectId ?? undefined).then(setSessions)
+  }, [currentProjectId, sessionId, messages.length])
+
+  const loadSession = async (id: string) => {
+    const detail = await window.api.agent.getSession(id)
+    if (!detail) return
+    setSessionId(detail.id)
+    setMessages(detail.messages)
+    setPendingPlan(detail.lastPlan ?? null)
+    setHistoryOpen(false)
+  }
+
+  const startNewSession = () => {
+    setSessionId(null)
+    setMessages([])
+    setPendingPlan(null)
+    setHistoryOpen(false)
+  }
 
   const sendMessage = async () => {
     const text = input.trim()
@@ -104,6 +127,38 @@ export function AgentPanel() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border">
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((v) => !v)}
+          className="text-[10px] px-2 py-1 rounded border border-border text-text-muted hover:text-white"
+        >
+          历史{sessions.length > 0 ? ` (${sessions.length})` : ''}
+        </button>
+        <button
+          type="button"
+          onClick={startNewSession}
+          className="text-[10px] px-2 py-1 rounded border border-border text-text-muted hover:text-white"
+        >
+          新对话
+        </button>
+      </div>
+      {historyOpen && sessions.length > 0 && (
+        <div className="shrink-0 max-h-32 overflow-y-auto lc-scroll border-b border-border px-2 py-1 space-y-0.5">
+          {sessions.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => void loadSession(s.id)}
+              className={`w-full text-left text-[10px] px-2 py-1.5 rounded truncate hover:bg-bg-tertiary ${
+                sessionId === s.id ? 'text-[var(--studio-accent)]' : 'text-text-muted'
+              }`}
+            >
+              {s.title || '未命名会话'} · {new Date(s.updatedAt).toLocaleString('zh-CN')}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto lc-scroll p-3 space-y-3">
         {messages.length === 0 && (
           <p className="text-xs text-text-muted">{t('agent.emptyHint')}</p>

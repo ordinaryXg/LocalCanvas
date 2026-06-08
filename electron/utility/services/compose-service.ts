@@ -44,6 +44,7 @@ export interface ComposeClip {
 export interface ComposeOptions {
   clips: ComposeClip[]
   audioPath?: string
+  audioVolume?: number
   subtitlePath?: string
   burnSubtitles?: boolean
   outputName?: string
@@ -58,7 +59,14 @@ export async function compose(
   mkdirSync(getOutputDir(), { recursive: true })
   mkdirSync(getTempDir(), { recursive: true })
 
-  const { clips, audioPath, subtitlePath, burnSubtitles: shouldBurnSubtitles, outputName } = options
+  const {
+    clips,
+    audioPath,
+    audioVolume = 1,
+    subtitlePath,
+    burnSubtitles: shouldBurnSubtitles,
+    outputName,
+  } = options
   let { reencode = false } = options
 
   const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime)
@@ -135,7 +143,7 @@ export async function compose(
 
   if (audioPath && existsSync(audioPath)) {
     const mergedOutput = join(getTempDir(), `merged-${uuid()}.mp4`)
-    await mergeAudioVideo(concatOutput, audioPath, mergedOutput)
+    await mergeAudioVideo(concatOutput, audioPath, mergedOutput, undefined, audioVolume)
     finalOutput = mergedOutput
     if (finalOutput !== concatOutput) {
       try {

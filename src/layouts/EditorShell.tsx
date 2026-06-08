@@ -1,15 +1,21 @@
+import { lazy, Suspense } from 'react'
 import { TopBar } from '../components/shell/TopBar'
 import { Dock } from '../components/shell/Dock'
 import { Inspector } from '../components/shell/Inspector'
 import { GeneratorDrawer } from '../components/shell/GeneratorDrawer'
 import { EditorCoachMark } from '../components/shell/EditorCoachMark'
 import { ShortcutsOverlay } from '../components/shell/ShortcutsOverlay'
-import { AgentCompanion } from '../components/agent/AgentCompanion'
 import { CanvasMode } from './modes/CanvasMode'
-import { GenerateMode } from './modes/GenerateMode'
-import { EditMode } from './modes/EditMode'
+
+const WorkbenchMode = lazy(() =>
+  import('./modes/WorkbenchMode').then((m) => ({ default: m.WorkbenchMode })),
+)
+const AgentCompanion = lazy(() =>
+  import('../components/agent/AgentCompanion').then((m) => ({ default: m.AgentCompanion })),
+)
 import { useEditorShellStore } from '../stores/editorShellStore'
 import { useEditorShellShortcuts } from '../hooks/useEditorShellShortcuts'
+import { useWorkbenchTarget } from '../hooks/useWorkbenchTarget'
 import { isEditorCoachEnabled } from '../constants/editorFeatures'
 
 interface EditorShellProps {
@@ -17,23 +23,39 @@ interface EditorShellProps {
   onOpenSettings: () => void
 }
 
+function EditorLoading() {
+  return (
+    <div className="flex-1 flex items-center justify-center text-text-muted text-sm">加载中…</div>
+  )
+}
+
 export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
   useEditorShellShortcuts()
   const mode = useEditorShellStore((s) => s.mode)
+  const workbenchTarget = useWorkbenchTarget()
+  const hideInspector = mode === 'workbench' && workbenchTarget?.kind === 'compose'
+  const hideDock = hideInspector
 
   return (
     <div className="editor-shell w-screen h-screen flex flex-col overflow-hidden bg-[var(--studio-bg)]">
       <TopBar onBack={onBack} onOpenSettings={onOpenSettings} />
       <div className="flex-1 min-h-0 flex">
-        <Dock />
+        {!hideDock && <Dock />}
         <div className="flex-1 min-w-0 relative flex flex-col min-h-0">
           {mode === 'canvas' && <CanvasMode />}
-          {mode === 'generate' && <GenerateMode />}
-          {mode === 'edit' && <EditMode />}
+          {mode === 'workbench' && (
+            <Suspense fallback={<EditorLoading />}>
+              <div className="flex-1 min-h-0 editor-shell-mode-enter">
+                <WorkbenchMode />
+              </div>
+            </Suspense>
+          )}
           {mode === 'canvas' && <GeneratorDrawer />}
         </div>
-        {mode !== 'edit' && <Inspector />}
-        <AgentCompanion />
+        {!hideInspector && <Inspector />}
+        <Suspense fallback={null}>
+          <AgentCompanion />
+        </Suspense>
       </div>
       {isEditorCoachEnabled() && <EditorCoachMark />}
       <ShortcutsOverlay />

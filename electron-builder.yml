@@ -18,6 +18,8 @@ win:
     - target: nsis
       arch: [x64]
   requestedExecutionLevel: asInvoker
+  # 本地打包无需代码签名；避免 winCodeSign 解压符号链接需管理员权限
+  signAndEditExecutable: false
 
 nsis:
   oneClick: false

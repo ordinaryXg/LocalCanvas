@@ -5,7 +5,7 @@ const STEPS = [
   { title: '画布', body: '画布用来搭流程和连线。' },
   { title: '节点 Dock', body: '从左侧 ⊕ 拖入节点。' },
   { title: '检查器', body: '右边看状态与连线；具体编辑在底部面板。' },
-  { title: '模式切换', body: '顶栏可在画布 / 生成 / 剪辑间切换。' },
+  { title: '模式切换', body: '顶栏可在画布 / 工作台间切换；工作台按选中节点自动显示生成或剪辑。' },
 ]
 
 export function EditorCoachMark() {

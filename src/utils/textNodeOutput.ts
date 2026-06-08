@@ -23,7 +23,6 @@ export function textNodeOutput(data: Record<string, unknown>): string {
 }
 
 /** @deprecated 使用 textNodeOutput */
-export const textNodePromptOutput = textNodeOutput
 
 export function inferOutputMode(
   draft: string,

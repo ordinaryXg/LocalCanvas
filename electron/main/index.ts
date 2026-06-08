@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell } from 'electron'
+import { existsSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
@@ -15,10 +16,11 @@ import { logger } from './services/logger'
 import { maybeSyncCapabilityCacheDaily } from './services/capability-sync'
 
 function getPreloadPath(): string {
-  if (is.dev) {
-    return join(__dirname, '../../electron/preload/index.cjs')
+  const preloadPath = join(__dirname, '../preload/index.cjs')
+  if (!existsSync(preloadPath)) {
+    logger.error('Preload script not found', { preloadPath, dirname: __dirname })
   }
-  return join(__dirname, '../preload/index.cjs')
+  return preloadPath
 }
 
 function createWindow(): void {

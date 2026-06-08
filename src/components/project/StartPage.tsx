@@ -4,6 +4,8 @@ import type { ProjectSummary } from '../../types/project'
 import { handleError } from '../../utils/ErrorHandler'
 import { useT } from '../../i18n'
 import { AccountMenu } from '../common/AccountMenu'
+import { remapWorkflowToCanvas } from '../../utils/loadWorkflow'
+import { buildProjectSavePayload } from '../../utils/projectPayload'
 
 interface StartPageProps {
   onOpenProject: (id: string, name: string) => void
@@ -33,11 +35,37 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
     void loadProjects()
   }, [loadProjects])
 
-  const handleCreate = async () => {
-    if (!newName.trim() || creating) return
+  const PRESET_TEMPLATES = [
+    { label: '空白画布', name: '未命名项目', workflowName: null as string | null },
+    { label: '分镜组', name: '分镜项目', workflowName: '脚本 → 分镜 → 批量视频' },
+    { label: '文本→视频', name: '文本视频链路', workflowName: '文生图 → 图生视频' },
+  ] as const
+
+  const handleCreate = async (nameOverride?: string, workflowName?: string | null) => {
+    const name = (nameOverride ?? newName).trim()
+    if (!name || creating) return
     setCreating(true)
     try {
-      const project = await window.api.project.create(newName.trim())
+      const project = await window.api.project.create(name)
+      if (workflowName) {
+        const list = await window.api.workflow.list(true)
+        const wf = list.find((w) => w.name === workflowName)
+        if (wf) {
+          const data = await window.api.workflow.load(wf.id)
+          const { nodes, edges } = remapWorkflowToCanvas(
+            data.nodes as Parameters<typeof remapWorkflowToCanvas>[0],
+            data.edges as Parameters<typeof remapWorkflowToCanvas>[1],
+          )
+          const payload = buildProjectSavePayload({
+            id: project.id,
+            name: project.name,
+            viewport: { x: 0, y: 0, zoom: 1 },
+            nodes,
+            edges,
+          })
+          await window.api.project.save(JSON.stringify(payload))
+        }
+      }
       onOpenProject(project.id, project.name)
     } catch (error) {
       handleError(error, 'createProject')
@@ -115,17 +143,14 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {[
-            { label: '空白画布', name: '未命名项目' },
-            { label: '分镜组', name: '分镜项目' },
-            { label: '文本→视频', name: '文本视频链路' },
-          ].map((tpl) => (
+          {PRESET_TEMPLATES.map((tpl) => (
             <button
               key={tpl.label}
               type="button"
               disabled={creating}
               onClick={() => {
                 setNewName(tpl.name)
+                void handleCreate(tpl.name, tpl.workflowName)
               }}
               className="text-xs px-3 py-1.5 rounded-full border border-[var(--studio-border)] text-text-muted hover:text-white hover:border-[var(--studio-accent)] transition"
             >

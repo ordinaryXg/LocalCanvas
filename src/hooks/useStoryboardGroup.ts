@@ -98,6 +98,78 @@ export function useStoryboardGroup(nodeId: string) {
     }
   }, [frames, selectedFrameIds, currentProjectId, defaultImageModel, nodeId, updateFrames])
 
+  const regenerateSelectedVideos = useCallback(async () => {
+    const targets = frames.filter(
+      (f) => selectedFrameIds.includes(f.id) && f.prompt.trim() && (f.imagePath || f.imageSrc),
+    )
+    if (!targets.length || !currentProjectId) return
+
+    const modelId = defaultVideoModel
+    if (!modelId) {
+      handleError(new Error('请先配置视频模型'), 'storyboardRegen')
+      return
+    }
+
+    setGenerating('video')
+    setProgress(0)
+
+    let nextFrames = [...frames]
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        const frame = targets[i]!
+        setProgress(Math.round((i / targets.length) * 100))
+        const { taskId } = await window.api.model.beginGenerateVideo({
+          modelId,
+          nodeId,
+          prompt: frame.prompt,
+          width: 1280,
+          height: 720,
+          duration: frame.duration || 5,
+          firstFrame: frame.imagePath,
+        })
+        const resultPath = await new Promise<string>((resolve, reject) => {
+          const cleanup = () => {
+            unsubComplete()
+            unsubError()
+          }
+          const unsubComplete = window.api.on('model:complete', (...args: unknown[]) => {
+            const e = args[0] as { taskId: string; result: string }
+            if (e.taskId === taskId) {
+              cleanup()
+              resolve(e.result)
+            }
+          })
+          const unsubError = window.api.on('model:error', (...args: unknown[]) => {
+            const e = args[0] as { taskId?: string; error: string }
+            if (e.taskId === taskId) {
+              cleanup()
+              reject(new Error(e.error || '生成失败'))
+            }
+          })
+        })
+        const { src, assetPath } = await importGeneratedMedia(currentProjectId, 'video', resultPath)
+        nextFrames = nextFrames.map((f) =>
+          f.id === frame.id
+            ? { ...f, videoSrc: src, videoPath: assetPath, status: 'video' as const }
+            : f,
+        )
+        updateFrames(nextFrames)
+      }
+    } catch (err) {
+      handleError(err, 'storyboardRegenVideo')
+    } finally {
+      setGenerating(null)
+      setProgress(100)
+    }
+  }, [
+    frames,
+    selectedFrameIds,
+    currentProjectId,
+    defaultVideoModel,
+    nodeId,
+    updateFrames,
+  ])
+
   return {
     frames,
     layout,
@@ -108,5 +180,6 @@ export function useStoryboardGroup(nodeId: string) {
     toggleFrameSelection,
     updateFrames,
     regenerateSelectedImages,
+    regenerateSelectedVideos,
   }
 }

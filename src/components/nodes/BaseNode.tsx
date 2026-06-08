@@ -197,6 +197,7 @@ export function BaseNode({
             color={color}
             top={portTop(i, input.top)}
             disabled={input.disabled}
+            slotLabel={input.slotLabel}
           />
         ))}
 

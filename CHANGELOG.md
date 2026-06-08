@@ -6,6 +6,16 @@ All notable changes to LocalCanvas are documented in this file.
 
 ### Added
 
+- **v9 Wave 1–3（收官）** — 死代码清理、`React.lazy` 分包、React Flow 可见区渲染、DAG 重试/跳过/并发、`dagRunStore` 全局状态
+- **分镜** — 「同步到画布」、批量重生视频
+- **账号** — `UserProfilePanel`（昵称/邮箱）
+- **合成** — `audioVolume` 传入 FFmpeg 混流；导出中「取消」按钮接线 `compose:cancel`
+- **Agent** — 会话历史列表 + `agent:getSession` IPC；`AgentPanel` 历史/新对话
+- **端口** — 槽位计数 `n/max`（`port-slot-labels.ts`）
+- **视频生成** — `StylePresetChips` 对齐图片风格选择
+- **启动页** — 模板 chip 预置工作流节点图
+- **GenerateMode** — 右侧生成历史侧栏
+- **测试** — `port-slot-labels.test.ts`、`authValidation.test.ts`；e2e `dag-smoke`、`storyboard-export`
 - **v8 EditorShell** — TopBar、Dock、Inspector、三模式（canvas / generate / edit）、经典布局开关
 - **GeneratorDrawer** — 底部可拖拽高度抽屉，替代居中 GeneratorPanel；顶栏动态标题与「生成」按钮
 - **ImageEditorPanel** — 左预览 / 右参数 / 底 prompt；`CurrentImagePreview`、`StylePresetChips`、`ResizablePreviewPane`
@@ -26,7 +36,8 @@ All notable changes to LocalCanvas are documented in this file.
 
 ### Fixed
 
-- **Maximum update depth exceeded** — `useModelGeneration` 的 `onProgress` 改 ref；`generatorHeaderStore` 跳过无变化更新
+- **GeneratorDrawer** — 节点 `isGenerating` 时点击外部不关闭
+- **Maximum update depth exceeded** — `useModelGeneration` 的 `onProgress` 改 ref
 - **上游断开 prompt 残留** — `dataFlow` 在图片/视频节点无 `prompt` 入边时清除 `prompt`
 - History reuse now imports media via `importGeneratedMedia` with correct node fields (`imageSrc`, `videoSrc`, etc.)
 - Compose service output rename regression

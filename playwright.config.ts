@@ -16,5 +16,17 @@ export default defineConfig({
       name: 'compose-smoke',
       testMatch: /compose-smoke\.spec\.ts/,
     },
+    {
+      name: 'dag-smoke',
+      testMatch: /dag-smoke\.spec\.ts/,
+    },
+    {
+      name: 'storyboard-smoke',
+      testMatch: /storyboard-export\.spec\.ts/,
+    },
+    {
+      name: 'workbench-smoke',
+      testMatch: /workbench-smoke\.spec\.ts/,
+    },
   ],
 })

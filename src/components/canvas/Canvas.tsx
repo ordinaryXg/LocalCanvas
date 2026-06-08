@@ -49,6 +49,7 @@ import { useEditorShellStore } from '../../stores/editorShellStore'
 import { showToast } from '../../utils/ErrorHandler'
 import { fitViewAndSyncViewport, focusNodeInView, viewportLikelyShowsNodes } from '../../utils/canvasViewport'
 import { hydrateProjectNodes } from '../../utils/assetStorage'
+import { minimapNodeColor } from '../../utils/canvasMinimap'
 
 const nodeTypes = {
   text: TextNode,
@@ -95,7 +96,7 @@ function CanvasInner() {
   const composeEditorDismissed = useComposeEditorStore((s) => s.dismissed)
   const openComposeEditor = useComposeEditorStore((s) => s.open)
   const clearComposeEditor = useComposeEditorStore((s) => s.clear)
-  const { runState, startRun, dismiss } = useDagRun()
+  const { runState, startRun, skipNode, retryNode, dismiss } = useDagRun()
 
   useEffect(() => {
     if (isEditorShell()) return
@@ -466,9 +467,10 @@ function CanvasInner() {
         colorMode="dark"
         className="bg-bg-primary"
         defaultEdgeOptions={defaultEdgeOptions}
+        onlyRenderVisibleElements
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--color-border)" />
         <CanvasControls
           isInteractive={isInteractive}
           onInteractiveChange={setIsInteractive}
@@ -477,18 +479,7 @@ function CanvasInner() {
         <MiniMap
           pannable
           zoomable={false}
-          nodeColor={(node) => {
-            const colors: Record<string, string> = {
-              text: '#9a8fa6',
-              image: '#6e9598',
-              video: '#b89090',
-              audio: '#8fa88f',
-              script: '#b8a67a',
-              compose: '#8a90a8',
-              storyboard: '#a08fa8',
-            }
-            return colors[node.type || 'text'] || '#8a90a8'
-          }}
+          nodeColor={(node) => minimapNodeColor(node.type)}
           maskColor="rgba(0,0,0,0.7)"
           className="minimap-dark minimap-pannable"
           position="bottom-right"
@@ -507,6 +498,7 @@ function CanvasInner() {
         menu={contextMenu}
         onClose={() => setContextMenu(null)}
         onRunGroup={(ids) => void startRun(ids)}
+        onRunUntil={(ids, untilId) => void startRun(ids, { untilNodeId: untilId })}
       />
       <SlashCommandPalette
         open={slashOpen}
@@ -515,7 +507,12 @@ function CanvasInner() {
         onSelect={handleSlashSelect}
         onClose={() => setSlashOpen(false)}
       />
-      <DagRunPanel runState={runState} onClose={dismiss} />
+      <DagRunPanel
+        runState={runState}
+        onClose={dismiss}
+        onRetry={retryNode}
+        onSkip={skipNode}
+      />
 
       {nodePicker && (
         <NodePicker

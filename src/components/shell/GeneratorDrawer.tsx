@@ -4,54 +4,13 @@ import { useCanvasStore } from '../../stores/canvasStore'
 
 import { useEditorShellStore } from '../../stores/editorShellStore'
 
-import { useGeneratorHeaderStore } from '../../stores/generatorHeaderStore'
-
 import { GENERATABLE_NODE_TYPES } from '../../constants/editorFeatures'
-import { nodeDisplayTitle } from '../../utils/nodeNaming'
 
 import { GeneratorContent } from '../panels/GeneratorContent'
 
 
 
 const MIN_HEIGHT = 160
-
-
-
-function drawerTitle(nodeType: string, data: Record<string, unknown>): string {
-
-  switch (nodeType) {
-
-    case 'image':
-
-      return `🖼️ 图片 · ${nodeDisplayTitle({ type: 'image', data }, '图片')}`
-
-    case 'video':
-
-      return `🎥 视频 · ${nodeDisplayTitle({ type: 'video', data }, '视频')}`
-
-    case 'text':
-
-      return `📝 文本 · ${nodeDisplayTitle({ type: 'text', data }, '文本')}`
-
-    case 'audio':
-
-      return `🎵 音频 · ${(data.fileName as string) || '音频'}`
-
-    case 'script':
-
-      return `🎬 脚本`
-
-    case 'storyboard':
-
-      return `📋 分镜组`
-
-    default:
-
-      return nodeType
-
-  }
-
-}
 
 
 
@@ -71,13 +30,9 @@ export function GeneratorDrawer() {
 
   const mode = useEditorShellStore((s) => s.mode)
 
-  const onGenerate = useGeneratorHeaderStore((s) => s.onGenerate)
-  const onCancel = useGeneratorHeaderStore((s) => s.onCancel)
-  const generateDisabled = useGeneratorHeaderStore((s) => s.generateDisabled)
-  const isGenerating = useGeneratorHeaderStore((s) => s.isGenerating)
-  const headerProgress = useGeneratorHeaderStore((s) => s.progress)
-
   const resizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const prevSelectedIdRef = useRef<string | null>(null)
 
   const [viewportH, setViewportH] = useState(() =>
 
@@ -144,14 +99,37 @@ export function GeneratorDrawer() {
 
 
   useEffect(() => {
-
-    if (selectedNode && mode === 'canvas') {
-
+    if (mode !== 'canvas') return
+    const id = selectedNode?.id ?? null
+    if (id && id !== prevSelectedIdRef.current) {
       setOpen(true)
-
     }
+    if (!id) {
+      setOpen(false)
+    }
+    prevSelectedIdRef.current = id
+  }, [selectedNode?.id, mode, setOpen, selectedNode])
 
-  }, [selectedNode?.id, mode, setOpen])
+  const nodeGenerating =
+    selectedNode?.data &&
+    typeof selectedNode.data === 'object' &&
+    (selectedNode.data as Record<string, unknown>).isGenerating === true
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (drawerRef.current?.contains(e.target as Node)) return
+      if (nodeGenerating) return
+      setOpen(false)
+    }
+    const timer = window.setTimeout(() => {
+      window.addEventListener('mousedown', close)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('mousedown', close)
+    }
+  }, [open, setOpen, nodeGenerating])
 
 
 
@@ -162,14 +140,6 @@ export function GeneratorDrawer() {
   const panelHeight = Math.max(MIN_HEIGHT, viewportH * heightRatio)
 
   const nodeType = selectedNode.type ?? 'text'
-
-  const nodeData = selectedNode.data as Record<string, unknown>
-
-  const title = drawerTitle(nodeType, nodeData)
-
-  const showGenerate = nodeType === 'image' && onGenerate
-
-
 
   const startResize = (event: ReactMouseEvent) => {
 
@@ -184,11 +154,11 @@ export function GeneratorDrawer() {
   return (
 
     <div
-
-      className="absolute bottom-0 left-0 right-0 z-[80] flex flex-col bg-bg-secondary/95 backdrop-blur border-t border-[var(--studio-border)] shadow-[0_-8px_24px_rgba(0,0,0,0.3)]"
-
+      ref={drawerRef}
+      className="generator-drawer-enter absolute bottom-0 left-0 right-0 z-[80] flex flex-col bg-bg-secondary/95 backdrop-blur border-t border-[var(--studio-border)] shadow-[0_-8px_24px_rgba(0,0,0,0.3)]"
       style={{ height: panelHeight }}
-
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
 
       <div
@@ -206,76 +176,6 @@ export function GeneratorDrawer() {
       >
 
         <span className="w-10 h-1 rounded-full bg-border group-hover:bg-[var(--studio-accent)]" />
-
-      </div>
-
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border shrink-0 gap-3">
-
-        <span className="text-xs font-medium text-text-muted truncate">{title}</span>
-
-        <div className="flex items-center gap-2 shrink-0">
-
-          {showGenerate && (
-
-            <>
-
-              {isGenerating && onCancel && (
-
-                <button
-
-                  type="button"
-
-                  onClick={() => onCancel()}
-
-                  className="px-2 py-1 text-xs text-danger border border-danger/40 rounded hover:bg-danger/10"
-
-                >
-
-                  取消
-
-                </button>
-
-              )}
-
-              <button
-
-                type="button"
-
-                onClick={() => onGenerate?.()}
-
-                disabled={generateDisabled}
-
-                className="px-4 py-1.5 bg-cyan-600 text-white text-xs rounded hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-
-              >
-
-                {isGenerating
-
-                  ? `生成中 ${headerProgress}%`
-
-                  : '生成'}
-
-              </button>
-
-            </>
-
-          )}
-
-          <button
-
-            type="button"
-
-            onClick={() => setOpen(false)}
-
-            className="text-xs text-text-muted hover:text-white"
-
-          >
-
-            关闭 ✕
-
-          </button>
-
-        </div>
 
       </div>
 

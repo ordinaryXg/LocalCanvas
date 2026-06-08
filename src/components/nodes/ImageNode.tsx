@@ -7,6 +7,7 @@ import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
 import { useProjectStore } from '../../stores/projectStore'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { getImageNodePorts } from '../../capabilities/node-port-ui'
+import { applyPortSlotLabels, getImagePortSlotLabels } from '../../capabilities/port-slot-labels'
 import { getStylePreset } from '../../constants/stylePresets'
 import { nodeDisplayTitle } from '../../utils/nodeNaming'
 
@@ -20,9 +21,11 @@ function ImageNodeComponent({ id, data, selected, width, height }: NodeProps) {
     const hasReferenceEdge = edges.some(
       (e) => e.target === id && e.targetHandle === 'reference',
     )
-    return getImageNodePorts(modelId, undefined, {
+    const ports = getImageNodePorts(modelId, undefined, {
       reference: hasReferenceEdge,
     })
+    const labels = getImagePortSlotLabels(id, edges, modelId)
+    return applyPortSlotLabels(ports, labels)
   }, [edges, id, modelId])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showPreview, setShowPreview] = useState(false)

@@ -17,6 +17,8 @@ export interface PreviewClip {
 
 interface Props {
   clips: PreviewClip[]
+  /** 时间轴上的有效片段数（用于区分「无连线」与「路径解析失败」） */
+  timelineClipCount?: number
   playheadTime: number
   totalDuration: number
   subtitleCues?: SubtitleCue[]
@@ -32,6 +34,7 @@ const MAX_H = 520
 
 export function ComposePreview({
   clips,
+  timelineClipCount = 0,
   playheadTime,
   totalDuration,
   subtitleCues,
@@ -179,16 +182,27 @@ export function ComposePreview({
             style={{ height: previewHeight }}
           >
             {!displayClip ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-text-muted text-sm gap-2">
-                <span>将视频节点连接到合成节点</span>
-                <span className="text-[10px]">片段将出现在下方时间轴</span>
+              <div className="w-full h-full flex flex-col items-center justify-center text-white/70 text-sm gap-2 px-4 text-center">
+                {timelineClipCount > 0 ? (
+                  <>
+                    <span>片段已加入时间轴，预览加载失败</span>
+                    <span className="text-[10px] text-white/50">
+                      请确认视频文件存在，或重新连接视频节点
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>将视频节点连接到合成节点</span>
+                    <span className="text-[10px] text-white/50">片段将出现在下方时间轴</span>
+                  </>
+                )}
               </div>
             ) : decodeError ? (
-              <div className="w-full h-full flex items-center justify-center text-text-muted text-sm">
+              <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
                 无法预览该片段
               </div>
             ) : !blobSrc || loadingClipId === displayClip.clip.id ? (
-              <div className="w-full h-full flex items-center justify-center text-text-muted text-sm">
+              <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
                 加载预览…
               </div>
             ) : (

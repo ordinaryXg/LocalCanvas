@@ -8,8 +8,6 @@ import {
 } from './composeSequence'
 import { textNodeOutput } from './textNodeOutput'
 
-export { textNodeOutput, textNodeOutput as textNodePromptOutput }
-
 export interface DataFlowPatch {
   nodeId: string
   data: Record<string, unknown>

@@ -1,21 +1,13 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef } from 'react'
+import { useDagRunStore } from '../stores/dagRunStore'
 import type { Node, Edge } from '@xyflow/react'
 import { topologicalSort, DagCycleError } from '../utils/dag/topologicalSort'
 import { computeDataFlowPatches } from '../utils/dataFlow'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
-import { collectLlmVisionImagesFromEdges } from '../utils/collectLlmVisionImages'
-import { importGeneratedMedia } from '../utils/generatedMedia'
 import { handleError } from '../utils/ErrorHandler'
-import type { DagRunNodeState, DagRunState } from '../types/dag'
-
-const RATIO_MAP: Record<string, [number, number]> = {
-  '1:1': [1920, 1920],
-  '16:9': [2560, 1440],
-  '9:16': [1440, 2560],
-  '3:4': [1920, 2560],
-  '4:3': [2560, 1920],
-}
+import type { DagRunNodeState, DagRunState, DagNodeStatus } from '../types/dag'
+import { executeDagNode } from './dagNodeExecutor'
 
 const GENERATABLE = new Set(['image', 'video', 'text'])
 
@@ -26,40 +18,202 @@ function collectSubgraph(nodeIds: string[], allNodes: Node[], allEdges: Edge[]) 
   return { nodes, edges }
 }
 
-function waitForGeneration(taskId: string, nodeId: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      unsubComplete()
-      unsubError()
-    }
-    const unsubComplete = window.api.on('model:complete', (...args: unknown[]) => {
-      const e = args[0] as { taskId: string; nodeId: string; result: string }
-      if (e.taskId === taskId) {
-        cleanup()
-        resolve(e.result)
-      }
-    })
-    const unsubError = window.api.on('model:error', (...args: unknown[]) => {
-      const e = args[0] as { taskId?: string; nodeId?: string; error: string }
-      if (e.taskId === taskId) {
-        cleanup()
-        reject(new Error(e.error || '生成失败'))
-      }
-    })
-  })
+function buildPredecessors(executable: string[], edges: Edge[]): Map<string, string[]> {
+  const preds = new Map<string, string[]>()
+  for (const id of executable) preds.set(id, [])
+  for (const e of edges) {
+    if (!executable.includes(e.source) || !executable.includes(e.target)) continue
+    preds.get(e.target)!.push(e.source)
+  }
+  return preds
+}
+
+function upstreamOf(targetId: string, preds: Map<string, string[]>): Set<string> {
+  const result = new Set<string>()
+  const stack = [targetId]
+  while (stack.length) {
+    const id = stack.pop()!
+    if (result.has(id)) continue
+    result.add(id)
+    for (const p of preds.get(id) ?? []) stack.push(p)
+  }
+  return result
+}
+
+type RunContext = {
+  dagRunId: string
+  executable: string[]
+  nodes: Node[]
+  edges: Edge[]
+  preds: Map<string, string[]>
+  status: Map<string, DagNodeStatus>
+  errors: Map<string, string>
+  maxConcurrent: number
+  stopOnFail: boolean
+  aborted: boolean
 }
 
 export function useDagRun() {
-  const [runState, setRunState] = useState<DagRunState | null>(null)
-  const [isRunning, setIsRunning] = useState(false)
+  const runState = useDagRunStore((s) => s.runState)
+  const isRunning = useDagRunStore((s) => s.isRunning)
+  const setRunState = useDagRunStore((s) => s.setRunState)
+  const setIsRunning = useDagRunStore((s) => s.setIsRunning)
+  const ctxRef = useRef<RunContext | null>(null)
+  const wakeRef = useRef<(() => void) | null>(null)
+
+  const syncRunState = useCallback((ctx: RunContext) => {
+    const completed = [...ctx.status.values()].filter(
+      (s) => s === 'completed' || s === 'skipped',
+    ).length
+    const nodeStates: DagRunNodeState[] = ctx.executable.map((nodeId) => ({
+      nodeId,
+      status: ctx.status.get(nodeId) ?? 'pending',
+      error: ctx.errors.get(nodeId),
+    }))
+    let status: DagRunState['status'] = 'running'
+    if (ctx.aborted) status = 'cancelled'
+    else if ([...ctx.status.values()].some((s) => s === 'failed')) status = 'failed'
+    else if (ctx.executable.every((id) => {
+      const s = ctx.status.get(id)
+      return s === 'completed' || s === 'skipped'
+    })) {
+      status = 'completed'
+    }
+    setRunState((s) =>
+      s
+        ? {
+            ...s,
+            status,
+            nodeStates,
+            completedCount: completed,
+          }
+        : s,
+    )
+  }, [])
+
+  const runScheduler = useCallback(
+    async (ctx: RunContext) => {
+      const wake = () => wakeRef.current?.()
+      wakeRef.current = () => {}
+
+      const isReady = (nodeId: string) => {
+        if (ctx.status.get(nodeId) !== 'pending') return false
+        return (ctx.preds.get(nodeId) ?? []).every((p) => {
+          const ps = ctx.status.get(p)
+          return ps === 'completed' || ps === 'skipped' || !ctx.executable.includes(p)
+        })
+      }
+
+      const inFlight = new Set<Promise<void>>()
+
+      while (!ctx.aborted) {
+        const running = [...ctx.status.values()].filter((s) => s === 'running').length
+        const ready = ctx.executable.filter(isReady)
+        const slots = Math.max(0, ctx.maxConcurrent - running)
+        const batch = ready.slice(0, slots)
+
+        for (const nodeId of batch) {
+          ctx.status.set(nodeId, 'running')
+          syncRunState(ctx)
+          void window.api.dag.updateNode({ dagRunId: ctx.dagRunId, nodeId, status: 'running' })
+          void window.api.dag.updateRun({ dagRunId: ctx.dagRunId, currentNodeId: nodeId })
+
+          const node = useCanvasStore.getState().nodes.find((n) => n.id === nodeId)
+          if (!node) {
+            ctx.status.set(nodeId, 'failed')
+            ctx.errors.set(nodeId, '节点不存在')
+            syncRunState(ctx)
+            continue
+          }
+
+          const task = (async () => {
+            try {
+              await executeDagNode(node, ctx.nodes, ctx.edges)
+              ctx.status.set(nodeId, 'completed')
+              ctx.errors.delete(nodeId)
+              const completed = [...ctx.status.values()].filter(
+                (s) => s === 'completed' || s === 'skipped',
+              ).length
+              syncRunState(ctx)
+              await window.api.dag.updateNode({ dagRunId: ctx.dagRunId, nodeId, status: 'completed' })
+              await window.api.dag.updateRun({
+                dagRunId: ctx.dagRunId,
+                completedNodes: completed,
+              })
+            } catch (err) {
+              const message = err instanceof Error ? err.message : '执行失败'
+              ctx.status.set(nodeId, 'failed')
+              ctx.errors.set(nodeId, message)
+              syncRunState(ctx)
+              await window.api.dag.updateNode({
+                dagRunId: ctx.dagRunId,
+                nodeId,
+                status: 'failed',
+                error: message,
+              })
+              if (ctx.stopOnFail) {
+                ctx.aborted = true
+                await window.api.dag.updateRun({
+                  dagRunId: ctx.dagRunId,
+                  status: 'failed',
+                  error: message,
+                })
+                handleError(err, 'dagNode')
+              }
+            } finally {
+              wake()
+            }
+          })()
+          inFlight.add(task)
+          void task.finally(() => inFlight.delete(task))
+        }
+
+        const allSettled = ctx.executable.every((id) => {
+          const s = ctx.status.get(id)
+          return s === 'completed' || s === 'skipped' || s === 'failed'
+        })
+        const anyRunning = [...ctx.status.values()].some((s) => s === 'running')
+        const anyPending = [...ctx.status.values()].some((s) => s === 'pending')
+
+        if (allSettled && !anyRunning) break
+        if (!anyRunning && !anyPending && batch.length === 0) {
+          await new Promise<void>((resolve) => {
+            wakeRef.current = resolve
+          })
+          continue
+        }
+        if (inFlight.size > 0) {
+          await Promise.race([...inFlight, new Promise<void>((r) => { wakeRef.current = r })])
+        } else {
+          await new Promise<void>((r) => { wakeRef.current = r })
+        }
+      }
+
+      const failed = [...ctx.status.values()].some((s) => s === 'failed')
+      if (!ctx.aborted && !failed) {
+        const completed = [...ctx.status.values()].filter(
+          (s) => s === 'completed' || s === 'skipped',
+        ).length
+        await window.api.dag.updateRun({
+          dagRunId: ctx.dagRunId,
+          status: 'completed',
+          completedNodes: completed,
+        })
+        syncRunState(ctx)
+      }
+      setIsRunning(false)
+      ctxRef.current = null
+    },
+    [syncRunState],
+  )
 
   const startRun = useCallback(
-    async (nodeIds: string[]) => {
+    async (nodeIds: string[], options?: { untilNodeId?: string }) => {
       const projectId = useProjectStore.getState().currentProjectId
       if (!projectId || nodeIds.length === 0) return
 
-      const { nodes: allNodes, edges: allEdges, updateNodeData, setNodes } = useCanvasStore.getState()
-      const { nodes, edges } = collectSubgraph(nodeIds, allNodes, allEdges)
+      const { nodes: allNodes, edges: allEdges, setNodes } = useCanvasStore.getState()
+      let { nodes, edges } = collectSubgraph(nodeIds, allNodes, allEdges)
 
       let order: string[]
       try {
@@ -74,10 +228,16 @@ export function useDagRun() {
         return
       }
 
-      const executable = order.filter((id) => {
+      let executable = order.filter((id) => {
         const n = nodes.find((x) => x.id === id)
         return n && GENERATABLE.has(n.type ?? '')
       })
+
+      if (options?.untilNodeId && executable.includes(options.untilNodeId)) {
+        const preds = buildPredecessors(executable, edges)
+        const allowed = upstreamOf(options.untilNodeId, preds)
+        executable = executable.filter((id) => allowed.has(id))
+      }
 
       if (executable.length === 0) {
         handleError(new Error('选区内没有可自动生成的节点'), 'dagEmpty')
@@ -91,7 +251,11 @@ export function useDagRun() {
           return p ? { ...n, data: { ...n.data, ...p.data } } : n
         })
         setNodes(patched)
+        nodes = patched.filter((n) => nodeIds.includes(n.id))
       }
+
+      const config = await window.api.config.read()
+      const maxConcurrent = Math.max(1, config.settings.max_concurrent_tasks ?? 1)
 
       const snapshot = { nodeIds, edges }
       const { id: dagRunId } = await window.api.dag.createRun({
@@ -100,156 +264,85 @@ export function useDagRun() {
         snapshot,
       })
 
-      const nodeStates: DagRunNodeState[] = executable.map((nodeId) => ({
-        nodeId,
-        status: 'pending' as const,
-      }))
-      setRunState({ dagRunId, status: 'running', nodeStates, completedCount: 0, totalCount: executable.length })
-      setIsRunning(true)
+      const preds = buildPredecessors(executable, edges)
+      const status = new Map<string, DagNodeStatus>()
+      const errors = new Map<string, string>()
+      executable.forEach((id) => status.set(id, 'pending'))
 
+      const ctx: RunContext = {
+        dagRunId,
+        executable,
+        nodes,
+        edges,
+        preds,
+        status,
+        errors,
+        maxConcurrent,
+        stopOnFail: true,
+        aborted: false,
+      }
+      ctxRef.current = ctx
+
+      setRunState({
+        dagRunId,
+        status: 'running',
+        nodeStates: executable.map((nodeId) => ({ nodeId, status: 'pending' })),
+        completedCount: 0,
+        totalCount: executable.length,
+      })
+      setIsRunning(true)
       await window.api.dag.updateRun({ dagRunId, status: 'running' })
 
-      let completed = 0
-      for (const nodeId of executable) {
-        const freshNodes = useCanvasStore.getState().nodes
-        const node = freshNodes.find((n) => n.id === nodeId)
-        if (!node) continue
-
-        setRunState((s) =>
-          s
-            ? {
-                ...s,
-                nodeStates: s.nodeStates.map((ns) =>
-                  ns.nodeId === nodeId ? { ...ns, status: 'running' } : ns,
-                ),
-              }
-            : s,
-        )
-        await window.api.dag.updateNode({ dagRunId, nodeId, status: 'running' })
-        await window.api.dag.updateRun({ dagRunId, currentNodeId: nodeId })
-
-        const data = node.data as Record<string, unknown>
-        try {
-          if (node.type === 'image') {
-            const modelId = (data.modelId as string) || ''
-            const prompt = (data.prompt as string) || ''
-            if (!modelId || !prompt) throw new Error('图片节点缺少模型或提示词')
-            const ratio = (data.ratio as string) || '16:9'
-            const [width, height] = RATIO_MAP[ratio] || [1024, 1024]
-            const { taskId } = await window.api.model.beginGenerateImage({
-              modelId,
-              nodeId,
-              prompt,
-              negativePrompt: data.negativePrompt as string | undefined,
-              width,
-              height,
-            })
-            const resultPath = await waitForGeneration(taskId, nodeId)
-            const { src, assetPath, fileName } = await importGeneratedMedia(projectId, 'image', resultPath)
-            updateNodeData(nodeId, {
-              imageSrc: src,
-              ...(assetPath ? { imageAssetPath: assetPath } : {}),
-              fileName,
-              isGenerating: false,
-              progress: 100,
-            })
-          } else if (node.type === 'video') {
-            const modelId = (data.modelId as string) || ''
-            const prompt = (data.prompt as string) || ''
-            if (!modelId || !prompt) throw new Error('视频节点缺少模型或提示词')
-            const ratio = (data.ratio as string) || '16:9'
-            const [width, height] = RATIO_MAP[ratio] || [1280, 720]
-            const { taskId } = await window.api.model.beginGenerateVideo({
-              modelId,
-              nodeId,
-              prompt,
-              width,
-              height,
-              duration: (data.duration as number) || 5,
-              firstFrame: data.firstFrame as string | undefined,
-              lastFrame: data.lastFrame as string | undefined,
-            })
-            const resultPath = await waitForGeneration(taskId, nodeId)
-            const { src, assetPath, fileName } = await importGeneratedMedia(projectId, 'video', resultPath)
-            updateNodeData(nodeId, {
-              videoSrc: src,
-              ...(assetPath ? { videoAssetPath: assetPath } : {}),
-              fileName,
-              isGenerating: false,
-              progress: 100,
-            })
-          } else if (node.type === 'text') {
-            const modelId = (data.modelId as string) || ''
-            const draft =
-              (data.draft as string) ||
-              (data.inputContent as string) ||
-              (data.prompt as string) ||
-              ''
-            if (!modelId || !draft) throw new Error('文本节点缺少模型或草稿')
-            const images = await collectLlmVisionImagesFromEdges(
-              nodeId,
-              nodes,
-              edges,
-              projectId,
-            )
-            const { taskId } = await window.api.model.beginGenerateText({
-              modelId,
-              nodeId,
-              prompt: draft,
-              systemPrompt: (data.systemPrompt as string) || undefined,
-              ...(images.length > 0 ? { images } : {}),
-            })
-            const result = await waitForGeneration(taskId, nodeId)
-            updateNodeData(nodeId, {
-              output: result,
-              outputMode: 'generated',
-              outputEdited: false,
-              isGenerating: false,
-            })
-          }
-
-          completed++
-          setRunState((s) =>
-            s
-              ? {
-                  ...s,
-                  completedCount: completed,
-                  nodeStates: s.nodeStates.map((ns) =>
-                    ns.nodeId === nodeId ? { ...ns, status: 'completed' } : ns,
-                  ),
-                }
-              : s,
-          )
-          await window.api.dag.updateNode({ dagRunId, nodeId, status: 'completed' })
-          await window.api.dag.updateRun({ dagRunId, completedNodes: completed })
-        } catch (err) {
-          const message = err instanceof Error ? err.message : '执行失败'
-          setRunState((s) =>
-            s
-              ? {
-                  ...s,
-                  nodeStates: s.nodeStates.map((ns) =>
-                    ns.nodeId === nodeId ? { ...ns, status: 'failed', error: message } : ns,
-                  ),
-                }
-              : s,
-          )
-          await window.api.dag.updateNode({ dagRunId, nodeId, status: 'failed', error: message })
-          await window.api.dag.updateRun({ dagRunId, status: 'failed', error: message })
-          setIsRunning(false)
-          handleError(err, 'dagNode')
-          return
-        }
-      }
-
-      await window.api.dag.updateRun({ dagRunId, status: 'completed', completedNodes: completed })
-      setRunState((s) => (s ? { ...s, status: 'completed' } : s))
-      setIsRunning(false)
+      void runScheduler(ctx)
     },
-    [],
+    [runScheduler],
   )
 
-  const dismiss = useCallback(() => setRunState(null), [])
+  const skipNode = useCallback(
+    (nodeId: string) => {
+      const ctx = ctxRef.current
+      if (!ctx || ctx.status.get(nodeId) !== 'failed') return
+      ctx.status.set(nodeId, 'skipped')
+      ctx.errors.delete(nodeId)
+      ctx.stopOnFail = false
+      ctx.aborted = false
+      syncRunState(ctx)
+      void window.api.dag.updateNode({ dagRunId: ctx.dagRunId, nodeId, status: 'skipped' })
+      wakeRef.current?.()
+      if (!isRunning) {
+        setIsRunning(true)
+        void runScheduler(ctx)
+      }
+    },
+    [isRunning, runScheduler, syncRunState],
+  )
 
-  return { runState, isRunning, startRun, dismiss }
+  const retryNode = useCallback(
+    (nodeId: string) => {
+      const ctx = ctxRef.current
+      if (!ctx || ctx.status.get(nodeId) !== 'failed') return
+      ctx.status.set(nodeId, 'pending')
+      ctx.errors.delete(nodeId)
+      ctx.stopOnFail = true
+      ctx.aborted = false
+      syncRunState(ctx)
+      void window.api.dag.updateNode({ dagRunId: ctx.dagRunId, nodeId, status: 'pending' })
+      wakeRef.current?.()
+      if (!isRunning) {
+        setIsRunning(true)
+        void runScheduler(ctx)
+      }
+    },
+    [isRunning, runScheduler, syncRunState],
+  )
+
+  const dismiss = useCallback(() => {
+    const ctx = ctxRef.current
+    if (ctx) ctx.aborted = true
+    setRunState(null)
+    setIsRunning(false)
+    ctxRef.current = null
+  }, [])
+
+  return { runState, isRunning, startRun, skipNode, retryNode, dismiss }
 }

@@ -417,4 +417,4 @@ src/utils/textNodeOutput.ts   # textNodeOutput() + 旧数据 normalize
 
 ---
 
-*本文档为文本节点 v2 交互基线。风格与 [合成编辑器重设计](./LocalCanvas_合成编辑器重设计.md) 保持一致：画布管状态，面板管编辑。V6 总览见 [LocalCanvas_v6_节点体验与能力系统.md](../../LocalCanvas_v6_节点体验与能力系统.md)。*
+*本文档为文本节点 v2 交互基线。风格与 [合成编辑器重设计](./LocalCanvas_合成编辑器重设计.md) 保持一致：画布管状态，面板管编辑。V6 总览见 [LocalCanvas_v6_节点体验与能力系统.md](../LocalCanvas_v6_节点体验与能力系统.md)。*

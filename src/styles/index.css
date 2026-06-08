@@ -184,3 +184,36 @@ textarea::placeholder {
 textarea.resize-y {
   resize: vertical;
 }
+
+.editor-shell-mode-enter {
+  animation: mode-crossfade 200ms ease-out;
+}
+
+@keyframes mode-crossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.generator-drawer-enter {
+  animation: drawer-slide 250ms ease-out;
+}
+
+@keyframes drawer-slide {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-shell-mode-enter,
+  .generator-drawer-enter {
+    animation: none;
+  }
+}

@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useEditorShellStore } from '../stores/editorShellStore'
-import { useComposeEditorStore } from '../stores/composeEditorStore'
 import { GENERATABLE_NODE_TYPES, isEditorShell } from '../constants/editorFeatures'
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -16,12 +15,11 @@ export function useEditorShellShortcuts() {
   const setShortcutsOpen = useEditorShellStore((s) => s.setShortcutsOpen)
   const generatorDrawerOpen = useEditorShellStore((s) => s.generatorDrawerOpen)
   const setGeneratorDrawerOpenOnly = useEditorShellStore((s) => s.setGeneratorDrawerOpen)
-  const openEdit = useEditorShellStore((s) => s.openEditForCompose)
+  const openWorkbenchForCompose = useEditorShellStore((s) => s.openWorkbenchForCompose)
+  const openWorkbenchForGenerate = useEditorShellStore((s) => s.openWorkbenchForGenerate)
   const mode = useEditorShellStore((s) => s.mode)
   const nodes = useCanvasStore((s) => s.nodes)
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
-  const openComposeEditor = useComposeEditorStore((s) => s.open)
-
   useEffect(() => {
     if (!isEditorShell()) return
 
@@ -53,8 +51,7 @@ export function useEditorShellShortcuts() {
         )
         if (!node) return
         e.preventDefault()
-        setMode('generate')
-        setGeneratorDrawerOpen(true)
+        openWorkbenchForGenerate(node.id, node.type)
         return
       }
 
@@ -65,8 +62,7 @@ export function useEditorShellShortcuts() {
         )
         if (!compose) return
         e.preventDefault()
-        openComposeEditor(compose.id)
-        openEdit(compose.id)
+        openWorkbenchForCompose(compose.id)
       }
     }
 
@@ -81,7 +77,7 @@ export function useEditorShellShortcuts() {
     setGeneratorDrawerOpen,
     setGeneratorDrawerOpenOnly,
     setShortcutsOpen,
-    openComposeEditor,
-    openEdit,
+    openWorkbenchForCompose,
+    openWorkbenchForGenerate,
   ])
 }

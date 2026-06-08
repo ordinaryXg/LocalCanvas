@@ -127,8 +127,6 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
   const draft = textData.draft ?? ''
   const output = textData.output ?? ''
   const outputMode = textData.outputMode ?? 'passthrough'
-  const title = textData.title ?? '文本'
-
   const patch = (data: Record<string, unknown>) => updateNodeData(nodeId, data)
 
   const handleDraftChange = (value: string) => {
@@ -144,10 +142,6 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
       output: value,
       outputEdited: true,
     })
-  }
-
-  const handleTitleChange = (value: string) => {
-    patch({ title: value || '文本' })
   }
 
   const handleModeChange = (mode: TextOutputMode) => {
@@ -217,13 +211,7 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 flex-wrap">
-        <input
-          value={title}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          className="flex-1 min-w-[120px] bg-bg-tertiary text-text-primary text-sm px-2 py-1 rounded border border-border focus:border-accent outline-none"
-          placeholder="节点标题"
-        />
+      <div className="flex items-center justify-end gap-3 flex-wrap">
         <button
           type="button"
           onClick={() => void copyOutput()}

@@ -27,9 +27,11 @@ import { ComposeExportDrawer } from './ComposeExportDrawer'
 
 interface Props {
   nodeId: string
+  /** 工作台内嵌：占满父容器，不再使用画布底部 75% 浮层 */
+  embedded?: boolean
 }
 
-export function ComposeEditor({ nodeId }: Props) {
+export function ComposeEditor({ nodeId, embedded = false }: Props) {
   const t = useT()
   const focusMode = useComposeEditorStore((s) => s.focusMode)
   const setFocusMode = useComposeEditorStore((s) => s.setFocusMode)
@@ -160,6 +162,7 @@ export function ComposeEditor({ nodeId }: Props) {
         reencode,
         burnSubtitles ? subtitlePath : undefined,
         burnSubtitles,
+        audioVolume,
       )
       await finishComposeAndCreateVideoNode(nodeId, outputPath, projectId)
       showToast('合成完成，已在画布创建视频节点', 'info')
@@ -281,22 +284,39 @@ export function ComposeEditor({ nodeId }: Props) {
 
   const selectedClip = clips.find((c) => c.id === selectedClipId) ?? null
   const showInspector = inspectorOpen && (selectedClip || audioSelected)
+  const activeClipCount = getActiveClips(clips).length
+  const useFullHeight = embedded || focusMode
 
   return (
     <div
       ref={containerRef}
-      className={`absolute left-0 right-0 z-50 flex flex-col bg-bg-primary border-t border-border shadow-[0_-12px_40px_rgba(0,0,0,0.45)] ${
-        focusMode ? 'top-0 bottom-0' : 'bottom-0'
-      }`}
-      style={focusMode ? undefined : { height: '75%' }}
+      className={
+        embedded
+          ? 'relative flex flex-col h-full w-full min-h-0 bg-bg-primary'
+          : `absolute left-0 right-0 z-50 flex flex-col bg-bg-primary border-t border-border shadow-[0_-12px_40px_rgba(0,0,0,0.45)] ${
+              useFullHeight ? 'top-0 bottom-0' : 'bottom-0'
+            }`
+      }
+      style={embedded || useFullHeight ? undefined : { height: '75%' }}
       tabIndex={-1}
     >
       <ComposeToolbar
         clips={clips}
         isComposing={isComposing}
         composeProgress={composeProgress}
-        focusMode={focusMode}
+        focusMode={useFullHeight}
+        embedded={embedded}
         onExport={() => void handleExport()}
+        onCancelCompose={
+          isComposing
+            ? () => {
+                void window.api.compose.cancel().finally(() => {
+                  setIsComposing(false)
+                  setComposeProgress(0)
+                })
+              }
+            : undefined
+        }
         onImportSubtitle={() => void handleImportSrt()}
         onToggleSettings={() => setSettingsOpen((o) => !o)}
         onToggleFocus={() => setFocusMode(!focusMode)}
@@ -321,6 +341,7 @@ export function ComposeEditor({ nodeId }: Props) {
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
           <ComposePreview
             clips={previewClips}
+            timelineClipCount={activeClipCount}
             playheadTime={playheadTime}
             totalDuration={totalDuration}
             subtitleCues={subtitleCues}

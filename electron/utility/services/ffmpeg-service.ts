@@ -163,26 +163,49 @@ export async function mergeAudioVideo(
   audioPath: string,
   output: string,
   onProgress?: (percentage: number) => void,
+  audioVolume = 1,
 ): Promise<string> {
   mkdirSync(dirname(output), { recursive: true })
 
-  const args = [
-    '-y',
-    '-i',
-    videoPath,
-    '-i',
-    audioPath,
-    '-c:v',
-    'copy',
-    '-c:a',
-    'aac',
-    '-map',
-    '0:v:0',
-    '-map',
-    '1:a:0',
-    '-shortest',
-    output,
-  ]
+  const vol = Math.max(0, Math.min(2, audioVolume))
+  const args =
+    vol === 1
+      ? [
+          '-y',
+          '-i',
+          videoPath,
+          '-i',
+          audioPath,
+          '-c:v',
+          'copy',
+          '-c:a',
+          'aac',
+          '-map',
+          '0:v:0',
+          '-map',
+          '1:a:0',
+          '-shortest',
+          output,
+        ]
+      : [
+          '-y',
+          '-i',
+          videoPath,
+          '-i',
+          audioPath,
+          '-filter_complex',
+          `[1:a]volume=${vol}[aout]`,
+          '-map',
+          '0:v:0',
+          '-map',
+          '[aout]',
+          '-c:v',
+          'copy',
+          '-c:a',
+          'aac',
+          '-shortest',
+          output,
+        ]
 
   await runFFmpeg(args, (pct) => onProgress?.(pct))
   return output

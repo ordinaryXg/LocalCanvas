@@ -221,4 +221,4 @@ src/utils/composeSequence.ts
 
 ---
 
-*本文档为合成编辑器 v2 交互基线与实施记录。代码入口：`ComposeEditor.tsx`、`composeSequence.ts`、`dataFlow.ts`（compose 段）、`compose-service.ts`（trim 预处理）。V6 总览见 [LocalCanvas_v6_节点体验与能力系统.md](../../LocalCanvas_v6_节点体验与能力系统.md)。*
+*本文档为合成编辑器 v2 交互基线与实施记录。代码入口：`ComposeEditor.tsx`、`composeSequence.ts`、`dataFlow.ts`（compose 段）、`compose-service.ts`（trim 预处理）。V6 总览见 [LocalCanvas_v6_节点体验与能力系统.md](../LocalCanvas_v6_节点体验与能力系统.md)。*

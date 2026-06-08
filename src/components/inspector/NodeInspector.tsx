@@ -1,7 +1,6 @@
 import type { Node } from '@xyflow/react'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useEditorShellStore } from '../../stores/editorShellStore'
-import { useComposeEditorStore } from '../../stores/composeEditorStore'
 import { GENERATABLE_NODE_TYPES } from '../../constants/editorFeatures'
 import { EDITOR_ACTION_LABELS, TYPE_LABELS } from './constants'
 import { InspectorHeader } from './InspectorHeader'
@@ -22,9 +21,7 @@ interface Props {
 export function NodeInspector({ node }: Props) {
   const nodes = useCanvasStore((s) => s.nodes)
   const edges = useCanvasStore((s) => s.edges)
-  const setSelectedNodes = useCanvasStore((s) => s.setSelectedNodes)
-  const openEdit = useEditorShellStore((s) => s.openEditForCompose)
-  const openComposeEditor = useComposeEditorStore((s) => s.open)
+  const openWorkbenchForCompose = useEditorShellStore((s) => s.openWorkbenchForCompose)
   const { openDrawer } = useOpenGeneratorDrawer(node.id)
 
   const type = node.type ?? 'text'
@@ -32,9 +29,7 @@ export function NodeInspector({ node }: Props) {
   const fallback = TYPE_LABELS[type] || type
 
   const openCompose = () => {
-    setSelectedNodes([node.id])
-    openComposeEditor(node.id)
-    openEdit(node.id)
+    openWorkbenchForCompose(node.id)
   }
 
   const showEditorAction =

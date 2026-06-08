@@ -80,6 +80,11 @@ export function evaluateEdgeCompat(input: EvaluateEdgeCompatInput): EdgeCompatRe
     return { status: 'reject', reason: '节点类型不兼容' }
   }
 
+  // 合成节点无 modelId / 能力 profile，端口拓扑兼容即视为合法实线
+  if (targetType === 'compose') {
+    return { status: 'solid' }
+  }
+
   const modality = sourceHandleToModality(
     sourceType,
     normalizeImageSourceHandle(sourceType, sourceHandle) ?? sourceHandle,

@@ -1,11 +1,40 @@
+import { useCallback, useState } from 'react'
 import { useScriptNodeActions } from '../../hooks/useScriptNodeActions'
+import { ColumnResizeHandle } from '../common/ColumnResizeHandle'
 import { ResizableTextarea } from '../common/ResizableTextarea'
+
+const DESC_COL_STORAGE_KEY = 'lc-script-description-col-width'
+const DEFAULT_DESC_COL_WIDTH = 200
+const MIN_DESC_COL_WIDTH = 96
+const MAX_DESC_COL_WIDTH = 520
+
+function loadDescriptionColWidth(): number {
+  try {
+    const raw = localStorage.getItem(DESC_COL_STORAGE_KEY)
+    if (!raw) return DEFAULT_DESC_COL_WIDTH
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return DEFAULT_DESC_COL_WIDTH
+    return Math.min(MAX_DESC_COL_WIDTH, Math.max(MIN_DESC_COL_WIDTH, n))
+  } catch {
+    return DEFAULT_DESC_COL_WIDTH
+  }
+}
 
 interface ScriptGeneratorProps {
   nodeId: string
 }
 
 export function ScriptGenerator({ nodeId }: ScriptGeneratorProps) {
+  const [descriptionColWidth, setDescriptionColWidth] = useState(loadDescriptionColWidth)
+
+  const handleDescriptionColWidth = useCallback((width: number) => {
+    setDescriptionColWidth(width)
+    try {
+      localStorage.setItem(DESC_COL_STORAGE_KEY, String(width))
+    } catch {
+      /* ignore */
+    }
+  }, [])
   const {
     rows,
     storyInput,
@@ -78,29 +107,46 @@ export function ScriptGenerator({ nodeId }: ScriptGeneratorProps) {
 
       {rows.length > 0 && (
         <div className="max-h-[240px] overflow-y-auto lc-scroll nowheel border border-border rounded">
-          <table className="w-full text-xs text-text-primary">
-            <thead className="sticky top-0 bg-bg-secondary">
+          <table className="w-full table-fixed text-xs text-text-primary">
+            <colgroup>
+              <col className="w-8" />
+              <col style={{ width: descriptionColWidth }} />
+              <col />
+              <col className="w-12" />
+              <col className="w-16" />
+              <col className="w-8" />
+            </colgroup>
+            <thead className="sticky top-0 bg-bg-secondary z-[1]">
               <tr className="text-text-secondary">
-                <th className="px-2 py-1 text-left w-8">#</th>
-                <th className="px-2 py-1 text-left">画面</th>
+                <th className="px-2 py-1 text-left">#</th>
+                <th className="relative px-2 py-1 text-left select-none">
+                  画面描述
+                  <ColumnResizeHandle
+                    value={descriptionColWidth}
+                    onChange={handleDescriptionColWidth}
+                    min={MIN_DESC_COL_WIDTH}
+                    max={MAX_DESC_COL_WIDTH}
+                    ariaLabel="调整画面描述与提示词列宽"
+                  />
+                </th>
                 <th className="px-2 py-1 text-left">提示词</th>
-                <th className="px-2 py-1 w-12">时长</th>
-                <th className="px-2 py-1 w-16">运镜</th>
-                <th className="px-2 py-1 w-8" />
+                <th className="px-2 py-1">时长</th>
+                <th className="px-2 py-1">运镜</th>
+                <th className="px-2 py-1" />
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-t border-border">
                   <td className="px-2 py-1">{row.sequence}</td>
-                  <td className="px-2 py-1">
+                  <td className="px-2 py-1 align-top overflow-hidden">
                     <input
                       value={row.description}
                       onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                      className="nodrag w-full bg-transparent outline-none text-text-primary"
+                      className="nodrag w-full min-w-0 bg-transparent outline-none text-text-primary"
                     />
                   </td>
-                  <td className="px-2 py-1 align-top">
+                  <td className="px-2 py-1 align-top overflow-hidden">
                     <ResizableTextarea
                       value={row.prompt}
                       onChange={(e) => updateRow(row.id, 'prompt', e.target.value)}

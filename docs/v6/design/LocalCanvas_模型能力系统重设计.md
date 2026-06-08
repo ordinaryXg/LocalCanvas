@@ -3,7 +3,7 @@
 > **目标**：让画布连线、生成器面板、Agent 选模**以模型真实能力为准**，而非节点类型硬编码；能力数据**自动获取与缓存**，用户只配置 API Key 与选用模型  
 > **范围**：LLM / 图像 / 视频 / TTS 全链路；设置页重设计；主流模型能力目录  
 > **日期**：2026-06-05  
-> **状态**：✅ 核心已落地（Task 13–20）；增值项见 [V6 开发文档 §一.3](../../LocalCanvas_v6_节点体验与能力系统.md)
+> **状态**：✅ 核心已落地（Task 13–20）；增值项见 [V6 开发文档 §一.3](../LocalCanvas_v6_节点体验与能力系统.md)
 
 ---
 
@@ -869,7 +869,7 @@ Agent 规划 DAG 时查询 Registry：
 | Seedance 能力 | `src/constants/seedance.ts` |
 | 设置面板 | `src/components/panels/SettingsPanel.tsx` |
 | 适配器 | `electron/utility/services/model-adapter/` |
-| v2 模型文档 | `docs/LocalCanvas_v2_模型配置与生成器系统.md` |
+| v2 模型文档 | `docs/v2/LocalCanvas_v2_模型配置与生成器系统.md` |
 
 ### B. 参考来源（调研日期 2026-06-05）
 
@@ -895,7 +895,72 @@ Agent 规划 DAG 时查询 Registry：
 | 0.1 | 2026-06-05 | 初稿：能力本体、获取策略、设置页、目录路线图、评审清单 |
 | 0.2 | 2026-06-05 | 评审确认：P0+DeepSeek V4、虚线警告、无 L4、静态+Probe；§2.6/§十二 |
 | 0.3 | 2026-06-05 | 跨厂商推理矩阵 §2.7–§2.9、`ReasoningProfile` 统一方案、P0 目录扩充 |
+| 0.4 | 2026-06-08 | 附录 D：合并原 Superpowers 实施计划为实施记录 |
 
 ---
 
-**下一步**：编写 `docs/superpowers/plans/模型能力系统实施计划.md` 并分 Phase 实施。
+## 附录 D：实施记录（2026-06-05）
+
+> 原 `docs/superpowers/plans/2026-06-05-model-capability-system.md` 已归档至本文。  
+> **目标**：以 `ModelCapabilityProfile` + `ReasoningProfile` 驱动画布连线（实线/虚线）、生成前校验与 LLM 思考档位，覆盖 P0 主流模型。  
+> **架构**：L1 内置 `src/capabilities/builtin/profiles.ts` + `CapabilityRegistry`；`edge-compat.ts` 连线评估；`reasoning-params.ts` 三档映射厂商 API。
+
+### D.1 模块索引
+
+| 文件 | 职责 |
+|------|------|
+| `src/types/capability.ts` | Profile / Reasoning / EdgeCompat 类型 |
+| `src/capabilities/builtin/profiles.ts` | P0 内置能力目录 |
+| `src/capabilities/registry.ts` | resolve(profile_key / model / configId) |
+| `src/capabilities/reasoning-params.ts` | buildReasoningParams |
+| `src/capabilities/edge-compat.ts` | evaluateEdgeCompat + 生成前聚合校验 |
+| `src/capabilities/generation-guard.ts` | 生成前虚线边阻断 |
+| `src/capabilities/handle-slots.ts` | handle → modality/slot |
+| `src/capabilities/node-port-ui.ts` | 按 profile 动态端口 |
+| `src/capabilities/generator-ui.ts` | Generator UI 能力标志 |
+| `src/utils/canvasEdge.ts` | 实线/虚线样式 |
+| `src/stores/canvasStore.ts` | onConnect 写入 compatStatus |
+
+### D.2 Phase 0–1：能力内核与画布连线 ✅
+
+| 任务 | 内容 | 状态 |
+|------|------|------|
+| 类型定义 | `ModelCapabilityProfile`、`ReasoningProfile`、`EdgeCompatStatus` 等 | ✅ |
+| P0 内置目录 | DeepSeek V4、GPT-4o、Claude、Gemini、Qwen、GLM、Kimi、Seedream/Seedance 等 | ✅ |
+| Registry | `resolveProfile`、alias 迁移、provider 降级 | ✅ |
+| Reasoning 参数 | `buildReasoningParams` + 单测 | ✅ |
+| Handle → Slot | `sourceHandleToModality`、`targetHandleToSlotId` | ✅ |
+| Edge 兼容评估 | `solid / dashed_warn / reject` + `collectInboundEdgeWarnings` | ✅ |
+| 虚线边样式 | `edgeStyleForCompat`、`connectionToEdgeParams` | ✅ |
+| Store + Canvas | onConnect 写 compat；isValidConnection 允许 dashed | ✅ |
+| 生成前阻断 | `assertNoWarnEdgesForNode` 接入文本/图/视频生成 | ✅ |
+| LLM 思考档位 | `thinkingPreset` 节点字段 + adapter 合并 reasoning 参数 | ✅ |
+
+### D.3 Phase 2：设置页与生成器 ✅
+
+| 任务 | 内容 | 状态 |
+|------|------|------|
+| Task 13 设置页 | 已接入模型 Tab、能力徽章、详情抽屉、目录添加 | ✅ |
+| Task 14 动态参数 | `generator-ui`；`VideoEditorPanel` / `ImageEditorPanel` guard 与徽章 | ✅ |
+| Task 15 参考媒体 API | `resolveMediaRefForApi`；Seedream/Seedance 2.0 入参 | ✅ |
+| Task 16 动态端口 | `node-port-ui`；Video/Image 按 profile 灰显 | ✅ |
+| Task 17 L3 Probe | `custom-infer`、SQLite 缓存、设置页「验证能力」 | ✅ |
+| Task 18 Agent 选模 | `agent-model-select`、`agent-plan-enrich`、`agent-catalog` | ✅ |
+| Task 19 Seedance 多参考 | `reference1…9` 视频端口与生成管线 | ✅ |
+| Task 20 LLM Vision | `llmVisionSlots`、`llm-vision-content`、多图 generateText | ✅ |
+
+### D.4 验证
+
+```bash
+npm test
+npm run build
+```
+
+### D.5 v10 延续项（未在本计划关闭）
+
+以下能力债已迁入 [LocalCanvas_v10_项目优化与技术债归集.md](../../LocalCanvas_v10_项目优化与技术债归集.md)：
+
+- 图片 `reference1…4` 多槽（T10-CAP-05）
+- Dock 连线健康总览（T10-CAP-02）
+- `reasoning_content` 折叠 UI（T10-CAP-04）
+- Token 双轨合并（T10-CAP-11）

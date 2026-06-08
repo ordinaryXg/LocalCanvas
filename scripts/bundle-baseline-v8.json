@@ -1,0 +1,5 @@
+{
+  "description": "v8 时代 renderer 主包体积基线（KB），用于 v9 R2 验收对比",
+  "rendererMainKb": 1480,
+  "note": "估算值：lazy 前 index 单包约 1.45–1.52 MB；可用历史构建产物实测替换"
+}

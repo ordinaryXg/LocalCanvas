@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:full": "npm run build && playwright test",
+    "report:bundle": "node scripts/report-bundle-size.mjs",
     "package": "electron-builder --config electron-builder.yml",
     "package:win": "npm run build && electron-builder --win --config electron-builder.yml",
     "postinstall": "electron-rebuild -f -w better-sqlite3"

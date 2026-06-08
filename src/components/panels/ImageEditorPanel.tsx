@@ -29,14 +29,12 @@ import { nodeDisplayTitle } from '../../utils/nodeNaming'
 import { CurrentImagePreview } from './CurrentImagePreview'
 import { ResizablePreviewPane, PreviewWidthSplitter } from './ResizablePreviewPane'
 import { StylePresetChips, type StylePresetChipsHandle } from './StylePresetChips'
-import { useGeneratorHeaderStore } from '../../stores/generatorHeaderStore'
 import { useEditorShellStore } from '../../stores/editorShellStore'
 import { assetPathToBlobUrl } from '../../utils/assetStorage'
 
 interface ImageEditorPanelProps {
   nodeId: string
-  /** Drawer 内由壳层顶栏承载生成按钮；embedded 模式自渲染顶栏 */
-  embedded?: boolean
+  hidePreview?: boolean
 }
 
 const RATIO_MAP: Record<string, [number, number]> = {
@@ -53,14 +51,12 @@ function sourceNodeLabel(type: string | undefined): string {
   return '上游'
 }
 
-export function ImageEditorPanel({ nodeId, embedded = false }: ImageEditorPanelProps) {
+export function ImageEditorPanel({ nodeId, hidePreview = false }: ImageEditorPanelProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const removeEdge = useCanvasStore((s) => s.removeEdge)
   const nodes = useCanvasStore((s) => s.nodes)
   const edges = useCanvasStore((s) => s.edges)
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
-  const setHeaderActions = useGeneratorHeaderStore((s) => s.setActions)
-  const clearHeaderActions = useGeneratorHeaderStore((s) => s.clearActions)
   const focusStyleChips = useEditorShellStore((s) => s.focusStyleChips)
   const clearFocusStyleChips = useEditorShellStore((s) => s.clearFocusStyleChips)
   const scrollToGeneratorWarnings = useEditorShellStore((s) => s.scrollToGeneratorWarnings)
@@ -71,8 +67,6 @@ export function ImageEditorPanel({ nodeId, embedded = false }: ImageEditorPanelP
   const rowRef = useRef<HTMLDivElement>(null)
   const styleChipsRef = useRef<StylePresetChipsHandle>(null)
   const warningsRef = useRef<HTMLDivElement>(null)
-  const handleGenerateRef = useRef<() => Promise<void>>(async () => {})
-  const cancelRef = useRef<() => Promise<void>>(async () => {})
   const [containerMaxWidth, setContainerMaxWidth] = useState(PREVIEW_WIDTH_MAX)
 
   useEffect(() => {
@@ -263,26 +257,6 @@ export function ImageEditorPanel({ nodeId, embedded = false }: ImageEditorPanelP
 
   const generateDisabled = isGenerating || !modelId || !prompt || warnings.length > 0
 
-  handleGenerateRef.current = handleGenerate
-  cancelRef.current = cancel
-
-  useEffect(() => {
-    if (embedded) {
-      clearHeaderActions()
-      return () => clearHeaderActions()
-    }
-    setHeaderActions({
-      onGenerate: () => void handleGenerateRef.current(),
-      onCancel: () => void cancelRef.current(),
-    })
-    return () => clearHeaderActions()
-  }, [embedded, setHeaderActions, clearHeaderActions])
-
-  useEffect(() => {
-    if (embedded) return
-    setHeaderActions({ generateDisabled, isGenerating, progress })
-  }, [embedded, generateDisabled, isGenerating, progress, setHeaderActions])
-
   const handleSelectRecent = useCallback(
     async (assetPath: string) => {
       if (!currentProjectId) return
@@ -340,49 +314,46 @@ export function ImageEditorPanel({ nodeId, embedded = false }: ImageEditorPanelP
 
   return (
     <div className="flex flex-col min-h-0 gap-3">
-      {embedded && (
-        <div className="flex items-center justify-between shrink-0">
-          <span className="text-xs font-medium text-text-muted">🖼️ 图片 · {displayTitle}</span>
-          {generateButton}
-        </div>
-      )}
-
       <div ref={rowRef} className="flex min-h-0 items-start w-full">
-        <ResizablePreviewPane
-          height={previewHeight}
-          onHeightChange={commitPreviewHeight}
-          minHeight={PREVIEW_HEIGHT_MIN}
-          maxHeight={PREVIEW_HEIGHT_MAX}
-          width={displayPreviewWidth}
-          className="min-w-0"
-        >
-          <CurrentImagePreview
-            imageSrc={data.imageSrc as string | undefined}
-            imageAssetPath={data.imageAssetPath as string | undefined}
-            fileName={displayTitle}
-            isGenerating={isGenerating || data.isGenerating === true}
-            progress={isGenerating ? progress : (data.progress as number | undefined)}
-            recentOutputs={recentOutputs}
-            onSelectRecent={handleSelectRecent}
-            height={previewHeight - 12}
-          />
-        </ResizablePreviewPane>
+        {!hidePreview && (
+          <>
+            <ResizablePreviewPane
+              height={previewHeight}
+              onHeightChange={commitPreviewHeight}
+              minHeight={PREVIEW_HEIGHT_MIN}
+              maxHeight={PREVIEW_HEIGHT_MAX}
+              width={displayPreviewWidth}
+              className="min-w-0"
+            >
+              <CurrentImagePreview
+                imageSrc={data.imageSrc as string | undefined}
+                imageAssetPath={data.imageAssetPath as string | undefined}
+                fileName={displayTitle}
+                isGenerating={isGenerating || data.isGenerating === true}
+                progress={isGenerating ? progress : (data.progress as number | undefined)}
+                recentOutputs={recentOutputs}
+                onSelectRecent={handleSelectRecent}
+                height={previewHeight - 12}
+              />
+            </ResizablePreviewPane>
 
-        <PreviewWidthSplitter
-          currentWidth={displayPreviewWidth}
-          minWidth={PREVIEW_WIDTH_MIN}
-          maxWidth={containerMaxWidth}
-          height={previewHeight}
-          onWidthPreview={setLivePreviewWidth}
-          onWidthChange={(w) => {
-            setLivePreviewWidth(null)
-            commitPreviewWidth(w)
-          }}
-        />
+            <PreviewWidthSplitter
+              currentWidth={displayPreviewWidth}
+              minWidth={PREVIEW_WIDTH_MIN}
+              maxWidth={containerMaxWidth}
+              height={previewHeight}
+              onWidthPreview={setLivePreviewWidth}
+              onWidthChange={(w) => {
+                setLivePreviewWidth(null)
+                commitPreviewWidth(w)
+              }}
+            />
+          </>
+        )}
 
         <div
           className="flex-1 min-w-[200px] space-y-2.5 overflow-y-auto lc-scroll min-h-0"
-          style={{ maxHeight: previewHeight }}
+          style={hidePreview ? undefined : { maxHeight: previewHeight }}
         >
           <div>
             <label className="text-[10px] text-text-muted">模型</label>
@@ -551,6 +522,7 @@ export function ImageEditorPanel({ nodeId, embedded = false }: ImageEditorPanelP
             />
           )}
         </div>
+        <div className="flex justify-end pt-1">{generateButton}</div>
       </div>
     </div>
   )

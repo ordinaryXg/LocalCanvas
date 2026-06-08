@@ -9,6 +9,8 @@ export interface NodePortDef {
   top?: string
   /** 槽位已满等场景可灰显（仍保留已连接边） */
   disabled?: boolean
+  /** 入边槽位计数，如 `2/9` */
+  slotLabel?: string
 }
 
 /** 将 N 个入边端口均匀分布在节点左侧 */
