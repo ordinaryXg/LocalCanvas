@@ -10,8 +10,8 @@
 docs/
 ├── README.md                          # 本说明
 ├── LocalCanvas_开发步骤表.md           # 跨版本 Phase 拆解
-├── LocalCanvas_v1_*.md … v11_*.md     # 各版本索引（根目录）
-├── v1/ … v11/                         # 版本详案目录
+├── LocalCanvas_v1_*.md … v12_*.md     # 各版本索引（根目录）
+├── v1/ … v12/                         # 版本详案目录
 │   ├── LocalCanvas_vN_*.md            # 完整版本文档
 │   ├── design/                        # 设计专文（v6、v8）
 │   └── *.md                           # 验收归档、用户指南等
@@ -31,7 +31,15 @@ docs/
 | v8 | [LocalCanvas_v8_界面与体验重设计.md](./LocalCanvas_v8_界面与体验重设计.md) | [v8/](./v8/) · [design/](./v8/design/) |
 | v9 | [LocalCanvas_v9_精简优化与体验收官.md](./LocalCanvas_v9_精简优化与体验收官.md) | [v9/](./v9/) |
 | v10 | [LocalCanvas_v10_项目优化与技术债归集.md](./LocalCanvas_v10_项目优化与技术债归集.md) | [v10/](./v10/) |
-| v11 | [LocalCanvas_v11_Agent与设置增强.md](./LocalCanvas_v11_Agent与设置增强.md) | [v11/](./v11/) |
+| v11 | [LocalCanvas_v11_Agent与设置增强.md](./LocalCanvas_v11_Agent与设置增强.md) | [v11/](./v11/) · Agent 设计详案 |
+| v12 | [LocalCanvas_v12_Studio复杂片与Agent深化.md](./LocalCanvas_v12_Studio复杂片与Agent深化.md) | [v12/](./v12/) · 继承 v11 设计，负责 Studio 实现 |
+
+## Agent 实现进度（活文档）
+
+| 文档 | 说明 |
+|------|------|
+| [LocalCanvas_Agent-实现进度统计表.md](./LocalCanvas_Agent-实现进度统计表.md) | 根索引 |
+| [v11/LocalCanvas_Agent-实现进度统计表.md](./v11/LocalCanvas_Agent-实现进度统计表.md) | **逐项更新进度**（IMP-* / ST-* / QA） |
 
 ## 用户指南（按版本目录）
 

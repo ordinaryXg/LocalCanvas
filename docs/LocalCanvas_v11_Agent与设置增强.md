@@ -22,5 +22,9 @@
 | Agent 功能设计 | [v11/LocalCanvas_Agent功能设计.md](./v11/LocalCanvas_Agent功能设计.md) |
 | Agent UI 设计 | [v11/LocalCanvas_Agent-UI设计.md](./v11/LocalCanvas_Agent-UI设计.md) |
 | 复杂片型生产模型 | [v11/LocalCanvas_Agent-复杂片型生产模型.md](./v11/LocalCanvas_Agent-复杂片型生产模型.md) |
+| 演进对照 | [v11/LocalCanvas_Agent-演进对照.md](./v11/LocalCanvas_Agent-演进对照.md) |
+| **v12 规划**（Slice D 实现） | [LocalCanvas_v12_Studio复杂片与Agent深化.md](./LocalCanvas_v12_Studio复杂片与Agent深化.md) |
+| **实现进度统计表** | [LocalCanvas_Agent-实现进度统计表.md](./LocalCanvas_Agent-实现进度统计表.md) |
 
-**前置**：[v10 收官](./LocalCanvas_v10_项目优化与技术债归集.md)
+**前置**：[v10 收官](./LocalCanvas_v10_项目优化与技术债归集.md)  
+**后续**：[v12 Studio 复杂片](./LocalCanvas_v12_Studio复杂片与Agent深化.md)（设计在 v11/，实现在 v12）

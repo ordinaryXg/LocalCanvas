@@ -1,7 +1,7 @@
 # LocalCanvas Agent UI 设计（v11）
 
 > **文档性质**：界面与交互设计 · 与功能设计同步  
-> **功能锚点**：[LocalCanvas_Agent功能设计.md](./LocalCanvas_Agent功能设计.md) · [复杂片型生产模型](./LocalCanvas_Agent-复杂片型生产模型.md)  
+> **功能锚点**：[LocalCanvas_Agent功能设计.md](./LocalCanvas_Agent功能设计.md) · [复杂片型生产模型](./LocalCanvas_Agent-复杂片型生产模型.md) · [演进对照](./LocalCanvas_Agent-演进对照.md)  
 > **视觉锚点**：[v8 视觉语言与设计令牌](../v8/design/01_视觉语言与设计令牌.md) · [v8 交互语法](../v8/design/03_交互语法与微反馈.md)  
 > **代码触点**：`SettingsAgentTab`（待建）· `AgentCompanion` · `AgentPanel` · `WorkflowPlanPreview`
 
@@ -621,7 +621,39 @@ Studio 确认落盘前的主卡片：
 └──────────────────────────────────┘
 ```
 
-### 3.12 设置页 — 片型能力预检（扩展 §2.2）
+### 3.12 Studio Handoff 条（v11.1 P1）
+
+> 规格见 [演进对照 §五](./LocalCanvas_Agent-演进对照.md#五studio-handoff--agent-退场导航)。
+
+**位置 A（首选）**：`AgentPanel` 消息流 **吸底**，在输入区上方：
+
+```
+┌─ 下一步 ─────────────────────────────────────────┐
+│ 打开脚本，检查 Agent 生成的分镜表    [前往脚本] │
+│ 需要分镜图？ 转为分镜组并批量出图    [分镜组]   │
+│                         [收起] [继续在 Agent] │
+└────────────────────────────────────────────────┘
+```
+
+**位置 B（可选）**：`EditorShell` 顶栏下 slim banner（`h-8`），当用户关闭 Agent 浮岛时仍可见。
+
+| 样式 | 类 |
+|------|-----|
+| 容器 | `shrink-0 border-t border-border bg-bg-tertiary/90 px-3 py-2` |
+| 步骤文案 | `text-[10px] text-text-muted` |
+| 主按钮 | `text-[10px] px-2 py-1 rounded bg-accent text-white` |
+| 次按钮 | `text-[10px] text-accent hover:underline` |
+
+**交互**：
+
+- 仅 Studio skeleton 落盘或 CP2+ 事件后显示；Lite auto 计划 **不显示**
+- 点击「前往脚本」→ 选中 `script-1` 节点 + `toggleDrawer('nodes')` + 节点 pulse 3s
+- 点击「分镜组」→ 若无 frames 则触发「脚本→转分镜组」+ `setMode('workbench')`
+- 「继续在 Agent」→ Build 模式 + 保持钉住
+
+**组件**：`AgentHandoffBar.tsx` · store 字段 `agentStore.handoff: { step, scriptNodeId?, storyboardNodeId?, composeNodeId? }`
+
+### 3.13 设置页 — 片型能力预检（扩展 §2.2）
 
 就绪卡按 **用户最常做的 Studio 片型** 展示能力矩阵：
 
@@ -684,6 +716,7 @@ sequenceDiagram
 | `AgentBriefCard` | `src/components/agent/AgentBriefCard.tsx` | D |
 | `AgentShotList` | `src/components/agent/AgentShotList.tsx` | D |
 | `AgentPhaseRail` | `src/components/agent/AgentPhaseRail.tsx` | D |
+| `AgentHandoffBar` | `src/components/agent/AgentHandoffBar.tsx` | B |
 | `GraphPatchPreview` | `src/components/panels/GraphPatchPreview.tsx` | B |
 | `AgentPhaseStatus` | `src/components/agent/AgentPhaseStatus.tsx` | C |
 
@@ -699,7 +732,7 @@ sequenceDiagram
 | Slice | 设置页 UI | 对话窗 UI |
 |-------|-----------|-----------|
 | **A** | Agent Tab + 就绪卡 + 模板开关 + 执行偏好（checkbox） | 模板卡片 + 模式切换 + 预览卡 blocking 跳转 + textarea |
-| **B** | checkpoint 说明 tooltip | Focused 芯片 + GraphPatch 预览 + 「换一个方案」 |
+| **B** | checkpoint 说明 tooltip | Focused 芯片 + GraphPatch + Handoff 条 + 「换一个方案」 |
 | **C** | Tab 警告圆点 | 阶段状态条 + L2 参数微调行 + 示例点击填入 |
 | **D (v12)** | 片型能力矩阵 | Brief 卡 + Shot List + Phase Rail + Production 预览 |
 
@@ -733,6 +766,8 @@ sequenceDiagram
 
 ## 相关文档
 
+- [v12 版本规划](../v12/LocalCanvas_v12_Studio复杂片与Agent深化.md)（§3.11 Brief/Shot/Rail 等 Studio UI 的实现与 DoD）
+- [演进对照](./LocalCanvas_Agent-演进对照.md)
 - [复杂片型生产模型](./LocalCanvas_Agent-复杂片型生产模型.md)
 - [Agent 功能设计](./LocalCanvas_Agent功能设计.md)
 - [v11 版本规划](./LocalCanvas_v11_Agent与设置增强.md)

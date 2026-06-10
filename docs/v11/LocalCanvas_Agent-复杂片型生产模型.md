@@ -2,6 +2,7 @@
 
 > **文档性质**：功能设计专章 · 品牌片 / 叙事短片 / 多镜头工程  
 > **父文档**：[LocalCanvas_Agent功能设计.md](./LocalCanvas_Agent功能设计.md)  
+> **落盘契约**：[演进对照 §三](./LocalCanvas_Agent-演进对照.md#三shotspec-落盘契约) · **阶段枚举**：[演进对照 §二](./LocalCanvas_Agent-演进对照.md#二统一阶段枚举) · **Handoff**：[演进对照 §五](./LocalCanvas_Agent-演进对照.md#五studio-handoff--agent-退场导航)
 > **参照**：[KupkaProd Cinema Pipeline](https://github.com/Matticusnicholas/KupkaProd-Cinema-Pipeline) · [Wan2.1 ComfyUI 多阶段视频管线](https://comfyui-wiki.com/en/tutorial/advanced/video/wan2.1/wan2-1-video-model) · ComfyUI 超分/插帧组合工作流
 
 ---
@@ -46,34 +47,33 @@ Agent 规划前先做 **片型分类**，决定阶段深度与节点展开策略
 
 ---
 
-## 三、七阶段生产管线（对标行业，映射 LocalCanvas）
+## 三、制作管线（ST 阶段 + CP 检查点）
 
-借鉴 KupkaProd **Phase 1–4** 与 ComfyUI **分组工作流**（生成 / 超分 / 插帧分离），在 LocalCanvas 抽象为 **七个逻辑阶段**。Agent 输出 `ProductionPlan` 时显式标注阶段，而非扁平节点列表。
+> **统一命名**见 [演进对照 §二](./LocalCanvas_Agent-演进对照.md#二统一阶段枚举)。下文 ST = 制作阶段，CP = 用户检查点。
 
-```
-Phase 0  Brief        约束采集（时长、画幅、风格、禁用项）
-Phase 1  Bible        创意圣经（调性、角色/产品设定、视觉参考）
-Phase 2  Beat&Shot    节拍表 + 镜头表（Shot List）
-Phase 3  Storyboard   关键帧 / 分镜图（可多候选）
-Phase 4  Production   逐镜视频（T2V / I2V / FLF）
-Phase 5  Review       选 Take / 批注重生
-Phase 6  Assembly     合成、配乐、旁白、字幕
-Phase 7  Delivery     导出、审片包（PNG 分镜板 + MP4）
-```
+借鉴 KupkaProd 与 ComfyUI 分组工作流，在 LocalCanvas 抽象为 **六段制作 + 七道检查点**（Brief/Bible 合并为 ST-Brief，导出独立为 CP6）。
+
+| ST 阶段 | 活动 | CP 门禁 |
+|---------|------|---------|
+| ST-Brief | 简报 + 创意圣经 | CP0 |
+| ST-Script | 节拍表 + 镜头表 + 脚本定稿 | CP1、CP2 |
+| ST-Board | 分镜关键帧 | CP3 |
+| ST-Shoot | 逐镜视频 / Take | CP4 |
+| ST-Assemble | 合成、配乐、字幕 | CP5 |
+| ST-Deliver | 导出 | CP6 |
 
 ### 3.1 阶段与画布节点映射
 
-| 阶段 | 画布承载 | DAG 策略 |
-|------|----------|----------|
-| P0–P1 | Agent 会话内 `ProductionBrief` 卡片（可编辑） | 不跑 |
-| P2 | `script` 节点（`storyInput` + 后续 `scriptRows`） | 跑到脚本生成分镜后 **checkpoint** |
-| P3 | `storyboard` 节点（由脚本「转为分镜组」） | 批量出图前 checkpoint；可 `/grid` |
-| P4 | 分镜帧关联的 `image`/`video` 或 per-shot 子图 | 按镜并行受 `max_concurrent_tasks` 限制 |
-| P5 | 分镜组 UI + 历史面板选 Take | 人工，非 Agent |
-| P6 | `compose` + `audio` + 字幕轨 | 手动进剪辑台；可半自动连线 |
-| P7 | 合成导出 | compose IPC |
+| ST / CP | 画布承载 | DAG / 导航 |
+|---------|----------|------------|
+| ST-Brief / CP0–1 | 会话内 Brief + Shot List（v12） | 不跑 DAG |
+| ST-Script / CP2 | `script`（`storyInput` + `scriptRows`） | 脚本生成后 Handoff；v11.1 不自动 `startRun` |
+| ST-Board / CP3 | `storyboard`（脚本转分镜组） | 批量出图前人工审；`/grid` |
+| ST-Shoot / CP4 | 帧关联 image/video 或 per-shot 子图 | 按镜并行；Take 选优 v12 |
+| ST-Assemble / CP5 | `compose` + `audio` + 字幕 | 剪辑台；Handoff 打开合成 |
+| ST-Deliver / CP6 | compose 导出 | compose IPC |
 
-**关键原则**：P4 永远不默认「一条 DAG 跑完所有镜头」——与 KupkaProd 在关键帧与 Take 上的两次人工 Review 同构。
+**关键原则**：ST-Shoot 不默认「一条 DAG 跑完所有镜头」；CP2 起由 [Handoff](./LocalCanvas_Agent-演进对照.md#五studio-handoff--agent-退场导航) 引导至专业 UI。
 
 ### 3.2 镜头生产模式（Shot Production Mode）
 
@@ -300,16 +300,21 @@ interface CreativeBibleEntry {
 
 ## 八、人工检查点矩阵
 
-| 检查点 | 触发阶段 | 用户动作 | LocalCanvas UI |
-|--------|----------|----------|----------------|
-| CP-Brief | P0–P1 | 改时长/画幅/调性 | Agent Brief 卡 |
-| CP-Script | P2 末 | 改分镜表、删镜 | 脚本面板 |
-| CP-Storyboard | P3 末 | 批阅关键帧、重生 | 分镜组宫格 |
-| CP-Take | P4 末 | 选历史 Take | 历史面板 / 分镜帧状态 |
-| CP-Assembly | P6 初 | 排序、裁剪 | 合成剪辑台 |
-| CP-Export | P7 | 确认编码 | 合成导出抽屉 |
+与 [演进对照 CP0–CP6](./LocalCanvas_Agent-演进对照.md#21-检查点cp用户可感知门禁) 一致。
 
-Agent **不得** 跳过 CP-Brief 与 CP-Script 直接 auto 全流程（复杂片型）。
+| CP | 名称 | 用户动作 | UI | Agent 退场后 |
+|----|------|----------|-----|--------------|
+| CP0 | 简报 | 确认 Brief | Agent Brief 卡 | — |
+| CP1 | 镜头表 | 确认/改镜 | Agent Shot List | — |
+| CP2 | 脚本 | 改分镜表 | 脚本面板 | **Handoff → 前往脚本** |
+| CP3 | 分镜图 | 批阅、重生 | 分镜组宫格 | **Handoff → 打开分镜组** |
+| CP4 | 成片 | 选 Take | 分镜+历史 | Handoff → `/run` 提示 |
+| CP5 | 装配 | 剪辑 | 剪辑台 | **Handoff → 打开合成** |
+| CP6 | 导出 | 编码 | 导出抽屉 | — |
+
+Agent **不得** 跳过 CP0–CP1；CP2 起由 [Handoff 导航](./LocalCanvas_Agent-演进对照.md#五studio-handoff--agent-退场导航) 接管，避免对话窗失联。
+
+**时长校验**：落盘前执行 [§3.3 时长预算](./LocalCanvas_Agent-演进对照.md#33-时长预算校验)。
 
 ---
 
@@ -330,14 +335,16 @@ Agent **不得** 跳过 CP-Brief 与 CP-Script 直接 auto 全流程（复杂片
 
 ## 十、实现路线（与 Slice 对齐）
 
-| 阶段 | 交付 | 复杂片支持度 |
+> 以 [演进对照 §1.2](./LocalCanvas_Agent-演进对照.md#12-v110-范围收紧与详案对齐) 为 v11.0 真相源。
+
+| 版本 | 交付 | 复杂片支持度 |
 |------|------|--------------|
-| v11.0 A | 模板召回、Settings | 片型分类 + Brief 卡 UI（只读预览） |
-| v11.1 B | GraphPatch、checkpoint | skeleton ProductionPlan 落盘 |
-| v11.2 C | 阶段状态条 | Shot List 预览表 |
-| v12.0 | `buildProductionPlan`、creativeBible | 品牌片/叙事片完整 skeleton |
-| v12.1 | per-shot 展开、多 Take | 产品片 ref-sheet |
-| v12.2 | 时长预算校验、Scene 分组 DAG | 2min+ 短片 |
+| v11.0 A | 模板召回、Settings、Preferences | 片型标签只读（可选），**无 Brief 确认流** |
+| v11.1 B | GraphPatch、Handoff、不自动 startRun | checkpoint 最小策略 |
+| v11.2 C | Phase Rail、Brief 字段可编辑 | Shot List 折叠预览 |
+| v12.0 | `buildProductionPlan`、§三落盘契约 | skeleton + 时长校验 |
+| v12.1 | per-shot、多 Take | ref-sheet |
+| v12.2 | Scene 分组 DAG、ST 冒烟测试 | 2min+ 短片 |
 
 ---
 
@@ -349,6 +356,7 @@ ComfyUI 常将 **超分 / 插帧** 作为独立分组。LocalCanvas 当前以 **
 
 ## 相关文档
 
+- [演进对照](./LocalCanvas_Agent-演进对照.md) — ShotSpec 映射、Handoff、测试 ST-*
 - [Agent 功能设计](./LocalCanvas_Agent功能设计.md)
 - [Agent UI 设计](./LocalCanvas_Agent-UI设计.md)
 - [工作流模板](../v4/workflow-templates.md)
