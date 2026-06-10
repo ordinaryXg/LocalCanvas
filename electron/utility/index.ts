@@ -31,7 +31,7 @@ import {
   initComposeService,
   type ComposeOptions,
 } from './services/compose-service'
-import { agentChat } from './services/agent/agent-service'
+import { agentBuildFromTemplate, agentChat } from './services/agent/agent-service'
 import { listSkills } from './services/agent/skills/index'
 import {
   exportStoryboardPng,
@@ -371,6 +371,7 @@ function handleAgentRequest(req: UtilityRequest): void {
           const result = await agentChat(adapters!, currentConfig!, {
             message: req.data.message as string,
             disabledSkills: req.data.disabledSkills as string[] | undefined,
+            freePlan: req.data.freePlan as boolean | undefined,
           })
           post('agent:result', result, req.id)
         } catch (error) {
@@ -381,6 +382,19 @@ function handleAgentRequest(req: UtilityRequest): void {
     }
     case 'agent:listSkills': {
       post('agent:skills', { skills: listSkills() }, req.id)
+      break
+    }
+    case 'agent:buildFromTemplate': {
+      try {
+        const result = agentBuildFromTemplate(currentConfig!, {
+          skillId: req.data.skillId as string,
+          intent: req.data.intent as string,
+          disabledSkills: req.data.disabledSkills as string[] | undefined,
+        })
+        post('agent:buildResult', result, req.id)
+      } catch (error) {
+        post('agent:error', { error: getAdapterErrorMessage(error) }, req.id)
+      }
       break
     }
     default:

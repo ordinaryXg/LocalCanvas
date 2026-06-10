@@ -326,11 +326,33 @@ export class UtilityClient {
   async agentChat(payload: {
     message: string
     disabledSkills?: string[]
-  }): Promise<{ reply: string; plan?: unknown; skillId?: string }> {
+    freePlan?: boolean
+  }): Promise<{
+    reply: string
+    plan?: unknown
+    skillId?: string
+    suggestedTemplates?: Array<{ id: string; name: string; description: string; score: number }>
+    planWarnings?: string[]
+  }> {
     return (await this.send('agent:chat', payload, 120000)) as {
       reply: string
       plan?: unknown
       skillId?: string
+      suggestedTemplates?: Array<{ id: string; name: string; description: string; score: number }>
+      planWarnings?: string[]
+    }
+  }
+
+  async agentBuildFromTemplate(payload: {
+    skillId: string
+    intent: string
+    disabledSkills?: string[]
+  }): Promise<{ reply: string; plan?: unknown; skillId?: string; planWarnings?: string[] }> {
+    return (await this.send('agent:buildFromTemplate', payload, 60000)) as {
+      reply: string
+      plan?: unknown
+      skillId?: string
+      planWarnings?: string[]
     }
   }
 

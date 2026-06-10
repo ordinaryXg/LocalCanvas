@@ -272,6 +272,13 @@ export interface LocalCanvasAPI {
       message: string
       sessionId?: string
       disabledSkills?: string[]
+      freePlan?: boolean
+    }) => Promise<import('./agent').AgentChatResult>
+    buildFromTemplate: (payload: {
+      skillId: string
+      intent: string
+      sessionId?: string
+      disabledSkills?: string[]
     }) => Promise<import('./agent').AgentChatResult>
     listSessions: (projectId?: string) => Promise<import('./agent').AgentSessionSummary[]>
     getSession: (sessionId: string) => Promise<import('./agent').AgentSessionDetail | null>

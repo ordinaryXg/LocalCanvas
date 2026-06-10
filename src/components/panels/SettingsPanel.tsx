@@ -7,8 +7,14 @@ import { SettingsDefaultsTab } from './SettingsDefaultsTab'
 import { SettingsToolsTab } from './SettingsToolsTab'
 import { SettingsGeneralTab } from './SettingsGeneralTab'
 import { SettingsShortcutsTab } from './SettingsShortcutsTab'
+import { SettingsAgentTab } from './SettingsAgentTab'
+import {
+  useEditorShellStore,
+  type SettingsFocus,
+  type SettingsTabId,
+} from '../../stores/editorShellStore'
 
-type TabId = 'models' | 'defaults' | 'tools' | 'general' | 'shortcuts'
+type TabId = SettingsTabId
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -39,6 +45,7 @@ function prepareConfigForSave(config: AppConfig): AppConfig {
 const TABS: { id: TabId; labelKey: string; fallback: string }[] = [
   { id: 'models', labelKey: 'settings.tabModels', fallback: '🧩 已接入模型' },
   { id: 'defaults', labelKey: 'settings.tabDefaults', fallback: '⭐ 默认模型' },
+  { id: 'agent', labelKey: 'settings.tabAgent', fallback: '🤖 Agent' },
   { id: 'tools', labelKey: 'settings.tabTools', fallback: '🛠 媒体与路径' },
   { id: 'general', labelKey: 'settings.tabGeneral', fallback: '🌐 界面' },
   { id: 'shortcuts', labelKey: 'settings.tabShortcuts', fallback: '⌨️ 快捷键' },
@@ -46,8 +53,12 @@ const TABS: { id: TabId; labelKey: string; fallback: string }[] = [
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const t = useT()
+  const pendingSettingsTab = useEditorShellStore((s) => s.pendingSettingsTab)
+  const pendingSettingsFocus = useEditorShellStore((s) => s.pendingSettingsFocus)
+  const consumePendingSettingsNav = useEditorShellStore((s) => s.consumePendingSettingsNav)
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('models')
+  const [agentFocus, setAgentFocus] = useState<SettingsFocus>(null)
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [ffmpegDownloading, setFfmpegDownloading] = useState(false)
   const [ffmpegDownloadPct, setFfmpegDownloadPct] = useState(0)
@@ -96,6 +107,19 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     const seen = Number(localStorage.getItem(CATALOG_SEEN_KEY) ?? String(catalogVersion))
     setCatalogNotice(seen < catalogVersion)
   }, [])
+
+  useEffect(() => {
+    if (!pendingSettingsTab) return
+    setActiveTab(pendingSettingsTab)
+    setAgentFocus(pendingSettingsFocus)
+    consumePendingSettingsNav()
+  }, [pendingSettingsTab, pendingSettingsFocus, consumePendingSettingsNav])
+
+  const navigateTab = (tab: TabId, focus?: SettingsFocus) => {
+    setActiveTab(tab)
+    if (tab === 'agent') setAgentFocus(focus ?? null)
+    setStatusMsg(null)
+  }
 
   useEffect(() => {
     if (config) latestConfigRef.current = config
@@ -237,6 +261,13 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           )}
           {activeTab === 'defaults' && (
             <SettingsDefaultsTab config={config} updateConfig={updateConfig} />
+          )}
+          {activeTab === 'agent' && (
+            <SettingsAgentTab
+              config={config}
+              focus={agentFocus}
+              onNavigateTab={navigateTab}
+            />
           )}
           {activeTab === 'tools' && (
             <SettingsToolsTab

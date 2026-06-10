@@ -21,3 +21,21 @@ describe('editorShellStore mode persistence', () => {
     expect(useEditorShellStore.getState().mode).toBe('workbench')
   })
 })
+
+describe('editorShellStore openSettings', () => {
+  beforeEach(() => {
+    useEditorShellStore.setState({
+      settingsOpen: false,
+      pendingSettingsTab: null,
+      pendingSettingsFocus: null,
+    })
+  })
+
+  it('opens settings with pending tab and focus', () => {
+    useEditorShellStore.getState().openSettings({ tab: 'agent', focus: 'readiness' })
+    const state = useEditorShellStore.getState()
+    expect(state.settingsOpen).toBe(true)
+    expect(state.pendingSettingsTab).toBe('agent')
+    expect(state.pendingSettingsFocus).toBe('readiness')
+  })
+})

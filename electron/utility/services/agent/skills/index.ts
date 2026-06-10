@@ -11,15 +11,29 @@ export function listSkills(): Array<{ id: string; name: string; description: str
 }
 
 export function matchSkill(intent: string, disabledSkills: string[] = []): AgentSkill | null {
+  const ranked = rankSkillsForIntent(intent, disabledSkills)
+  return ranked[0]?.skill ?? null
+}
+
+export interface RankedSkill {
+  skill: AgentSkill
+  score: number
+}
+
+export function rankSkillsForIntent(intent: string, disabledSkills: string[] = []): RankedSkill[] {
   const lower = intent.toLowerCase()
+  const scored: RankedSkill[] = []
   for (const skill of BUILTIN_SKILLS) {
     if (disabledSkills.includes(skill.id)) continue
     if (!skill.triggers?.length) continue
-    if (skill.triggers.some((t) => lower.includes(t.toLowerCase()))) {
-      return skill
+    let score = 0
+    for (const trigger of skill.triggers) {
+      if (lower.includes(trigger.toLowerCase())) score += 1
     }
+    if (score > 0) scored.push({ skill, score })
   }
-  return null
+  scored.sort((a, b) => b.score - a.score)
+  return scored
 }
 
 export function buildSkillPlan(skillId: string, context: SkillContext): WorkflowPlan | null {

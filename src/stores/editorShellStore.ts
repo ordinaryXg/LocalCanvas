@@ -5,6 +5,8 @@ import { useComposeEditorStore } from './composeEditorStore'
 
 export type EditorMode = 'canvas' | 'workbench'
 export type DockDrawer = 'nodes' | 'tools' | 'assets' | 'history' | 'health' | null
+export type SettingsTabId = 'models' | 'defaults' | 'tools' | 'general' | 'shortcuts' | 'agent'
+export type SettingsFocus = 'readiness' | 'templates' | 'prefs' | 'default_llm' | 'default_image' | 'default_video' | null
 
 const LS_DRAWER_HEIGHT = 'lc-generator-drawer-ratio'
 const LS_INSPECTOR_WIDTH = 'lc-inspector-width'
@@ -98,6 +100,8 @@ interface EditorShellState {
   agentPinned: boolean
   shortcutsOpen: boolean
   settingsOpen: boolean
+  pendingSettingsTab: SettingsTabId | null
+  pendingSettingsFocus: SettingsFocus
   focusStyleChips: boolean
   scrollToGeneratorWarnings: boolean
 
@@ -114,6 +118,8 @@ interface EditorShellState {
   setAgentPinned: (pinned: boolean) => void
   setShortcutsOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
+  openSettings: (opts?: { tab?: SettingsTabId; focus?: SettingsFocus }) => void
+  consumePendingSettingsNav: () => void
   requestFocusStyleChips: () => void
   clearFocusStyleChips: () => void
   requestScrollToGeneratorWarnings: () => void
@@ -136,6 +142,8 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
   agentPinned: false,
   shortcutsOpen: false,
   settingsOpen: false,
+  pendingSettingsTab: null,
+  pendingSettingsFocus: null,
   focusStyleChips: false,
   scrollToGeneratorWarnings: false,
 
@@ -221,8 +229,19 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
       set({ settingsOpen: true, generatorDrawerOpen: false })
       return
     }
-    set({ settingsOpen: false })
+    set({ settingsOpen: false, pendingSettingsTab: null, pendingSettingsFocus: null })
   },
+
+  openSettings: (opts) => {
+    set({
+      settingsOpen: true,
+      generatorDrawerOpen: false,
+      pendingSettingsTab: opts?.tab ?? null,
+      pendingSettingsFocus: opts?.focus ?? null,
+    })
+  },
+
+  consumePendingSettingsNav: () => set({ pendingSettingsTab: null, pendingSettingsFocus: null }),
 
   requestFocusStyleChips: () => set({ focusStyleChips: true, generatorDrawerOpen: true }),
   clearFocusStyleChips: () => set({ focusStyleChips: false }),

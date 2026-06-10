@@ -14,6 +14,7 @@ export function registerAgentIpc(): void {
         message: string
         sessionId?: string
         disabledSkills?: string[]
+        freePlan?: boolean
       },
     ) => {
       try {
@@ -32,6 +33,7 @@ export function registerAgentIpc(): void {
         const result = await getUtilityClient().agentChat({
           message: payload.message,
           disabledSkills: payload.disabledSkills,
+          freePlan: payload.freePlan,
         })
 
         const assistantMsg: AgentMessage = {
@@ -77,4 +79,53 @@ export function registerAgentIpc(): void {
   ipcMain.handle('agent:listSkills', async () => {
     return getUtilityClient().listAgentSkills()
   })
+
+  ipcMain.handle(
+    'agent:buildFromTemplate',
+    async (
+      _e,
+      payload: {
+        skillId: string
+        intent: string
+        sessionId?: string
+        disabledSkills?: string[]
+      },
+    ) => {
+      try {
+        let sessionId = payload.sessionId
+        if (!sessionId) {
+          sessionId = agentSessionRepository.create(
+            getActiveProjectId() ?? undefined,
+            payload.intent.slice(0, 40),
+          )
+          const userMsg: AgentMessage = {
+            role: 'user',
+            content: payload.intent,
+            timestamp: new Date().toISOString(),
+          }
+          agentSessionRepository.appendMessage(sessionId, userMsg)
+        }
+
+        const result = await getUtilityClient().agentBuildFromTemplate({
+          skillId: payload.skillId,
+          intent: payload.intent,
+          disabledSkills: payload.disabledSkills,
+        })
+
+        const assistantMsg: AgentMessage = {
+          role: 'assistant',
+          content: result.reply,
+          plan: result.plan as AgentMessage['plan'],
+          timestamp: new Date().toISOString(),
+        }
+        agentSessionRepository.appendMessage(sessionId, assistantMsg, result.plan as AgentMessage['plan'])
+
+        return { ...result, sessionId }
+      } catch (error) {
+        logger.error('agent:buildFromTemplate failed', error)
+        const message = error instanceof Error ? error.message : String(error)
+        return { reply: '', sessionId: payload.sessionId ?? '', error: 'AGENT_FAILED', message }
+      }
+    },
+  )
 }

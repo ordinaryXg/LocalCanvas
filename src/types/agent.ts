@@ -32,11 +32,20 @@ export interface AgentMessage {
   timestamp: string
 }
 
+export interface SuggestedTemplate {
+  id: string
+  name: string
+  description: string
+  score: number
+}
+
 export interface AgentChatResult {
   reply: string
   plan?: WorkflowPlan
   sessionId: string
   skillId?: string
+  suggestedTemplates?: SuggestedTemplate[]
+  planWarnings?: string[]
   error?: string
   message?: string
 }
@@ -48,6 +57,16 @@ export interface AgentSessionDetail {
   messages: AgentMessage[]
   lastPlan?: WorkflowPlan
   updatedAt: string
+}
+
+export interface AgentPreferences {
+  version: 1
+  disabledTemplateIds: string[]
+  defaultMode: 'auto' | 'plan' | 'build'
+  autoRunAfterConfirm: boolean
+  checkpointEnabled: boolean
+  defaultTrack: 'auto' | 'lite' | 'studio'
+  takesPerShot: number
 }
 
 export interface AgentSessionSummary {

@@ -1,7 +1,7 @@
 # LocalCanvas Agent — 实现功能统计表
 
 > **用途**：按条目跟踪 v11 / v12 Agent 实现进度；你更新本表即可，设计规格仍以 [演进对照](./LocalCanvas_Agent-演进对照.md) 为准。  
-> **最后更新**：2026-06-10  
+> **最后更新**：2026-06-10（v11.0 Slice A 代码落地）  
 > **关联**：[v11 规划](./LocalCanvas_v11_Agent与设置增强.md) · [v12 规划](../v12/LocalCanvas_v12_Studio复杂片与Agent深化.md) · [演进对照](./LocalCanvas_Agent-演进对照.md)
 
 ---
@@ -40,14 +40,14 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | 切片 | 条目数 | ✅ | 🔶 | ⬜ | ⏸ |
 |------|--------|----|----|-----|-----|
 | 基线回归 A01–A07 | 7 | 7 | 0 | 0 | 0 |
-| v11.0 Slice A | 12 | 0 | 0 | 12 | 0 |
+| v11.0 Slice A | 12 | 11 | 0 | 1 | 0 |
 | v11.1 Slice B | 8 | 0 | 0 | 8 | 0 |
 | v11.2 Slice C | 6 | 0 | 0 | 6 | 0 |
 | v12.0 Wave 1 | 14 | 0 | 0 | 14 | 0 |
 | v12.1 Wave 2 | 5 | 0 | 0 | 5 | 0 |
 | v12.2 Wave 3 | 4 | 0 | 0 | 4 | 0 |
-| 验收 / QA | 9 | 0 | 0 | 9 | 0 |
-| **合计** | **65** | **7** | **0** | **58** | **0** |
+| 验收 / QA | 9 | 1 | 0 | 8 | 0 |
+| **合计** | **65** | **18** | **0** | **47** | **0** |
 
 > 基线 A01–A07 在 [演进对照 §一](./LocalCanvas_Agent-演进对照.md#一能力--版本--代码对照表) 已标 ✅；若回归失败请改回 ⬜ 并记入备注。
 
@@ -71,18 +71,18 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 
 | 序号 | 能力 | 功能项 | 主要代码路径 | 状态 | 完成日期 | 备注 |
 |------|------|--------|--------------|------|----------|------|
-| IMP-001 | A09 | Settings **Agent Tab** 骨架 | `SettingsPanel.tsx` · `SettingsAgentTab.tsx` | ⬜ | | |
-| IMP-002 | A09 | Agent **就绪卡**（LLM/模型缺失提示） | `SettingsAgentTab.tsx` | ⬜ | | |
-| IMP-003 | A26 | **AgentPreferences** 类型 + `lc-agent-preferences` | `src/types/agent.ts` 或 `preferences.ts` | ⬜ | | 规格 [演进对照 §六](./LocalCanvas_Agent-演进对照.md#六agentpreferences-统一配置) |
-| IMP-004 | A26 | 旧 key 迁移（`disabled-skills` 等） | Settings 读取时一次性合并 | ⬜ | | 验收 ST-08 |
-| IMP-005 | A10 | **模板召回卡片** `AgentTemplateCards` | `AgentPanel` / `AgentCompanion` | ⬜ | | 替代静默 Skill |
-| IMP-006 | A04 | blocking 警告 → **去配置** 深链接 | `AgentPanel` · `openSettings` | ⬜ | | |
-| IMP-007 | A02 | `WorkflowTemplateRegistry` 统一 + 召回逻辑 | `electron/utility/services/agent/skills/*` | ⬜ | | 行为兼容 v5 Skill |
-| IMP-008 | A14 | `openSettings({ tab, focus })` | `editorShellStore.ts` | ⬜ | | |
-| IMP-009 | A14 | Toast / Companion 跳转 Settings Agent Tab | `AgentCompanion` · `TopBar` | ⬜ | | |
-| IMP-010 | — | Settings Agent Tab **i18n** zh/en | `src/i18n/*.json` | ⬜ | | |
-| IMP-011 | — | **agent-guide** 与设置页联调文案 | `docs/v5/agent-guide.md` | ⬜ | | |
-| IMP-012 | — | **v5 P1 Agent 跑表** ≥80% | `docs/v5/…` 附录 A | ⬜ | | 原 T10-QA-05 迁入 |
+| IMP-001 | A09 | Settings **Agent Tab** 骨架 | `SettingsPanel.tsx` · `SettingsAgentTab.tsx` | ✅ | 2026-06-10 | |
+| IMP-002 | A09 | Agent **就绪卡**（LLM/模型缺失提示） | `SettingsAgentTab.tsx` | ✅ | 2026-06-10 | |
+| IMP-003 | A26 | **AgentPreferences** 类型 + `lc-agent-preferences` | `src/utils/agentPreferences.ts` | ✅ | 2026-06-10 | 规格 [演进对照 §六](./LocalCanvas_Agent-演进对照.md#六agentpreferences-统一配置) |
+| IMP-004 | A26 | 旧 key 迁移（`disabled-skills` 等） | `loadAgentPreferences` | ✅ | 2026-06-10 | 单测 `agentPreferences.test.ts` |
+| IMP-005 | A10 | **模板召回卡片** `AgentTemplateCards` | `AgentPanel` | ✅ | 2026-06-10 | 替代静默 Skill |
+| IMP-006 | A04 | blocking 警告 → **去配置** 深链接 | `WorkflowPlanPreview` · `openSettings` | ✅ | 2026-06-10 | |
+| IMP-007 | A02 | 模板召回 `rankSkillsForIntent` + 采纳 IPC | `skills/index.ts` · `agent-service.ts` | ✅ | 2026-06-10 | 不再静默 matchSkill |
+| IMP-008 | A14 | `openSettings({ tab, focus })` | `editorShellStore.ts` | ✅ | 2026-06-10 | |
+| IMP-009 | A14 | AgentPanel 跳转 Settings Agent Tab | `AgentPanel.tsx` | ✅ | 2026-06-10 | |
+| IMP-010 | — | Settings Agent Tab **i18n** zh/en | `src/i18n/*.json` | ✅ | 2026-06-10 | |
+| IMP-011 | — | **agent-guide** 与设置页联调文案 | `docs/v5/agent-guide.md` | ✅ | 2026-06-10 | |
+| IMP-012 | — | **v5 P1 Agent 跑表** ≥80% | `docs/v5/…` 附录 A | ⬜ | | 需手工跑表 |
 
 **v11.0 可选（P1，不挡发布）**
 
@@ -176,7 +176,7 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | IMP-T05 | ST-05 | Handoff ① → 选中 script + Dock | v11.1 | ⬜ | | |
 | IMP-T06 | ST-06 | Build patch 加 video，锚定 image 仍在 | v11.1 | ⬜ | | |
 | IMP-T07 | ST-07 | checkpoint 计划确认后不自动 startRun | v11.1 | ⬜ | | |
-| IMP-T08 | ST-08 | preferences 迁移：旧 disabled-skills 仍生效 | v11.0 | ⬜ | | |
+| IMP-T08 | ST-08 | preferences 迁移：旧 disabled-skills 仍生效 | v11.0 | ✅ | 2026-06-10 | `agentPreferences.test.ts` |
 | IMP-T09 | QA-05 | v5 附录 A Agent P1 跑表 ≥80% | v11.0 | ⬜ | | 同 IMP-012 |
 
 ### 单测清单（v12 DoD）
@@ -195,6 +195,7 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | 日期 | 变更 |
 |------|------|
 | 2026-06-10 | 初版：65 条 IMP + 9 验收 + 4 单测；基线 A01–A07 标为已有 |
+| 2026-06-10 | v11.0 Slice A 代码：IMP-001～011、IMP-T08 ✅；IMP-012 跑表待手工 |
 
 ---
 
