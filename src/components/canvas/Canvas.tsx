@@ -83,7 +83,7 @@ function CanvasInner() {
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
   const focusNodeRequestId = useCanvasStore((s) => s.focusNodeRequestId)
   const clearFocusNodeRequest = useCanvasStore((s) => s.clearFocusNodeRequest)
-  const { runState, startRun, skipNode, retryNode, dismiss } = useDagRun()
+  const { runState, startRun, skipNode, retryNode, continueRun, dismiss } = useDagRun()
   const { slashOpen, slashQuery, slashPos, setSlashOpen, handleSlashSelect } = useCanvasSlash(
     selectedNodeIds,
     startRun,
@@ -350,6 +350,7 @@ function CanvasInner() {
         onClose={dismiss}
         onRetry={retryNode}
         onSkip={skipNode}
+        onContinue={continueRun}
       />
 
       {nodePicker && (

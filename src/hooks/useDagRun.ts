@@ -51,6 +51,7 @@ type RunContext = {
   maxConcurrent: number
   stopOnFail: boolean
   aborted: boolean
+  paused: boolean
 }
 
 export function useDagRun() {
@@ -71,7 +72,9 @@ export function useDagRun() {
       error: ctx.errors.get(nodeId),
     }))
     let status: DagRunState['status'] = 'running'
-    if (ctx.aborted) status = 'cancelled'
+    const anyPending = [...ctx.status.values()].some((s) => s === 'pending')
+    if (ctx.paused && anyPending) status = 'paused'
+    else if (ctx.aborted && !ctx.paused) status = 'cancelled'
     else if ([...ctx.status.values()].some((s) => s === 'failed')) status = 'failed'
     else if (ctx.executable.every((id) => {
       const s = ctx.status.get(id)
@@ -106,7 +109,7 @@ export function useDagRun() {
 
       const inFlight = new Set<Promise<void>>()
 
-      while (!ctx.aborted) {
+      while (!ctx.aborted && !ctx.paused) {
         const running = [...ctx.status.values()].filter((s) => s === 'running').length
         const ready = ctx.executable.filter(isReady)
         const slots = Math.max(0, ctx.maxConcurrent - running)
@@ -187,6 +190,12 @@ export function useDagRun() {
         } else {
           await new Promise<void>((r) => { wakeRef.current = r })
         }
+      }
+
+      if (ctx.paused) {
+        syncRunState(ctx)
+        setIsRunning(false)
+        return
       }
 
       const failed = [...ctx.status.values()].some((s) => s === 'failed')
@@ -292,6 +301,7 @@ export function useDagRun() {
         maxConcurrent,
         stopOnFail: true,
         aborted: false,
+        paused: false,
       }
       ctxRef.current = ctx
 
@@ -348,6 +358,31 @@ export function useDagRun() {
     [isRunning, runScheduler, syncRunState],
   )
 
+  const pauseRun = useCallback(() => {
+    const ctx = ctxRef.current
+    if (!ctx) return
+    ctx.paused = true
+    ctx.aborted = true
+    syncRunState(ctx)
+    setIsRunning(false)
+    void window.api.dag.updateRun({ dagRunId: ctx.dagRunId, status: 'paused' })
+    showToast('工作流已暂停，可在面板中继续', 'info')
+  }, [syncRunState])
+
+  const continueRun = useCallback(() => {
+    const ctx = ctxRef.current
+    if (!ctx) return
+    const anyPending = [...ctx.status.values()].some((s) => s === 'pending')
+    if (!anyPending) return
+    ctx.paused = false
+    ctx.aborted = false
+    setIsRunning(true)
+    syncRunState(ctx)
+    void window.api.dag.updateRun({ dagRunId: ctx.dagRunId, status: 'running' })
+    void runScheduler(ctx)
+    showToast('继续执行工作流', 'info')
+  }, [runScheduler, syncRunState])
+
   const dismiss = useCallback(() => {
     const ctx = ctxRef.current
     if (ctx) ctx.aborted = true
@@ -356,5 +391,5 @@ export function useDagRun() {
     ctxRef.current = null
   }, [])
 
-  return { runState, isRunning, startRun, skipNode, retryNode, dismiss }
+  return { runState, isRunning, startRun, skipNode, retryNode, pauseRun, continueRun, dismiss }
 }

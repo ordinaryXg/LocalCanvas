@@ -9,6 +9,7 @@ interface WorkflowPlanPreviewProps {
   warnings?: string[]
   onConfirm: () => void
   onDismiss: () => void
+  confirmDisabled?: boolean
 }
 
 export function WorkflowPlanPreview({
@@ -16,6 +17,7 @@ export function WorkflowPlanPreview({
   warnings = [],
   onConfirm,
   onDismiss,
+  confirmDisabled = false,
 }: WorkflowPlanPreviewProps) {
   const t = useT()
   const openSettings = useEditorShellStore((s) => s.openSettings)
@@ -65,9 +67,10 @@ export function WorkflowPlanPreview({
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-hover"
+            disabled={confirmDisabled}
+            className="flex-1 py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t('agent.applyPlan')}
+            {confirmDisabled ? t('agent.briefConfirmFirst') : t('agent.applyPlan')}
           </button>
         )}
         <button

@@ -11,7 +11,16 @@ import { WorkflowPlanPreview } from './WorkflowPlanPreview'
 import { GraphPatchPreview } from '../agent/GraphPatchPreview'
 import { AgentTemplateCards } from '../agent/AgentTemplateCards'
 import { AgentHandoffBar } from '../agent/AgentHandoffBar'
-import { handleError } from '../../utils/ErrorHandler'
+import { AgentPhaseRail } from '../agent/AgentPhaseRail'
+import { AgentBriefCard } from '../agent/AgentBriefCard'
+import { AgentShotList } from '../agent/AgentShotList'
+import { handleError, showToast } from '../../utils/ErrorHandler'
+import {
+  parseBriefFromIntent,
+  buildDraftShotList,
+  type AgentBriefDraft,
+} from '../../utils/agentDraftStudio'
+import { computePhaseRail } from '../../utils/agentPhaseState'
 import { isValidGraphPatch } from '../../utils/parseGraphPatch'
 import { isValidWorkflowPlan } from '../../utils/parseWorkflowPlan'
 import { loadAgentPreferences, resolveAgentMode } from '../../utils/agentPreferences'
@@ -35,6 +44,8 @@ export function AgentPanel() {
   const [sessions, setSessions] = useState<AgentSessionSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [config, setConfig] = useState<AppConfig | null>(null)
+  const [briefDraft, setBriefDraft] = useState<AgentBriefDraft | null>(null)
+  const [briefConfirmed, setBriefConfirmed] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const openSettings = useEditorShellStore((s) => s.openSettings)
   const {
@@ -80,9 +91,46 @@ export function AgentPanel() {
     [nodes, selectedNodeIds],
   )
 
+  const isStudioFlow = useMemo(
+    () =>
+      handoff !== null ||
+      pendingPlan?.executionMode === 'checkpoint' ||
+      pendingPlan?.skillId === 'script-to-film',
+    [handoff, pendingPlan],
+  )
+
+  const draftShots = useMemo(() => {
+    if (!briefConfirmed || !briefDraft || !lastUserIntent) return []
+    return buildDraftShotList(lastUserIntent, briefDraft)
+  }, [briefConfirmed, briefDraft, lastUserIntent])
+
+  const phaseRail = useMemo(
+    () =>
+      computePhaseRail({
+        briefConfirmed,
+        hasShotPreview: draftShots.length > 0,
+        handoff,
+        nodes,
+      }),
+    [briefConfirmed, draftShots.length, handoff, nodes],
+  )
+
   useEffect(() => {
     void window.api.config.read().then(setConfig)
   }, [])
+
+  useEffect(() => {
+    if (!isStudioFlow || !lastUserIntent) {
+      setBriefDraft(null)
+      setBriefConfirmed(false)
+      return
+    }
+    setBriefDraft(parseBriefFromIntent(lastUserIntent))
+  }, [isStudioFlow, lastUserIntent])
+
+  useEffect(() => {
+    setBriefConfirmed(false)
+  }, [lastUserIntent])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -109,6 +157,8 @@ export function AgentPanel() {
     setPendingPatch(null)
     setSuggestedTemplates([])
     setHandoff(null)
+    setBriefDraft(null)
+    setBriefConfirmed(false)
     setHistoryOpen(false)
   }
 
@@ -234,6 +284,7 @@ export function AgentPanel() {
         timestamp: new Date().toISOString(),
       })
       applyPlanResult(result.plan, result.planWarnings ?? [])
+      showToast(t('agent.toastTemplateAdopted'), 'info')
     } catch (err) {
       handleError(err, 'agentBuildFromTemplate')
     } finally {
@@ -277,6 +328,7 @@ export function AgentPanel() {
     if (shouldAutoRun) {
       void startRun(newNodes.map((n) => n.id))
     }
+    showToast(t('agent.toastPlanApplied'), 'info')
   }
 
   const applyPatch = (patch: GraphPatch) => {
@@ -310,6 +362,7 @@ export function AgentPanel() {
     ) {
       void startRun(result.nodesToAdd.map((n) => n.id))
     }
+    showToast(t('agent.toastPatchApplied'), 'info')
   }
 
   const showQuickTemplates =
@@ -362,6 +415,21 @@ export function AgentPanel() {
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto lc-scroll p-3 space-y-3">
+        {isStudioFlow && briefDraft && (
+          <div className="space-y-2">
+            <AgentPhaseRail phases={phaseRail} />
+            <AgentBriefCard
+              brief={briefDraft}
+              confirmed={briefConfirmed}
+              onChange={(patch) => setBriefDraft((b) => (b ? { ...b, ...patch } : b))}
+              onConfirm={() => {
+                setBriefConfirmed(true)
+                showToast(t('agent.toastBriefConfirmed'), 'info')
+              }}
+            />
+            {briefConfirmed && draftShots.length > 0 && <AgentShotList shots={draftShots} />}
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="space-y-2">
             <p className="text-xs text-text-muted">{t('agent.emptyHint')}</p>
@@ -422,6 +490,7 @@ export function AgentPanel() {
             warnings={pendingPlanWarnings}
             onConfirm={() => applyPlan(pendingPlan)}
             onDismiss={() => setPendingPlan(null)}
+            confirmDisabled={isStudioFlow && !briefConfirmed}
           />
         )}
         {pendingPatch && (

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { AgentPanel } from '../panels/AgentPanel'
 import { useEditorShellStore } from '../../stores/editorShellStore'
 import { useAgentStore } from '../../stores/agentStore'
@@ -5,11 +6,19 @@ import { useAgentStore } from '../../stores/agentStore'
 export function AgentCompanion() {
   const agentExpanded = useEditorShellStore((s) => s.agentExpanded)
   const agentPinned = useEditorShellStore((s) => s.agentPinned)
+  const generatorDrawerOpen = useEditorShellStore((s) => s.generatorDrawerOpen)
   const setAgentExpanded = useEditorShellStore((s) => s.setAgentExpanded)
   const setAgentPinned = useEditorShellStore((s) => s.setAgentPinned)
   const messages = useAgentStore((s) => s.messages)
   const pendingPlan = useAgentStore((s) => s.pendingPlan)
-  const hasUnread = messages.length > 0 || pendingPlan !== null
+  const pendingPatch = useAgentStore((s) => s.pendingPatch)
+  const hasUnread = messages.length > 0 || pendingPlan !== null || pendingPatch !== null
+
+  useEffect(() => {
+    if (generatorDrawerOpen && agentExpanded && !agentPinned) {
+      setAgentExpanded(false)
+    }
+  }, [generatorDrawerOpen, agentExpanded, agentPinned, setAgentExpanded])
 
   if (agentPinned) {
     return (

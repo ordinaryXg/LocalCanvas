@@ -1,7 +1,7 @@
 # LocalCanvas Agent — 实现功能统计表
 
 > **用途**：按条目跟踪 v11 / v12 Agent 实现进度；你更新本表即可，设计规格仍以 [演进对照](./LocalCanvas_Agent-演进对照.md) 为准。  
-> **最后更新**：2026-06-10（v11.1 Slice B 代码落地）  
+> **最后更新**：2026-06-10（v11.2 Slice C 代码落地）  
 > **关联**：[v11 规划](./LocalCanvas_v11_Agent与设置增强.md) · [v12 规划](../v12/LocalCanvas_v12_Studio复杂片与Agent深化.md) · [演进对照](./LocalCanvas_Agent-演进对照.md)
 
 ---
@@ -45,12 +45,12 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | 基线回归 A01–A07  | 7      | 7      | 0     | 0      | 0     |
 | v11.0 Slice A | 12     | 12     | 0     | 0      | 0     |
 | v11.1 Slice B | 8      | 8      | 0     | 0      | 0     |
-| v11.2 Slice C | 6      | 0      | 0     | 6      | 0     |
+| v11.2 Slice C | 6      | 6      | 0     | 0      | 0     |
 | v12.0 Wave 1  | 14     | 0      | 0     | 14     | 0     |
 | v12.1 Wave 2  | 5      | 0      | 0     | 5      | 0     |
 | v12.2 Wave 3  | 4      | 0      | 0     | 4      | 0     |
 | 验收 / QA       | 9      | 4      | 0     | 5      | 0     |
-| **合计**        | **65** | **31** | **0** | **34** | **0** |
+| **合计**        | **65** | **37** | **0** | **28** | **0** |
 
 
 > 基线 A01–A07 在 [演进对照 §一](./LocalCanvas_Agent-演进对照.md#一能力--版本--代码对照表) 已标 ✅；若回归失败请改回 ⬜ 并记入备注。
@@ -125,12 +125,12 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 
 | 序号      | 能力  | 功能项                             | 主要代码路径                           | 状态  | 完成日期 | 备注                  |
 | ------- | --- | ------------------------------- | -------------------------------- | --- | ---- | ------------------- |
-| IMP-031 | —   | **Phase Rail**（简报·镜头表·脚本·分镜·合成） | `AgentPhaseRail.tsx`             | ⬜   |      | CP0/CP1/CP2/CP3/CP5 |
-| IMP-032 | A17 | Brief 卡 **只读 + 可编辑字段**（非 HITL）  | `AgentBriefCard.tsx`             | ⬜   |      | 完整 HITL 见 IMP-103   |
-| IMP-033 | A18 | Shot List **折叠预览表**             | `AgentShotList.tsx`              | ⬜   |      | 完整校验见 IMP-104       |
-| IMP-034 | A15 | AgentCompanion **Drawer 自动收起**  | `AgentCompanion` · `EditorShell` | ⬜   |      |                     |
-| IMP-035 | A15 | Agent 操作 **Toast 审计**           | `AgentPanel`                     | ⬜   |      |                     |
-| IMP-036 | —   | DAG 面板「**继续**」paused run（可选）    | `useDagRun` · DAG UI             | ⬜   |      | 可标 ⏸ 延后             |
+| IMP-031 | —   | **Phase Rail**（简报·镜头表·脚本·分镜·合成） | `AgentPhaseRail.tsx` · `AgentPanel` | ✅   | 2026-06-10 | CP0/CP1/CP2/CP3/CP5 |
+| IMP-032 | A17 | Brief 卡 **只读 + 可编辑字段**（非 HITL）  | `AgentBriefCard.tsx` · `AgentPanel` | ✅   | 2026-06-10 | 完整 HITL 见 IMP-103   |
+| IMP-033 | A18 | Shot List **折叠预览表**             | `AgentShotList.tsx` · `AgentPanel` | ✅   | 2026-06-10 | 完整校验见 IMP-104       |
+| IMP-034 | A15 | AgentCompanion **Drawer 自动收起**  | `AgentCompanion.tsx`             | ✅   | 2026-06-10 | 未钉住时 Drawer 开自动收起 |
+| IMP-035 | A15 | Agent 操作 **Toast 审计**           | `AgentPanel`                     | ✅   | 2026-06-10 | Brief/Plan/Patch/模板采纳 |
+| IMP-036 | —   | DAG 面板「**继续**」paused run（可选）    | `useDagRun` · `DagRunPanel`      | ✅   | 2026-06-10 | 暂停入口 `pauseRun` 延后 |
 
 
 ---

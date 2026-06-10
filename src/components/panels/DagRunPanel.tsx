@@ -8,17 +8,19 @@ interface DagRunPanelProps {
   onClose: () => void
   onRetry?: (nodeId: string) => void
   onSkip?: (nodeId: string) => void
+  onContinue?: () => void
 }
 
 const statusColor: Record<string, string> = {
   pending: 'text-text-muted',
   running: 'text-[var(--status-running)]',
+  paused: 'text-warning',
   completed: 'text-[var(--status-success)]',
   failed: 'text-[var(--status-error)]',
   skipped: 'text-text-muted',
 }
 
-export function DagRunPanel({ runState, onClose, onRetry, onSkip }: DagRunPanelProps) {
+export function DagRunPanel({ runState, onClose, onRetry, onSkip, onContinue }: DagRunPanelProps) {
   const t = useT()
   const nodes = useCanvasStore((s) => s.nodes)
 
@@ -37,6 +39,15 @@ export function DagRunPanel({ runState, onClose, onRetry, onSkip }: DagRunPanelP
           {t('dag.title')} — {runState.completedCount}/{runState.totalCount}
         </div>
         <div className="flex items-center gap-2">
+          {runState.status === 'paused' && onContinue && (
+            <button
+              type="button"
+              onClick={onContinue}
+              className="text-xs px-2 py-0.5 rounded bg-accent text-white hover:bg-accent-hover"
+            >
+              {t('dag.continue')}
+            </button>
+          )}
           <span className={`text-xs ${statusColor[runState.status] ?? ''}`}>{runState.status}</span>
           {runState.status !== 'running' && (
             <button type="button" onClick={onClose} className="text-xs text-text-muted hover:text-text-primary">
