@@ -8,7 +8,17 @@ export type DockDrawer = 'nodes' | 'tools' | 'assets' | 'history' | 'health' | n
 
 const LS_DRAWER_HEIGHT = 'lc-generator-drawer-ratio'
 const LS_INSPECTOR_WIDTH = 'lc-inspector-width'
+const LS_DOCK_DRAWER_WIDTH = 'lc-dock-drawer-width'
+const LS_WORKBENCH_SIDEBAR_WIDTH = 'lc-workbench-sidebar-width'
 const LS_MODE = 'lc-editor-mode'
+
+export const DOCK_DRAWER_WIDTH_DEFAULT = 320
+export const DOCK_DRAWER_WIDTH_MIN = 240
+export const DOCK_DRAWER_WIDTH_MAX = 520
+
+export const WORKBENCH_SIDEBAR_WIDTH_DEFAULT = 320
+export const WORKBENCH_SIDEBAR_WIDTH_MIN = 200
+export const WORKBENCH_SIDEBAR_WIDTH_MAX = 520
 
 function readPersistedMode(): EditorMode {
   try {
@@ -51,6 +61,30 @@ function readInspectorWidth(): number {
   }
 }
 
+function readDockDrawerWidth(): number {
+  try {
+    const raw = localStorage.getItem(LS_DOCK_DRAWER_WIDTH)
+    if (!raw) return DOCK_DRAWER_WIDTH_DEFAULT
+    const n = parseInt(raw, 10)
+    if (Number.isNaN(n)) return DOCK_DRAWER_WIDTH_DEFAULT
+    return Math.min(DOCK_DRAWER_WIDTH_MAX, Math.max(DOCK_DRAWER_WIDTH_MIN, n))
+  } catch {
+    return DOCK_DRAWER_WIDTH_DEFAULT
+  }
+}
+
+function readWorkbenchSidebarWidth(): number {
+  try {
+    const raw = localStorage.getItem(LS_WORKBENCH_SIDEBAR_WIDTH)
+    if (!raw) return WORKBENCH_SIDEBAR_WIDTH_DEFAULT
+    const n = parseInt(raw, 10)
+    if (Number.isNaN(n)) return WORKBENCH_SIDEBAR_WIDTH_DEFAULT
+    return Math.min(WORKBENCH_SIDEBAR_WIDTH_MAX, Math.max(WORKBENCH_SIDEBAR_WIDTH_MIN, n))
+  } catch {
+    return WORKBENCH_SIDEBAR_WIDTH_DEFAULT
+  }
+}
+
 interface EditorShellState {
   mode: EditorMode
   openDrawer: DockDrawer
@@ -58,9 +92,12 @@ interface EditorShellState {
   generatorDrawerHeightRatio: number
   inspectorCollapsed: boolean
   inspectorWidth: number
+  dockDrawerWidth: number
+  workbenchSidebarWidth: number
   agentExpanded: boolean
   agentPinned: boolean
   shortcutsOpen: boolean
+  settingsOpen: boolean
   focusStyleChips: boolean
   scrollToGeneratorWarnings: boolean
 
@@ -71,9 +108,12 @@ interface EditorShellState {
   setGeneratorDrawerHeightRatio: (ratio: number) => void
   setInspectorCollapsed: (collapsed: boolean) => void
   setInspectorWidth: (width: number) => void
+  setDockDrawerWidth: (width: number) => void
+  setWorkbenchSidebarWidth: (width: number) => void
   setAgentExpanded: (expanded: boolean) => void
   setAgentPinned: (pinned: boolean) => void
   setShortcutsOpen: (open: boolean) => void
+  setSettingsOpen: (open: boolean) => void
   requestFocusStyleChips: () => void
   clearFocusStyleChips: () => void
   requestScrollToGeneratorWarnings: () => void
@@ -90,9 +130,12 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
   generatorDrawerHeightRatio: readDrawerRatio(),
   inspectorCollapsed: false,
   inspectorWidth: readInspectorWidth(),
+  dockDrawerWidth: readDockDrawerWidth(),
+  workbenchSidebarWidth: readWorkbenchSidebarWidth(),
   agentExpanded: false,
   agentPinned: false,
   shortcutsOpen: false,
+  settingsOpen: false,
   focusStyleChips: false,
   scrollToGeneratorWarnings: false,
 
@@ -149,9 +192,37 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
     set({ inspectorWidth: clamped })
   },
 
+  setDockDrawerWidth: (width) => {
+    const clamped = Math.min(DOCK_DRAWER_WIDTH_MAX, Math.max(DOCK_DRAWER_WIDTH_MIN, width))
+    try {
+      localStorage.setItem(LS_DOCK_DRAWER_WIDTH, String(clamped))
+    } catch {
+      /* ignore */
+    }
+    set({ dockDrawerWidth: clamped })
+  },
+
+  setWorkbenchSidebarWidth: (width) => {
+    const clamped = Math.min(WORKBENCH_SIDEBAR_WIDTH_MAX, Math.max(WORKBENCH_SIDEBAR_WIDTH_MIN, width))
+    try {
+      localStorage.setItem(LS_WORKBENCH_SIDEBAR_WIDTH, String(clamped))
+    } catch {
+      /* ignore */
+    }
+    set({ workbenchSidebarWidth: clamped })
+  },
+
   setAgentExpanded: (expanded) => set({ agentExpanded: expanded }),
   setAgentPinned: (pinned) => set({ agentPinned: pinned, agentExpanded: pinned ? true : get().agentExpanded }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
+
+  setSettingsOpen: (open) => {
+    if (open) {
+      set({ settingsOpen: true, generatorDrawerOpen: false })
+      return
+    }
+    set({ settingsOpen: false })
+  },
 
   requestFocusStyleChips: () => set({ focusStyleChips: true, generatorDrawerOpen: true }),
   clearFocusStyleChips: () => set({ focusStyleChips: false }),

@@ -12,6 +12,7 @@ import {
   type Node,
   type Edge,
   type IsValidConnection,
+  type FinalConnectionState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -26,13 +27,12 @@ import { StoryboardGroupNode } from '../nodes/StoryboardGroupNode'
 import { ContextMenu, NodePicker, useContextMenuHandlers, type ContextMenuState } from './ContextMenu'
 import { CanvasToolbar } from './CanvasToolbar'
 import { GeneratorDrawer } from '../shell/GeneratorDrawer'
-import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from '../../utils/portCompat'
-import { evaluateEdgeCompat } from '../../capabilities/edge-compat'
+import { getNodeTypeFromId } from '../../utils/portCompat'
+import { describeConnectionReject } from '../../utils/connectionFeedback'
 import {
   isUnifiedInboundUnresolved,
   normalizeInboundConnection,
 } from '../../capabilities/canvas-inbound-connection'
-import type { ModelKind } from '../../types/capability'
 import { useDataFlow } from '../../hooks/useDataFlow'
 import { useFileDrop, useSidebarNodeDrop, useAssetDrop, useKeyboardShortcuts, useSpacePan } from '../../hooks/useKeyboard'
 import { useAutoSave, useManualSave } from '../../hooks/useAutoSave'
@@ -149,48 +149,22 @@ function CanvasInner() {
     useContextMenuHandlers(setContextMenu)
 
   const isValidConnection: IsValidConnection = useCallback(
-    (connection) => {
-      const sourceType = getNodeTypeFromId(nodes, connection.source)
-      const targetNode = nodes.find((n) => n.id === connection.target)
-      const targetType = targetNode?.type ?? getNodeTypeFromId(nodes, connection.target)
-      const normalized = normalizeInboundConnection(
-        connection,
-        sourceType,
-        targetType,
-        targetNode?.data?.modelId as string | undefined,
-        edges,
-      )
-      if (isUnifiedInboundUnresolved(targetType, connection.targetHandle, normalized.targetHandle)) {
-        return false
+    (connection) =>
+      describeConnectionReject(connection as Connection, nodes, edges) === null,
+    [nodes, edges],
+  )
+
+  const handleConnectEnd = useCallback(
+    (_event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+      if (state.isValid !== false || !state.fromNode || !state.toNode) return
+      const connection: Connection = {
+        source: state.fromNode.id,
+        target: state.toNode.id,
+        sourceHandle: state.fromHandle?.id ?? null,
+        targetHandle: state.toHandle?.id ?? null,
       }
-      if (
-        !isPortCompatible(
-          sourceType,
-          normalized.sourceHandle,
-          targetType,
-          normalized.targetHandle,
-        )
-      ) {
-        return false
-      }
-      const targetKind: ModelKind =
-        targetType === 'image' ? 'image' : targetType === 'video' ? 'video' : 'llm'
-      const compat = evaluateEdgeCompat({
-        sourceType,
-        sourceHandle: normalized.sourceHandle,
-        targetType,
-        targetHandle: normalized.targetHandle,
-        targetModelId: targetNode?.data?.modelId as string | undefined,
-        targetKind,
-        edges,
-        targetNodeId: normalized.target,
-      })
-      if (compat.status === 'reject') return false
-      return isTargetHandleAvailable(
-        edges,
-        normalized.target,
-        normalized.targetHandle,
-      )
+      const reason = describeConnectionReject(connection, nodes, edges)
+      if (reason) showToast(reason, 'warning')
     },
     [nodes, edges],
   )
@@ -228,6 +202,10 @@ function CanvasInner() {
 
   const handlePaneDoubleClick = useCallback(
     (event: React.MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest('.react-flow__node') || target.closest('.react-flow__edge')) return
+      if (!target.closest('.react-flow__pane')) return
       setNodePicker({ x: event.clientX, y: event.clientY })
     },
     [],
@@ -300,6 +278,7 @@ function CanvasInner() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
+        onConnectEnd={handleConnectEnd}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         viewport={viewport}
@@ -314,6 +293,7 @@ function CanvasInner() {
         panOnDrag={spacePanHeld ? [0, 1] : isInteractive ? [1] : false}
         panOnScroll={false}
         zoomOnScroll={isInteractive && !middleMouseDown && !spacePanHeld}
+        zoomOnDoubleClick={false}
         connectionLineType={ConnectionLineType.Bezier}
         deleteKeyCode={['Delete', 'Backspace']}
         onEdgeClick={handleEdgeClick}
@@ -322,7 +302,7 @@ function CanvasInner() {
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
         onPaneClick={() => setContextMenu(null)}
-        onPaneDoubleClick={handlePaneDoubleClick}
+        onDoubleClick={handlePaneDoubleClick}
         onDragOver={onDragOver}
         onDrop={onDrop}
         colorMode="dark"

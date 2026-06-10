@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
+import { useStoryboardGenGridMetrics } from '../../hooks/useStoryboardGenGridMetrics'
 import { useProjectStore } from '../../stores/projectStore'
 import { useStoryboardEditorStore } from '../../stores/storyboardEditorStore'
 import type { StoryboardFrame, StoryboardLayout } from '../../types/storyboard'
@@ -7,7 +8,6 @@ import {
   frameHasVisual,
   storyboardLayoutColumns,
   STORYBOARD_GEN_CELL_GAP,
-  STORYBOARD_GEN_CELL_SIZE,
   STORYBOARD_GEN_GRID5_VIRTUAL_THRESHOLD,
   storyboardGridRowCount,
   storyboardVirtualRowRange,
@@ -150,6 +150,9 @@ function StoryboardListRow({
 
 interface VirtualGridProps {
   className?: string
+  containerRef: React.RefObject<HTMLDivElement | null>
+  cellSize: number
+  viewportHeight: number
   frames: StoryboardFrame[]
   columns: number
   selectedFrameIds: string[]
@@ -162,6 +165,9 @@ interface VirtualGridProps {
 
 function VirtualStoryboardGrid({
   className,
+  containerRef,
+  cellSize,
+  viewportHeight,
   frames,
   columns,
   selectedFrameIds,
@@ -171,11 +177,9 @@ function VirtualStoryboardGrid({
   onRetryImage,
   onRetryVideo,
 }: VirtualGridProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
-  const [viewportHeight, setViewportHeight] = useState(320)
 
-  const rowHeight = STORYBOARD_GEN_CELL_SIZE + STORYBOARD_GEN_CELL_GAP
+  const rowHeight = cellSize + STORYBOARD_GEN_CELL_GAP
   const rowCount = storyboardGridRowCount(frames.length, columns)
   const totalHeight = rowCount * rowHeight - STORYBOARD_GEN_CELL_GAP
   const { startRow, endRow } = storyboardVirtualRowRange(
@@ -184,15 +188,6 @@ function VirtualStoryboardGrid({
     rowCount,
     rowHeight,
   )
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => setViewportHeight(el.clientHeight))
-    ro.observe(el)
-    setViewportHeight(el.clientHeight)
-    return () => ro.disconnect()
-  }, [])
 
   const visibleCells = useMemo(() => {
     const items: Array<{ frame: StoryboardFrame; row: number; col: number }> = []
@@ -211,6 +206,12 @@ function VirtualStoryboardGrid({
       ref={containerRef}
       className={`storyboard-gen-grid-virtual lc-scroll nowheel nodrag ${className ?? ''}`}
       onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+      style={
+        {
+          '--sb-cols': columns,
+          '--sb-cell-size': `${cellSize}px`,
+        } as React.CSSProperties
+      }
     >
       <div className="storyboard-gen-grid-virtual__spacer" style={{ height: totalHeight }}>
         {visibleCells.map(({ frame, row, col }) => (
@@ -218,9 +219,9 @@ function VirtualStoryboardGrid({
             key={frame.id}
             className="storyboard-gen-grid-virtual__item"
             style={{
-              width: STORYBOARD_GEN_CELL_SIZE,
-              height: STORYBOARD_GEN_CELL_SIZE,
-              transform: `translate(${col * (STORYBOARD_GEN_CELL_SIZE + STORYBOARD_GEN_CELL_GAP)}px, ${
+              width: cellSize,
+              height: cellSize,
+              transform: `translate(${col * (cellSize + STORYBOARD_GEN_CELL_GAP)}px, ${
                 row * rowHeight
               }px)`,
             }}
@@ -269,6 +270,22 @@ export function StoryboardFrameBrowser({
   const clearFrameFocus = useStoryboardEditorStore((s) => s.clearFrameFocus)
   const columns = storyboardLayoutColumns(layout)
   const activeFocusId = focusNodeId === nodeId ? focusFrameId : null
+  const isGridLayout = layout !== 'list'
+  const { containerRef, cellSize, viewportHeight } = useStoryboardGenGridMetrics(
+    layout,
+    columns,
+    frames.length,
+    fillHeight && isGridLayout,
+  )
+
+  const gridStyle = useMemo(
+    () =>
+      ({
+        '--sb-cols': columns,
+        '--sb-cell-size': `${cellSize}px`,
+      }) as React.CSSProperties,
+    [cellSize, columns],
+  )
 
   const scrollToFrame = useCallback(
     (frameId: string) => {
@@ -323,6 +340,9 @@ export function StoryboardFrameBrowser({
     return (
       <VirtualStoryboardGrid
         className={scrollClass}
+        containerRef={containerRef}
+        cellSize={cellSize}
+        viewportHeight={viewportHeight}
         frames={frames}
         columns={columns}
         selectedFrameIds={selectedFrameIds}
@@ -337,10 +357,9 @@ export function StoryboardFrameBrowser({
 
   return (
     <div
+      ref={containerRef}
       className={`storyboard-gen-grid ${scrollClass} lc-scroll nowheel nodrag`}
-      style={{
-        gridTemplateColumns: `repeat(${columns}, ${STORYBOARD_GEN_CELL_SIZE}px)`,
-      }}
+      style={gridStyle}
     >
       {frames.map((frame) => (
         <StoryboardFrameCell

@@ -13,6 +13,8 @@ export function useEditorShellShortcuts() {
   const setMode = useEditorShellStore((s) => s.setMode)
   const setGeneratorDrawerOpen = useEditorShellStore((s) => s.setGeneratorDrawerOpen)
   const setShortcutsOpen = useEditorShellStore((s) => s.setShortcutsOpen)
+  const settingsOpen = useEditorShellStore((s) => s.settingsOpen)
+  const setSettingsOpen = useEditorShellStore((s) => s.setSettingsOpen)
   const generatorDrawerOpen = useEditorShellStore((s) => s.generatorDrawerOpen)
   const setGeneratorDrawerOpenOnly = useEditorShellStore((s) => s.setGeneratorDrawerOpen)
   const openWorkbenchForCompose = useEditorShellStore((s) => s.openWorkbenchForCompose)
@@ -31,6 +33,11 @@ export function useEditorShellShortcuts() {
       }
 
       if (e.key === 'Escape') {
+        if (settingsOpen) {
+          e.preventDefault()
+          setSettingsOpen(false)
+          return
+        }
         if (generatorDrawerOpen) {
           setGeneratorDrawerOpenOnly(false)
           return
@@ -71,6 +78,8 @@ export function useEditorShellShortcuts() {
     selectedNodeIds,
     mode,
     generatorDrawerOpen,
+    settingsOpen,
+    setSettingsOpen,
     setMode,
     setGeneratorDrawerOpen,
     setGeneratorDrawerOpenOnly,

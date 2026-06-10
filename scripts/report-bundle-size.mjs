@@ -10,7 +10,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const assetsDir = join(root, 'out/renderer/assets')
 const baselinePath = join(root, 'scripts/bundle-baseline-v8.json')
 const reportPath = join(root, 'docs/v9/v9-bundle-size-report.md')
-const v10AuditPath = join(root, 'docs/v10/v10-bundle-audit.md')
+const v10AuditPath = join(root, 'docs/v10/bundle-audit.md')
 
 /** v8 基线：lazy 前典型单包体积（KB），来源 v9 文档估算 + 2026-06-08 前全量 index 规模 */
 const DEFAULT_V8_BASELINE_KB = 1480

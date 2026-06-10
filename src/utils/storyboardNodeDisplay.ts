@@ -131,9 +131,47 @@ export function storyboardLayoutColumns(layout: 'list' | 'grid3' | 'grid5'): num
 }
 
 /** grid5 虚拟列表：单格边长 + 间距 */
-export const STORYBOARD_GEN_CELL_SIZE = 72
+export const STORYBOARD_GEN_CELL_SIZE_DEFAULT = 72
+/** @deprecated 使用 computeStoryboardGenCellSize / STORYBOARD_GEN_CELL_SIZE_DEFAULT */
+export const STORYBOARD_GEN_CELL_SIZE = STORYBOARD_GEN_CELL_SIZE_DEFAULT
+export const STORYBOARD_GEN_CELL_SIZE_MIN = 48
 export const STORYBOARD_GEN_CELL_GAP = 6
 export const STORYBOARD_GEN_GRID5_VIRTUAL_THRESHOLD = 15
+
+/** 生成器宫格相对容器自适应时的 layout 缩放（九宫格略小以免占满） */
+export function storyboardGenLayoutScale(layout: StoryboardLayout): number {
+  if (layout === 'grid3') return 2 / 3
+  return 1
+}
+
+export function computeStoryboardGenCellSize(
+  containerWidth: number,
+  containerHeight: number,
+  columns: number,
+  frameCount: number,
+  gap = STORYBOARD_GEN_CELL_GAP,
+  fillHeight = false,
+  layout: StoryboardLayout = 'grid3',
+): number {
+  if (containerWidth <= 0 || columns <= 0 || frameCount <= 0) {
+    return STORYBOARD_GEN_CELL_SIZE_DEFAULT
+  }
+
+  const rows = storyboardGridRowCount(frameCount, columns)
+  const widthBased = (containerWidth - gap * (columns - 1)) / columns
+
+  let size = widthBased
+  if (fillHeight && containerHeight > 0 && rows > 0) {
+    const heightBased = (containerHeight - gap * (rows - 1)) / rows
+    const widthTotalHeight = rows * widthBased + (rows - 1) * gap
+    if (widthTotalHeight <= containerHeight) {
+      size = Math.min(widthBased, heightBased)
+    }
+  }
+
+  const scaled = size * storyboardGenLayoutScale(layout)
+  return Math.max(STORYBOARD_GEN_CELL_SIZE_MIN, Math.floor(scaled))
+}
 
 export function storyboardGridRowCount(frameCount: number, columns: number): number {
   if (frameCount <= 0 || columns <= 0) return 0

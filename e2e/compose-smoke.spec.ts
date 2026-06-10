@@ -11,8 +11,8 @@ test.describe('compose pipeline smoke', () => {
     ]
 
     const mapped = clipsFromComposeNode(clips)
-    const sorted = [...mapped].sort((x, y) => x.startTime - y.startTime)
-    expect(sorted.map((c) => c.id)).toEqual(['a', 'c', 'b'])
+    expect(mapped.map((c) => c.id)).toEqual(['b', 'a', 'c'])
+    expect(mapped.map((c) => c.startTime)).toEqual([0, 4, 7])
     expect(mapped).toHaveLength(3)
   })
 })

@@ -1249,14 +1249,15 @@
 /* ── 分镜组 Generator 帧浏览器 ── */
 .storyboard-gen-grid {
   display: grid;
-  gap: 6px;
-  justify-content: start;
+  gap: var(--sb-gap, 6px);
+  width: 100%;
+  justify-content: stretch;
   align-content: start;
-  grid-auto-rows: auto;
+  grid-template-columns: repeat(var(--sb-cols, 3), var(--sb-cell-size, 72px));
 }
 
 .storyboard-gen-grid .storyboard-gen-cell {
-  width: 72px;
+  width: var(--sb-cell-size, 72px);
 }
 
 .storyboard-gen-grid-virtual {
@@ -1298,8 +1299,8 @@
 .storyboard-gen-cell__main {
   position: relative;
   flex: none;
-  width: 72px;
-  height: 72px;
+  width: var(--sb-cell-size, 72px);
+  height: var(--sb-cell-size, 72px);
   border-radius: 4px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.28);

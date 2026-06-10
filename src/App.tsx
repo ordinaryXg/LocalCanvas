@@ -208,15 +208,37 @@ export default function App() {
   if (view === 'start') {
     return (
       <AuthGate>
-        <StartPage
-          onOpenProject={(id, name) => void openProject(id, name)}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-        {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
-        {showSettings && (
-          <Suspense fallback={null}>
-            <SettingsPanel onClose={() => setShowSettings(false)} />
-          </Suspense>
+        {showSettings ? (
+          <div className="w-screen h-screen flex flex-col overflow-hidden bg-[var(--studio-bg)]">
+            <header
+              className="shrink-0 flex items-center gap-3 px-3 border-b border-[var(--studio-border)] bg-bg-secondary"
+              style={{ height: 'var(--space-topbar)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="text-sm text-text-muted hover:text-white px-2 py-1 rounded hover:bg-[var(--studio-surface-hover)]"
+              >
+                ←
+              </button>
+              <span className="text-sm font-semibold text-text-primary">LocalCanvas</span>
+              <span className="text-text-muted">·</span>
+              <span className="text-sm text-text-primary">{t('settings.title')}</span>
+            </header>
+            <div className="flex-1 min-h-0">
+              <Suspense fallback={<EditorLoading />}>
+                <SettingsPanel onClose={() => setShowSettings(false)} />
+              </Suspense>
+            </div>
+          </div>
+        ) : (
+          <>
+            <StartPage
+              onOpenProject={(id, name) => void openProject(id, name)}
+              onOpenSettings={() => setShowSettings(true)}
+            />
+            {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
+          </>
         )}
         {toast && <Toast {...toast} />}
         {recoveredRuns && recoveredRuns.length > 0 && (
@@ -252,14 +274,9 @@ export default function App() {
   return (
     <AuthGate>
       <Suspense fallback={<EditorLoading />}>
-        <EditorShell onBack={backToStart} onOpenSettings={() => setShowSettings(true)} />
+        <EditorShell onBack={backToStart} />
       </Suspense>
       {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
-      {showSettings && (
-        <Suspense fallback={null}>
-          <SettingsPanel onClose={() => setShowSettings(false)} />
-        </Suspense>
-      )}
       {showLeaveConfirm && (
         <ConfirmDialog
           title={t('app.unsavedTitle')}

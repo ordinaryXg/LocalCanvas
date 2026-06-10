@@ -728,7 +728,7 @@ CREATE INDEX IF NOT EXISTS idx_dag_runs_project ON dag_runs(project_id);
 - [ ] 预置 Skill 可在设置中开关
 - [ ] 升级后数据库 migration 自动执行（v4 → v5 新表 + `user_id` 列）
 - [ ] 从 v4 项目文件打开，画布数据无损坏，可绑定到本地账号
-- [ ] `docs/account-guide.md` 说明本地账号与 v6 云端迁移预期
+- [x] [account-guide.md](./account-guide.md) 说明本地账号与 v6 云端迁移预期
 
 ---
 
@@ -824,7 +824,7 @@ localcanvas-server/          # 独立 monorepo 或仓库
 ## 十四、附录 A：测试用例
 
 > 原 `docs/v5-test-cases.md` 已归档至本文（2026-06-08）。  
-> **关联**：[agent-guide.md](./agent-guide.md) · 跑表记录规划见 [v10 技术债](../../LocalCanvas_v10_项目优化与技术债归集.md)（`docs/v10-qa-run.md`）  
+> **关联**：[agent-guide.md](./agent-guide.md) · 跑表记录见 [v10 技术债](../../LocalCanvas_v10_项目优化与技术债归集.md) · [v10/qa-run.md](../v10/qa-run.md)  
 > **更新日期**：2026-06-05（用例表）；自动化快照 2026-06-08
 
 ### A.1 测试范围
@@ -1040,7 +1040,7 @@ TC-{类型}-{模块}-{序号}
 | TC-M-REL-001 | P0 | v4→v5 数据库迁移 | 用 v4 用户数据目录启动 v5 | 自动建表；`user_id` 列存在；旧项目可打开 | ⬜ |
 | TC-M-REL-002 | P0 | 画布数据兼容 | 打开 v4 保存的项目 | 节点/连线/资源路径正常 | ⬜ |
 | TC-M-REL-003 | P0 | IPC 类型完整 | 抽查 `storyboard`/`audio`/`dag`/`agent` | preload 与 `src/types/ipc.ts` 一致 | ⬜ |
-| TC-M-REL-004 | P1 | 文档齐全 | 检查 docs | `agent-guide.md` 存在；`account-guide.md` 待补 | 🔶 |
+| TC-M-REL-004 | P1 | 文档齐全 | 检查 docs | `agent-guide.md`、`account-guide.md` 均在 `docs/v5/` | ✅ |
 | TC-M-REL-005 | P1 | CHANGELOG v5 | 打开 CHANGELOG | 记录 v5 新特性 | ⬜ |
 | TC-M-REL-006 | P1 | 中英文切换 | 切换 zh-CN / en-US | Agent/DAG/分镜无遗漏硬编码（抽检） | ⬜ |
 

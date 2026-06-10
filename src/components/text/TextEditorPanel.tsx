@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LLMModelConfig } from '../../types/config'
 import type { TextOutputMode } from '../../types/node'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useTextEditorStore } from '../../stores/textEditorStore'
 import { useTextNodeData } from '../../hooks/useTextNodeData'
+import { useTextEditorSplit } from '../../hooks/useTextEditorSplit'
 import { handleError, showToast } from '../../utils/ErrorHandler'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
-import { ResizableTextarea } from '../common/ResizableTextarea'
 import { resolveProfile } from '../../capabilities/registry'
 import { getLlmGeneratorUi } from '../../capabilities/generator-ui'
 import { supportsThinkingUi } from '../../capabilities/reasoning-params'
@@ -18,20 +18,15 @@ import {
   isLlmVisionImageHandle,
   visionImageIndexFromHandle,
 } from '../../utils/llmVisionSlots'
-import { NodeImageThumb } from '../common/NodeImageThumb'
+import { TextEditorToolbar } from './TextEditorToolbar'
+import { TextEditorSplitPane } from './TextEditorSplitPane'
+import { TextEditorReasoningBlock } from './TextEditorReasoningBlock'
+import { TextEditorVisionStrip } from './TextEditorVisionStrip'
+import { TextEditorOutputModeBar } from './TextEditorOutputModeBar'
+import { TextEditorAdvancedSettings } from './TextEditorAdvancedSettings'
 
 interface TextEditorPanelProps {
   nodeId: string
-}
-
-const SPLIT_MIN = 0.22
-const SPLIT_MAX = 0.78
-const DEFAULT_SPLIT = 0.5
-
-function countStats(text: string): string {
-  const chars = text.length
-  const lines = text ? text.split('\n').length : 0
-  return `${chars.toLocaleString()} 字 · ${lines} 行`
 }
 
 export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
@@ -39,13 +34,10 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
   const textData = useTextNodeData(nodeId)
   const focusDraftTick = useTextEditorStore((s) => s.focusDraftTick)
   const draftRef = useRef<HTMLTextAreaElement>(null)
-  const splitContainerRef = useRef<HTMLDivElement>(null)
-  const splitDragRef = useRef<{ startX: number; startRatio: number } | null>(null)
+  const { splitContainerRef, splitRatio, startSplitDrag, initSplitRatio } =
+    useTextEditorSplit(nodeId)
 
   const [systemPrompt, setSystemPrompt] = useState('')
-  const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT)
-  const splitRatioRef = useRef(splitRatio)
-  splitRatioRef.current = splitRatio
   const [modelId, setModelId] = useState('')
   const [thinkingPreset, setThinkingPreset] = useState<ThinkingPreset>('balanced')
   const [llmModels, setLlmModels] = useState<LLMModelConfig[]>([])
@@ -61,11 +53,16 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
     setSystemPrompt(textData.systemPrompt ?? '')
     setModelId(textData.modelId ?? '')
     setThinkingPreset(textData.thinkingPreset ?? 'balanced')
-    const saved = textData.editorLayout?.splitRatio
-    if (typeof saved === 'number') {
-      setSplitRatio(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, saved)))
-    }
-  }, [nodeId, textData?.systemPrompt, textData?.modelId, textData?.thinkingPreset, textData?.editorLayout?.splitRatio])
+    initSplitRatio(textData.editorLayout?.splitRatio)
+  }, [
+    nodeId,
+    textData?.systemPrompt,
+    textData?.modelId,
+    textData?.thinkingPreset,
+    textData?.editorLayout?.splitRatio,
+    textData,
+    initSplitRatio,
+  ])
 
   const activeProfile = modelId ? resolveProfile({ configId: modelId, kind: 'llm' }) : null
   const showThinking = activeProfile ? supportsThinkingUi(activeProfile) : false
@@ -82,33 +79,6 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
         visionImageIndexFromHandle(a.targetHandle!) -
         visionImageIndexFromHandle(b.targetHandle!),
     )
-
-  useEffect(() => {
-    const onMouseMove = (event: MouseEvent) => {
-      if (!splitDragRef.current || !splitContainerRef.current) return
-      const rect = splitContainerRef.current.getBoundingClientRect()
-      const ratio = (event.clientX - rect.left) / rect.width
-      const next = Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, ratio))
-      setSplitRatio(next)
-    }
-
-    const onMouseUp = () => {
-      if (!splitDragRef.current) return
-      splitDragRef.current = null
-      const node = useCanvasStore.getState().nodes.find((n) => n.id === nodeId)
-      const layout = (node?.data?.editorLayout as { splitRatio?: number } | undefined) ?? {}
-      updateNodeData(nodeId, {
-        editorLayout: { ...layout, splitRatio: splitRatioRef.current },
-      })
-    }
-
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [nodeId, updateNodeData])
 
   useEffect(() => {
     void window.api.config.read().then((config) => {
@@ -170,11 +140,6 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
     }
   }
 
-  const startSplitDrag = (event: ReactMouseEvent) => {
-    event.preventDefault()
-    splitDragRef.current = { startX: event.clientX, startRatio: splitRatio }
-  }
-
   const handleGenerate = async () => {
     if (!modelId || !draft.trim()) return
     try {
@@ -216,224 +181,69 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={() => void copyOutput()}
-          disabled={!output}
-          className="text-xs px-2 py-1 border border-border rounded text-text-muted hover:text-white disabled:opacity-40"
-        >
-          复制输出
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleGenerate()}
-          disabled={isGenerating || !modelId || !draft.trim()}
-          className="text-sm px-4 py-1.5 bg-accent text-white rounded hover:bg-accent-hover disabled:opacity-50"
-        >
-          {isGenerating ? '生成中…' : '✨ 生成'}
-        </button>
-        {isGenerating && (
-          <button
-            type="button"
-            onClick={() => void cancel()}
-            className="text-xs text-danger border border-danger/40 px-2 py-1 rounded"
-          >
-            取消
-          </button>
-        )}
-      </div>
+      <TextEditorToolbar
+        hasOutput={!!output}
+        isGenerating={isGenerating}
+        canGenerate={!!modelId && !!draft.trim()}
+        onCopyOutput={() => void copyOutput()}
+        onGenerate={() => void handleGenerate()}
+        onCancel={() => void cancel()}
+      />
 
-      <div
-        ref={splitContainerRef}
-        className="flex min-h-[200px] items-stretch"
-      >
-        <div
-          className="min-w-0 flex flex-col shrink-0"
-          style={{ width: `calc(${splitRatio * 100}% - 6px)` }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-muted">草稿（LLM 输入源）</label>
-            <span className="text-[10px] text-text-muted">{countStats(draft)}</span>
-          </div>
-          <ResizableTextarea
-            ref={draftRef}
-            value={draft}
-            onChange={(e) => handleDraftChange(e.target.value)}
-            placeholder="输入剧本、提示词等长文本…"
-            minHeight={160}
-            maxHeight={360}
-            className="flex-1 min-h-[160px]"
-          />
-        </div>
+      <TextEditorSplitPane
+        draftRef={draftRef}
+        splitContainerRef={splitContainerRef}
+        splitRatio={splitRatio}
+        onSplitDragStart={startSplitDrag}
+        draft={draft}
+        output={output}
+        outputMode={outputMode}
+        onDraftChange={handleDraftChange}
+        onOutputChange={handleOutputChange}
+      />
 
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整草稿与输出宽度"
-          title="拖动调整列宽"
-          onMouseDown={startSplitDrag}
-          className="group w-3 shrink-0 cursor-col-resize flex items-center justify-center hover:bg-accent/10 border-x border-border/40"
-        >
-          <span className="w-0.5 h-10 rounded-full bg-border group-hover:bg-accent/60 transition-colors" />
-        </div>
+      <TextEditorReasoningBlock
+        content={reasoningContent}
+        open={reasoningOpen}
+        onToggle={() => setReasoningOpen((v) => !v)}
+      />
 
-        <div className="min-w-0 flex-1 flex flex-col">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-text-muted">输出（连线下游）</label>
-            <span className="text-[10px] text-text-muted">{countStats(output)}</span>
-          </div>
-          <ResizableTextarea
-            value={output}
-            onChange={(e) => handleOutputChange(e.target.value)}
-            placeholder={draft ? '可手改输出，或点击生成' : '同步草稿或生成后显示'}
-            minHeight={160}
-            maxHeight={360}
-            className={`flex-1 min-h-[160px] ${outputMode === 'generated' ? 'border-accent/30 bg-accent/5' : ''}`}
-          />
-        </div>
-      </div>
+      <TextEditorVisionStrip
+        visionEdges={visionEdges}
+        currentProjectId={currentProjectId}
+        llmUi={llmUi}
+      />
 
-      {reasoningContent.trim() && (
-        <div className="rounded-lg border border-border/60 bg-bg-tertiary/30">
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-3 py-2 text-left text-xs text-text-muted hover:text-text-primary"
-            onClick={() => setReasoningOpen((v) => !v)}
-            aria-expanded={reasoningOpen}
-          >
-            <span>思考过程（reasoning）</span>
-            <span>{reasoningOpen ? '收起' : '展开'}</span>
-          </button>
-          {reasoningOpen && (
-            <pre className="px-3 pb-3 text-[11px] text-text-secondary whitespace-pre-wrap max-h-48 overflow-y-auto lc-scroll">
-              {reasoningContent}
-            </pre>
-          )}
-        </div>
-      )}
+      <TextEditorOutputModeBar
+        nodeId={nodeId}
+        outputMode={outputMode}
+        draft={draft}
+        output={output}
+        onModeChange={handleModeChange}
+        onSyncDraftToOutput={syncDraftToOutput}
+      />
 
-      {visionEdges.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-text-muted">
-            Vision 图片 {visionEdges.length}
-            {llmUi?.supportsVisionImage ? `/${llmUi.maxVisionImages}` : ''}
-          </span>
-          {visionEdges.map((edge) => (
-            <div
-              key={edge.id}
-              className="w-10 h-10 rounded overflow-hidden border border-border"
-              title={`图 ${visionImageIndexFromHandle(edge.targetHandle!) + 1}`}
-            >
-              <NodeImageThumb
-                projectId={currentProjectId}
-                nodeId={edge.source}
-                alt="Vision"
-              />
-            </div>
-          ))}
-          {llmUi && !llmUi.supportsVisionImage && (
-            <span className="text-[10px] text-amber-300">当前模型不支持图片输入</span>
-          )}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-4 text-xs">
-        <span className="text-text-muted">输出模式</span>
-        <label className="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="radio"
-            name={`output-mode-${nodeId}`}
-            checked={outputMode === 'passthrough'}
-            onChange={() => handleModeChange('passthrough')}
-          />
-          直接输出
-        </label>
-        <label className="flex items-center gap-1.5 cursor-pointer">
-          <input
-            type="radio"
-            name={`output-mode-${nodeId}`}
-            checked={outputMode === 'generated'}
-            onChange={() => handleModeChange('generated')}
-          />
-          使用 AI 结果
-        </label>
-        {outputMode === 'passthrough' && (
-          <button
-            type="button"
-            onClick={syncDraftToOutput}
-            disabled={!draft.trim()}
-            className="text-accent hover:underline disabled:opacity-40 disabled:no-underline"
-          >
-            同步草稿 → 输出
-          </button>
-        )}
-        {!output.trim() && draft.trim() && (
-          <span className="text-amber-400/90 text-[10px]">输出为空，下游连线暂无内容</span>
-        )}
-      </div>
-
-      <div>
-        <button
-          type="button"
-          onClick={() => setAdvancedOpen((o) => !o)}
-          className="text-[10px] text-text-muted hover:text-white"
-        >
-          {advancedOpen ? '▼' : '▶'} 高级设置
-        </button>
-        {advancedOpen && (
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-text-muted">LLM 模型</label>
-              <select
-                value={modelId}
-                onChange={(e) => {
-                  setModelId(e.target.value)
-                  patch({ modelId: e.target.value })
-                }}
-                className="w-full mt-1 bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
-              >
-                <option value="">选择模型</option>
-                {llmModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {showThinking && (
-              <div>
-                <label className="text-[10px] text-text-muted">思考强度</label>
-                <select
-                  value={thinkingPreset}
-                  onChange={(e) => {
-                    const value = e.target.value as ThinkingPreset
-                    setThinkingPreset(value)
-                    patch({ thinkingPreset: value })
-                  }}
-                  className="w-full mt-1 bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
-                >
-                  <option value="off">快速（低延迟）</option>
-                  <option value="balanced">标准</option>
-                  <option value="deep">深度推理</option>
-                </select>
-              </div>
-            )}
-            <div>
-              <label className="text-[10px] text-text-muted">系统提示（可选）</label>
-              <input
-                value={systemPrompt}
-                onChange={(e) => {
-                  setSystemPrompt(e.target.value)
-                  patch({ systemPrompt: e.target.value })
-                }}
-                placeholder="设定 AI 角色或风格…"
-                className="w-full mt-1 bg-bg-tertiary text-text-primary text-xs p-2 rounded outline-none border border-transparent focus:border-border"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      <TextEditorAdvancedSettings
+        open={advancedOpen}
+        onToggle={() => setAdvancedOpen((o) => !o)}
+        modelId={modelId}
+        llmModels={llmModels}
+        showThinking={showThinking}
+        thinkingPreset={thinkingPreset}
+        systemPrompt={systemPrompt}
+        onModelChange={(id) => {
+          setModelId(id)
+          patch({ modelId: id })
+        }}
+        onThinkingChange={(value) => {
+          setThinkingPreset(value)
+          patch({ thinkingPreset: value })
+        }}
+        onSystemPromptChange={(value) => {
+          setSystemPrompt(value)
+          patch({ systemPrompt: value })
+        }}
+      />
     </div>
   )
 }

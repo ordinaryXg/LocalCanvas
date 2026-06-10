@@ -12,7 +12,7 @@ import {
 } from './base'
 import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-errors'
 import type { CustomAdapterConfig } from '../../../../src/types/config'
-import { withRetry } from '../retry-manager'
+import { attachCustomVisionImages } from '../../../../src/capabilities/custom-vision-request'
 
 function extractJsonPath(data: unknown, path?: string): unknown {
   if (!path) return data
@@ -105,9 +105,7 @@ export class CustomAdapter extends ModelAdapter {
       temperature: params.temperature,
       images: params.images?.length ? params.images : undefined,
     })
-    if (params.images?.length && requestBody.images === undefined) {
-      requestBody.images = params.images
-    }
+    attachCustomVisionImages(requestBody, params.images)
     const response = await this.sendRequest(requestBody)
     const text = extractJsonPath(response, this.config.response_mapping.text)
     return String(text || '')

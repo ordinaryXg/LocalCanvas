@@ -9,29 +9,40 @@ import { useT } from '../../i18n'
 
 interface TopBarProps {
   onBack: () => void
-  onOpenSettings: () => void
 }
 
-export function TopBar({ onBack, onOpenSettings }: TopBarProps) {
+export function TopBar({ onBack }: TopBarProps) {
   const t = useT()
   const projectName = useProjectStore((s) => s.projectName)
   const isDirty = useProjectStore((s) => s.isDirty)
   const isSaving = useProjectStore((s) => s.isSaving)
   const saveError = useProjectStore((s) => s.saveError)
   const manualSave = useManualSave()
+  const settingsOpen = useEditorShellStore((s) => s.settingsOpen)
+  const setSettingsOpen = useEditorShellStore((s) => s.setSettingsOpen)
   const generatorDrawerOpen = useEditorShellStore((s) => s.generatorDrawerOpen)
-  const generatingNodes = useCanvasStore((s) =>
-    s.nodes.filter((n) => Boolean(n.data?.isGenerating)),
-  )
+  const generatingCount = useCanvasStore((s) => {
+    let count = 0
+    for (const n of s.nodes) {
+      if (n.data?.isGenerating) count++
+    }
+    return count
+  })
+  const generatingProgressTotal = useCanvasStore((s) => {
+    let sum = 0
+    for (const n of s.nodes) {
+      if (n.data?.isGenerating) sum += (n.data?.progress as number | undefined) ?? 0
+    }
+    return sum
+  })
 
   const genBadge = useMemo(() => {
-    if (generatorDrawerOpen || generatingNodes.length === 0) return null
-    const avg =
-      generatingNodes.reduce((sum, n) => sum + ((n.data?.progress as number) ?? 0), 0) /
-      generatingNodes.length
-    const pct = Math.round(avg)
-    return { count: generatingNodes.length, pct }
-  }, [generatorDrawerOpen, generatingNodes])
+    if (generatorDrawerOpen || generatingCount === 0) return null
+    return {
+      count: generatingCount,
+      pct: Math.round(generatingProgressTotal / generatingCount),
+    }
+  }, [generatorDrawerOpen, generatingCount, generatingProgressTotal])
 
   let saveLabel = t('toolbar.saved')
   let saveClass = 'text-[var(--studio-text-muted)]'
@@ -83,13 +94,21 @@ export function TopBar({ onBack, onOpenSettings }: TopBarProps) {
       )}
 
       <div className="flex-1 min-w-0 flex justify-center">
-        <ModeSwitcher />
+        {settingsOpen ? (
+          <span className="text-sm font-medium text-text-primary">⚙️ {t('settings.title')}</span>
+        ) : (
+          <ModeSwitcher />
+        )}
       </div>
 
       <button
         type="button"
-        onClick={onOpenSettings}
-        className="text-sm text-text-muted hover:text-white px-2 py-1 rounded"
+        onClick={() => setSettingsOpen(!settingsOpen)}
+        className={`text-sm px-2 py-1 rounded ${
+          settingsOpen
+            ? 'text-accent bg-accent/15'
+            : 'text-text-muted hover:text-white hover:bg-[var(--studio-surface-hover)]'
+        }`}
         title={t('app.settings')}
       >
         ⚙

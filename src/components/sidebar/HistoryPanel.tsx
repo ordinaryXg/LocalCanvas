@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { GenerationRecord } from '../../types/ipc'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
@@ -10,27 +10,58 @@ import { StatsPanel } from '../panels/StatsPanel'
 
 type FilterType = 'all' | 'image' | 'video' | 'text'
 
+const HISTORY_PAGE_SIZE = 20
+
 export function HistoryPanel() {
   const t = useT()
   const [records, setRecords] = useState<GenerationRecord[]>([])
   const [filter, setFilter] = useState<FilterType>('all')
   const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(HISTORY_PAGE_SIZE)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
   const addNode = useCanvasStore((s) => s.addNode)
   const viewport = useCanvasStore((s) => s.viewport)
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
-  const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({})
 
   const loadRecords = useCallback(async () => {
-    const list = await window.api.history.query({
-      type: filter === 'all' ? undefined : filter,
-      search: search.trim() || undefined,
-    })
-    setRecords(list)
+    setLoading(true)
+    try {
+      const list = await window.api.history.query({
+        type: filter === 'all' ? undefined : filter,
+        search: search.trim() || undefined,
+      })
+      setRecords(list)
+    } catch (error) {
+      handleError(error, 'historyLoad')
+    } finally {
+      setLoading(false)
+    }
   }, [filter, search])
 
   useEffect(() => {
     void loadRecords()
   }, [loadRecords])
+
+  useEffect(() => {
+    setVisibleCount(HISTORY_PAGE_SIZE)
+  }, [filter, search, records.length])
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current
+    if (!sentinel || visibleCount >= records.length) return
+
+    const root = sentinel.closest('.lc-scroll') ?? null
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setVisibleCount((count) => Math.min(records.length, count + HISTORY_PAGE_SIZE))
+      },
+      { root, rootMargin: '160px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [records.length, visibleCount])
 
   useEffect(() => {
     const unsubComplete = window.api.on('model:complete', () => {
@@ -44,35 +75,6 @@ export function HistoryPanel() {
       unsubBatch()
     }
   }, [loadRecords])
-
-  useEffect(() => {
-    let cancelled = false
-    const urls: string[] = []
-
-    void (async () => {
-      const next: Record<string, string> = {}
-      for (const record of records) {
-        if (!record.thumbnailPath) continue
-        try {
-          const url = await localPathToBlobUrl(record.thumbnailPath)
-          if (cancelled) {
-            URL.revokeObjectURL(url)
-            continue
-          }
-          next[record.id] = url
-          urls.push(url)
-        } catch {
-          /* ignore missing thumbnails */
-        }
-      }
-      if (!cancelled) setThumbUrls(next)
-    })()
-
-    return () => {
-      cancelled = true
-      urls.forEach((url) => URL.revokeObjectURL(url))
-    }
-  }, [records])
 
   const handleReuse = async (record: GenerationRecord) => {
     if (record.status !== 'completed') return
@@ -154,18 +156,21 @@ export function HistoryPanel() {
     text: '📝',
   }
 
+  const visibleRecords = records.slice(0, visibleCount)
+  const hasMore = visibleCount < records.length
+
   return (
-    <div>
+    <div className="flex flex-col min-h-full">
       <StatsPanel />
-      <div className="p-3">
+      <div className="flex flex-col flex-1 min-h-0 p-3">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('history.searchPlaceholder')}
-          className="w-full bg-bg-tertiary text-text-primary text-xs px-2 py-1.5 rounded outline-none mb-2 border border-border"
+          className="w-full shrink-0 bg-bg-tertiary text-text-primary text-xs px-2 py-1.5 rounded outline-none mb-2 border border-border"
         />
 
-        <div className="flex gap-1 mb-2">
+        <div className="flex gap-1 mb-2 shrink-0">
           {(['all', 'image', 'video', 'text'] as FilterType[]).map((f) => (
             <button
               key={f}
@@ -180,67 +185,130 @@ export function HistoryPanel() {
           ))}
         </div>
 
-        <div className="space-y-1.5 max-h-[400px] overflow-y-auto lc-scroll">
-          {records.map((r) => (
-            <div
-              key={r.id}
-              className="bg-bg-tertiary rounded p-2 hover:border-accent border border-transparent transition"
-            >
-              {thumbUrls[r.id] && (
-                <img
-                  src={thumbUrls[r.id]}
-                  alt=""
-                  className="w-full h-16 object-cover rounded mb-1.5 bg-bg-secondary"
-                />
-              )}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs">{typeIcons[r.type]}</span>
-                  <span className="text-[10px] text-text-secondary truncate max-w-[100px]">
-                    {r.modelName}
-                  </span>
-                </div>
-                <span className={`text-[9px] ${statusColors[r.status] || 'text-text-muted'}`}>
-                  {r.status}
-                </span>
+        {loading ? (
+          <div className="text-[10px] text-text-muted text-center py-4">{t('history.loading')}</div>
+        ) : records.length === 0 ? (
+          <div className="text-center text-text-muted text-xs py-4">{t('history.empty')}</div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {visibleRecords.map((r) => (
+              <HistoryRecordRow
+                key={r.id}
+                record={r}
+                typeIcon={typeIcons[r.type] ?? '·'}
+                statusClass={statusColors[r.status] || 'text-text-muted'}
+                onReuse={() => void handleReuse(r)}
+                onDelete={() => void handleDelete(r.id)}
+                reuseLabel={t('history.reuse')}
+                deleteLabel={t('history.delete')}
+              />
+            ))}
+            {hasMore && (
+              <div ref={loadMoreRef} className="text-[10px] text-text-muted text-center py-2">
+                {t('history.loadMore')}
               </div>
-              <div className="text-[9px] text-text-muted mt-1 truncate">{r.prompt}</div>
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-[8px] text-text-muted">
-                  {new Date(r.createdAt).toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-                <div className="flex gap-2">
-                  {r.status === 'completed' && (
-                    <button
-                      type="button"
-                      onClick={() => void handleReuse(r)}
-                      className="text-[9px] text-accent hover:underline"
-                    >
-                      {t('history.reuse')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(r.id)}
-                    className="text-[9px] text-text-muted hover:text-danger"
-                  >
-                    {t('history.delete')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
-          {records.length === 0 && (
-            <div className="text-center text-text-muted text-xs py-4">{t('history.empty')}</div>
+function HistoryRecordRow({
+  record,
+  typeIcon,
+  statusClass,
+  onReuse,
+  onDelete,
+  reuseLabel,
+  deleteLabel,
+}: {
+  record: GenerationRecord
+  typeIcon: string
+  statusClass: string
+  onReuse: () => void
+  onDelete: () => void
+  reuseLabel: string
+  deleteLabel: string
+}) {
+  return (
+    <div className="bg-bg-tertiary rounded p-2 hover:border-accent border border-transparent transition">
+      {record.thumbnailPath && <HistoryThumbnail thumbnailPath={record.thumbnailPath} />}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-xs shrink-0">{typeIcon}</span>
+          <span className="text-[10px] text-text-secondary truncate">{record.modelName}</span>
+        </div>
+        <span className={`text-[9px] shrink-0 ${statusClass}`}>{record.status}</span>
+      </div>
+      <div className="text-[9px] text-text-muted mt-1 truncate">{record.prompt}</div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-[8px] text-text-muted">
+          {new Date(record.createdAt).toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </span>
+        <div className="flex gap-2">
+          {record.status === 'completed' && (
+            <button type="button" onClick={onReuse} className="text-[9px] text-accent hover:underline">
+              {reuseLabel}
+            </button>
           )}
+          <button
+            type="button"
+            onClick={onDelete}
+            className="text-[9px] text-text-muted hover:text-danger"
+          >
+            {deleteLabel}
+          </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function HistoryThumbnail({ thumbnailPath }: { thumbnailPath: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+  const [src, setSrc] = useState('')
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const root = el.closest('.lc-scroll')
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisible(true)
+      },
+      { root, rootMargin: '120px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!visible) return
+    let revoked = ''
+    void localPathToBlobUrl(thumbnailPath).then((url) => {
+      revoked = url
+      setSrc(url)
+    })
+    return () => {
+      if (revoked.startsWith('blob:')) URL.revokeObjectURL(revoked)
+    }
+  }, [visible, thumbnailPath])
+
+  return (
+    <div ref={containerRef} className="w-full h-16 rounded mb-1.5 bg-bg-secondary overflow-hidden">
+      {src ? (
+        <img src={src} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full animate-pulse bg-bg-primary" />
+      )}
     </div>
   )
 }

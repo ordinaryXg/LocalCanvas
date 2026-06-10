@@ -3,10 +3,17 @@ import { GeneratorContent } from '../../components/panels/GeneratorContent'
 import { WorkbenchNodePreview } from '../../components/panels/WorkbenchNodePreview'
 import { HistoryPanel } from '../../components/sidebar/HistoryPanel'
 import { ComposeEditor } from '../../components/compose/ComposeEditor'
+import { ColumnResizeHandle } from '../../components/common/ColumnResizeHandle'
+import {
+  WORKBENCH_SIDEBAR_WIDTH_MIN,
+  WORKBENCH_SIDEBAR_WIDTH_MAX,
+} from '../../stores/editorShellStore'
 import { useWorkbenchTarget } from '../../hooks/useWorkbenchTarget'
 
 export function WorkbenchMode() {
   const setMode = useEditorShellStore((s) => s.setMode)
+  const workbenchSidebarWidth = useEditorShellStore((s) => s.workbenchSidebarWidth)
+  const setWorkbenchSidebarWidth = useEditorShellStore((s) => s.setWorkbenchSidebarWidth)
   const target = useWorkbenchTarget()
 
   if (!target) {
@@ -65,8 +72,18 @@ export function WorkbenchMode() {
         )}
       </div>
       <div className="flex flex-1 min-h-0">
-        <aside className="w-80 shrink-0 border-r border-[var(--studio-border)] bg-bg-primary min-h-0 flex flex-col">
+        <aside
+          className="relative shrink-0 border-r border-[var(--studio-border)] bg-bg-primary min-h-0 flex flex-col"
+          style={{ width: workbenchSidebarWidth }}
+        >
           <WorkbenchNodePreview nodeId={target.nodeId} nodeType={nodeType} />
+          <ColumnResizeHandle
+            value={workbenchSidebarWidth}
+            onChange={setWorkbenchSidebarWidth}
+            min={WORKBENCH_SIDEBAR_WIDTH_MIN}
+            max={WORKBENCH_SIDEBAR_WIDTH_MAX}
+            ariaLabel="调整预览栏宽度"
+          />
         </aside>
         <div
           className={`flex-1 min-w-0 min-h-0 ${

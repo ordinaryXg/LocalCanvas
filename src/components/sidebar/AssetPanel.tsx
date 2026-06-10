@@ -19,6 +19,8 @@ const FILTER_LABELS: Record<FilterType, string> = {
   audio: '🎵',
 }
 
+const ASSETS_PAGE_SIZE = 24
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -30,7 +32,9 @@ export function AssetPanel() {
   const [assets, setAssets] = useState<AssetItem[]>([])
   const [filter, setFilter] = useState<FilterType>('all')
   const [loading, setLoading] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(ASSETS_PAGE_SIZE)
   const [contextMenu, setContextMenu] = useState<AssetContextMenuState | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   const loadAssets = useCallback(async () => {
     if (!projectId) return
@@ -107,6 +111,29 @@ export function AssetPanel() {
   const filteredAssets =
     filter === 'all' ? assets : assets.filter((a) => a.type === filter)
 
+  useEffect(() => {
+    setVisibleCount(ASSETS_PAGE_SIZE)
+  }, [filter, projectId, assets.length])
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current
+    if (!sentinel || visibleCount >= filteredAssets.length) return
+
+    const root = sentinel.closest('.lc-scroll') ?? null
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setVisibleCount((count) => Math.min(filteredAssets.length, count + ASSETS_PAGE_SIZE))
+      },
+      { root, rootMargin: '160px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [filteredAssets.length, visibleCount])
+
+  const visibleAssets = filteredAssets.slice(0, visibleCount)
+  const hasMore = visibleCount < filteredAssets.length
+
   if (!projectId) {
     return <div className="p-3 text-xs text-text-muted">请先打开项目</div>
   }
@@ -142,8 +169,8 @@ export function AssetPanel() {
       ) : filteredAssets.length === 0 ? (
         <div className="text-[10px] text-text-muted text-center py-4">暂无资产，点击导入</div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {filteredAssets.map((asset) => (
+        <div className="flex flex-col gap-2">
+          {visibleAssets.map((asset) => (
             <div
               key={asset.id}
               draggable
@@ -152,22 +179,30 @@ export function AssetPanel() {
                 e.preventDefault()
                 setContextMenu({ x: e.clientX, y: e.clientY, asset })
               }}
-              className="bg-bg-tertiary rounded p-2 cursor-grab hover:border-accent border border-transparent transition"
+              className="flex gap-2 items-center bg-bg-tertiary rounded p-2 cursor-grab hover:border-accent border border-transparent transition"
             >
-              {asset.type === 'image' && (
-                <AssetThumbnail projectId={projectId} asset={asset} />
-              )}
-              {asset.type === 'video' && <VideoAssetThumbnail asset={asset} />}
-              {asset.type === 'audio' && (
-                <div className="w-full h-16 bg-bg-primary rounded flex items-center justify-center text-lg">
-                  🎵
+              <div className="w-16 h-16 shrink-0 rounded overflow-hidden bg-bg-primary">
+                {asset.type === 'image' && (
+                  <AssetThumbnail projectId={projectId} asset={asset} />
+                )}
+                {asset.type === 'video' && <VideoAssetThumbnail asset={asset} compact />}
+                {asset.type === 'audio' && (
+                  <div className="w-full h-full flex items-center justify-center text-lg">🎵</div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-text-primary truncate" title={asset.name}>
+                  {asset.name}
                 </div>
-              )}
-              <div className="text-[9px] text-text-muted mt-1 truncate" title={asset.name}>
-                {asset.name}
+                <div className="text-[9px] text-text-muted mt-0.5">{formatFileSize(asset.size)}</div>
               </div>
             </div>
           ))}
+          {hasMore && (
+            <div ref={loadMoreRef} className="text-[10px] text-text-muted text-center py-2">
+              向下滚动加载更多…
+            </div>
+          )}
         </div>
       )}
 
@@ -298,7 +333,7 @@ function AssetContextMenu({
   )
 }
 
-function VideoAssetThumbnail({ asset }: { asset: AssetItem }) {
+function VideoAssetThumbnail({ asset, compact = false }: { asset: AssetItem; compact?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [src, setSrc] = useState<string>('')
@@ -306,11 +341,12 @@ function VideoAssetThumbnail({ asset }: { asset: AssetItem }) {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+    const root = el.closest('.lc-scroll')
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) setVisible(true)
       },
-      { rootMargin: '80px' },
+      { root, rootMargin: '120px' },
     )
     observer.observe(el)
     return () => observer.disconnect()
@@ -336,28 +372,50 @@ function VideoAssetThumbnail({ asset }: { asset: AssetItem }) {
     }
   }, [visible, asset.absolutePath])
 
+  const boxClass = compact
+    ? 'w-full h-full flex items-center justify-center text-lg'
+    : 'w-full h-16 bg-bg-primary rounded flex items-center justify-center text-lg'
+
   if (!visible || !src) {
     return (
-      <div
-        ref={containerRef}
-        className="w-full h-16 bg-bg-primary rounded flex items-center justify-center text-lg"
-      >
+      <div ref={containerRef} className={boxClass}>
         🎥
       </div>
     )
   }
 
   return (
-    <div ref={containerRef}>
-      <img src={src} alt={asset.name} className="w-full h-16 object-cover rounded" />
+    <div ref={containerRef} className={compact ? 'w-full h-full' : undefined}>
+      <img
+        src={src}
+        alt={asset.name}
+        className={compact ? 'w-full h-full object-cover' : 'w-full h-16 object-cover rounded'}
+      />
     </div>
   )
 }
 
 function AssetThumbnail({ projectId, asset }: { projectId: string; asset: AssetItem }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
   const [src, setSrc] = useState<string>('')
 
   useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const root = el.closest('.lc-scroll')
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisible(true)
+      },
+      { root, rootMargin: '120px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!visible) return
     let revoked = ''
     void assetPathToBlobUrl(projectId, asset.path).then((url) => {
       revoked = url
@@ -366,11 +424,15 @@ function AssetThumbnail({ projectId, asset }: { projectId: string; asset: AssetI
     return () => {
       if (revoked.startsWith('blob:')) URL.revokeObjectURL(revoked)
     }
-  }, [projectId, asset.path])
+  }, [visible, projectId, asset.path])
 
   if (!src) {
-    return <div className="w-full h-16 bg-bg-primary rounded animate-pulse" />
+    return <div ref={containerRef} className="w-full h-full animate-pulse bg-bg-primary" />
   }
 
-  return <img src={src} alt={asset.name} className="w-full h-16 object-cover rounded" />
+  return (
+    <div ref={containerRef} className="w-full h-full">
+      <img src={src} alt={asset.name} className="w-full h-full object-cover" />
+    </div>
+  )
 }

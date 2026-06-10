@@ -9,6 +9,9 @@ import { CanvasMode } from './modes/CanvasMode'
 const WorkbenchMode = lazy(() =>
   import('./modes/WorkbenchMode').then((m) => ({ default: m.WorkbenchMode })),
 )
+const SettingsPanel = lazy(() =>
+  import('../components/panels/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
+)
 const AgentCompanion = lazy(() =>
   import('../components/agent/AgentCompanion').then((m) => ({ default: m.AgentCompanion })),
 )
@@ -20,7 +23,6 @@ import { isEditorCoachEnabled } from '../constants/editorFeatures'
 
 interface EditorShellProps {
   onBack: () => void
-  onOpenSettings: () => void
 }
 
 function EditorLoading() {
@@ -29,9 +31,11 @@ function EditorLoading() {
   )
 }
 
-export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
+export function EditorShell({ onBack }: EditorShellProps) {
   useEditorShellShortcuts()
   const mode = useEditorShellStore((s) => s.mode)
+  const settingsOpen = useEditorShellStore((s) => s.settingsOpen)
+  const setSettingsOpen = useEditorShellStore((s) => s.setSettingsOpen)
   const narrowLayout = useNarrowLayout(1280)
   const workbenchTarget = useWorkbenchTarget()
   const hideInspector = mode === 'workbench' && workbenchTarget?.kind === 'compose'
@@ -39,17 +43,25 @@ export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
 
   return (
     <div className="editor-shell w-screen h-screen flex flex-col overflow-hidden bg-[var(--studio-bg)]">
-      <TopBar onBack={onBack} onOpenSettings={onOpenSettings} />
+      <TopBar onBack={onBack} />
       <div className="flex-1 min-h-0 flex">
         {!hideDock && <Dock />}
         <div className="flex-1 min-w-0 relative flex flex-col min-h-0 overflow-hidden">
-          {mode === 'canvas' && <CanvasMode />}
-          {mode === 'workbench' && (
+          {settingsOpen ? (
             <Suspense fallback={<EditorLoading />}>
-              <div className="flex-1 min-h-0 editor-shell-mode-enter">
-                <WorkbenchMode />
-              </div>
+              <SettingsPanel onClose={() => setSettingsOpen(false)} />
             </Suspense>
+          ) : (
+            <>
+              {mode === 'canvas' && <CanvasMode />}
+              {mode === 'workbench' && (
+                <Suspense fallback={<EditorLoading />}>
+                  <div className="flex-1 min-h-0 editor-shell-mode-enter">
+                    <WorkbenchMode />
+                  </div>
+                </Suspense>
+              )}
+            </>
           )}
         </div>
         {!hideInspector && <Inspector overlay={narrowLayout} />}
@@ -57,7 +69,7 @@ export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
           <AgentCompanion />
         </Suspense>
       </div>
-      {isEditorCoachEnabled() && <EditorCoachMark />}
+      {isEditorCoachEnabled() && !settingsOpen && <EditorCoachMark />}
       <ShortcutsOverlay />
     </div>
   )

@@ -1,20 +1,11 @@
 import { useEditorShellStore } from '../../stores/editorShellStore'
-
-const SHORTCUTS = [
-  { keys: 'Space（按住）', desc: '拖动画布（不可选中节点）' },
-  { keys: 'Ctrl+S', desc: '保存项目' },
-  { keys: 'Ctrl+Z', desc: '撤销' },
-  { keys: 'Ctrl+Shift+Z', desc: '重做' },
-  { keys: 'G', desc: '打开工作台 · 生成（选中可生成节点）' },
-  { keys: 'E', desc: '打开工作台 · 剪辑（选中合成节点）' },
-  { keys: 'Esc', desc: '关闭抽屉 / 返回画布模式' },
-  { keys: '?', desc: '显示快捷键' },
-  { keys: '/', desc: '画布命令面板' },
-]
+import { useT } from '../../i18n'
+import { KEYBOARD_SHORTCUTS } from '../../constants/keyboardShortcuts'
 
 export function ShortcutsOverlay() {
   const open = useEditorShellStore((s) => s.shortcutsOpen)
   const setOpen = useEditorShellStore((s) => s.setShortcutsOpen)
+  const t = useT()
 
   if (!open) return null
 
@@ -23,26 +14,30 @@ export function ShortcutsOverlay() {
       className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60"
       onClick={() => setOpen(false)}
       role="dialog"
-      aria-label="快捷键"
+      aria-label={t('settings.tabShortcuts')}
     >
       <div
-        className="w-full max-w-sm rounded-xl border border-[var(--studio-border)] bg-bg-secondary p-4 shadow-xl"
+        className="w-full max-w-md rounded-xl border border-[var(--studio-border)] bg-bg-secondary p-4 shadow-xl max-h-[80vh] overflow-y-auto lc-scroll"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium">快捷键</h2>
+          <h2 className="text-sm font-medium">{t('settings.tabShortcuts')}</h2>
           <button type="button" onClick={() => setOpen(false)} className="text-text-muted text-sm">
             ✕
           </button>
         </div>
         <ul className="space-y-2">
-          {SHORTCUTS.map((s) => (
-            <li key={s.keys} className="flex justify-between text-xs gap-4">
-              <kbd className="font-mono text-text-primary">{s.keys}</kbd>
-              <span className="text-text-muted text-right">{s.desc}</span>
-            </li>
-          ))}
+          {KEYBOARD_SHORTCUTS.map((s) => {
+            const desc = t(s.descKey) === s.descKey ? s.descFallback : t(s.descKey)
+            return (
+              <li key={s.id} className="flex justify-between text-xs gap-4">
+                <kbd className="font-mono text-text-primary shrink-0">{s.keys}</kbd>
+                <span className="text-text-muted text-right">{desc}</span>
+              </li>
+            )
+          })}
         </ul>
+        <p className="mt-3 text-[10px] text-text-muted">{t('settings.shortcutsOverlayHint')}</p>
       </div>
     </div>
   )

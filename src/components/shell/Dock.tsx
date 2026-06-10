@@ -3,7 +3,13 @@ import { ToolPanel } from '../sidebar/ToolPanel'
 import { AssetPanel } from '../sidebar/AssetPanel'
 import { HistoryPanel } from '../sidebar/HistoryPanel'
 import { ConnectionHealthPanel } from '../sidebar/ConnectionHealthPanel'
-import { useEditorShellStore, type DockDrawer } from '../../stores/editorShellStore'
+import { ColumnResizeHandle } from '../common/ColumnResizeHandle'
+import {
+  useEditorShellStore,
+  type DockDrawer,
+  DOCK_DRAWER_WIDTH_MIN,
+  DOCK_DRAWER_WIDTH_MAX,
+} from '../../stores/editorShellStore'
 import { useT } from '../../i18n'
 
 const dockItems: { id: Exclude<DockDrawer, null>; icon: string; labelKey: string }[] = [
@@ -18,6 +24,8 @@ export function Dock() {
   const t = useT()
   const openDrawer = useEditorShellStore((s) => s.openDrawer)
   const toggleDrawer = useEditorShellStore((s) => s.toggleDrawer)
+  const dockDrawerWidth = useEditorShellStore((s) => s.dockDrawerWidth)
+  const setDockDrawerWidth = useEditorShellStore((s) => s.setDockDrawerWidth)
   return (
     <div className="flex h-full shrink-0">
       <nav
@@ -57,12 +65,19 @@ export function Dock() {
       {openDrawer && (
         <aside
           className="relative flex flex-col bg-bg-secondary border-r border-border overflow-hidden shrink-0 dock-expand-enter"
-          style={{ width: 320 }}
+          style={{ width: dockDrawerWidth }}
         >
+          <ColumnResizeHandle
+            value={dockDrawerWidth}
+            onChange={setDockDrawerWidth}
+            min={DOCK_DRAWER_WIDTH_MIN}
+            max={DOCK_DRAWER_WIDTH_MAX}
+            ariaLabel="调整侧栏宽度"
+          />
           <div className="px-3 py-2 border-b border-border text-xs font-medium text-text-primary shrink-0">
             {t(dockItems.find((d) => d.id === openDrawer)?.labelKey ?? 'sidebar.nodes')}
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto lc-scroll">
+          <div className="flex-1 min-h-0 overflow-y-auto lc-scroll [&>*]:min-h-full">
             {openDrawer === 'nodes' && <NodePanel />}
             {openDrawer === 'tools' && <ToolPanel />}
             {openDrawer === 'assets' && <AssetPanel />}

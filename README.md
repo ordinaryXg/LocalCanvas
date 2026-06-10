@@ -71,7 +71,7 @@ npm install
 npm run dev
 ```
 
-更多指南：[模型配置](docs/v2/model-config.md) · [工作流模板](docs/v4/workflow-templates.md) · [Agent 指南](docs/v5/agent-guide.md)
+更多指南：[模型配置](docs/v2/model-config.md) · [工作流模板](docs/v4/workflow-templates.md) · [Agent 指南](docs/v5/agent-guide.md) · [账号说明](docs/v5/account-guide.md)
 
 ## 快速开始
 
@@ -226,7 +226,7 @@ src/
   layouts/         # CanvasMode、WorkbenchMode
   capabilities/    # 能力目录、连线兼容、槽位标签
   hooks/           # DAG、合成、数据流等
-docs/              # 用户指南 + v1–v10 版本索引（详案在 docs/vN/）
+docs/              # 用户指南 + v1–v11 版本索引（详案在 docs/vN/）
 e2e/               # Playwright smoke 测试
 scripts/           # 包体报告等工具脚本
 ```
@@ -250,11 +250,12 @@ scripts/           # 包体报告等工具脚本
 | [模型配置](docs/v2/model-config.md) | 提供商、能力目录、YAML |
 | [工作流模板](docs/v4/workflow-templates.md) | 预置与自定义工作流 |
 | [Agent 指南](docs/v5/agent-guide.md) | Agent、DAG、斜杠命令 |
+| [账号说明](docs/v5/account-guide.md) | 游客 / 本地账号、数据目录 |
 | [测试用例](docs/v5/LocalCanvas_v5_Agent自动化与分镜增强.md#十四附录-a测试用例) | v5 手工验收清单（附录 A） |
 
-### 版本索引（v1–v10）
+### 版本索引（v1–v11）
 
-根目录为**精简索引**，完整详案在 `docs/vN/`。
+根目录为**精简索引**，完整详案在 `docs/vN/`。目录约定见 [docs/README.md](docs/README.md)。
 
 | 版本 | 索引 | 详案目录 |
 |------|------|----------|
@@ -268,9 +269,11 @@ scripts/           # 包体报告等工具脚本
 | v8 | [界面重设计](docs/LocalCanvas_v8_界面与体验重设计.md) | [v8/](docs/v8/) · [design/](docs/v8/design/) |
 | v9 | [精简收官](docs/LocalCanvas_v9_精简优化与体验收官.md) | [v9/](docs/v9/) |
 | v10 | [冗余清除与技术债归零](docs/LocalCanvas_v10_项目优化与技术债归集.md) | [v10/](docs/v10/) |
+| v11 | [Agent 与设置增强](docs/LocalCanvas_v11_Agent与设置增强.md) | [v11/](docs/v11/) |
 
 | 其他 | 说明 |
 |------|------|
+| [文档目录说明](docs/README.md) | 索引 / 详案 / 命名约定 |
 | [开发步骤表](docs/LocalCanvas_开发步骤表.md) | 跨版本 Phase 拆解 |
 | [包体报告](docs/v9/v9-bundle-size-report.md) | renderer 懒加载体积对比 |
 

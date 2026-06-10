@@ -8,6 +8,8 @@ import {
   storyboardSyncedFrameCount,
   storyboardVirtualRowRange,
   storyboardGridRowCount,
+  computeStoryboardGenCellSize,
+  STORYBOARD_GEN_CELL_GAP,
 } from './storyboardNodeDisplay'
 import type { StoryboardFrame } from '../types/storyboard'
 
@@ -58,5 +60,14 @@ describe('storyboardNodeDisplay', () => {
     const range = storyboardVirtualRowRange(80, 200, 10, 78)
     expect(range.startRow).toBeGreaterThanOrEqual(0)
     expect(range.endRow).toBeGreaterThan(range.startRow)
+  })
+
+  it('computes responsive generator cell size from container', () => {
+    expect(computeStoryboardGenCellSize(360, 0, 3, 9, STORYBOARD_GEN_CELL_GAP, false, 'grid3')).toBe(77)
+    expect(computeStoryboardGenCellSize(360, 400, 3, 9, STORYBOARD_GEN_CELL_GAP, true, 'grid3')).toBe(77)
+    expect(computeStoryboardGenCellSize(600, 280, 5, 25, STORYBOARD_GEN_CELL_GAP, true, 'grid5')).toBe(115)
+    expect(computeStoryboardGenCellSize(600, 120, 5, 30, STORYBOARD_GEN_CELL_GAP, true, 'grid5')).toBe(115)
+    expect(computeStoryboardGenCellSize(360, 0, 3, 9, STORYBOARD_GEN_CELL_GAP, false, 'grid5')).toBe(116)
+    expect(computeStoryboardGenCellSize(0, 0, 3, 9)).toBe(72)
   })
 })

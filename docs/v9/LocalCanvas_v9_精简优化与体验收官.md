@@ -141,7 +141,7 @@ npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
 | V5-9 | 音频 | 人声分离 HTTP API | P2 | ⬜ | → **v10** |
 | V5-10 | 设置 | Agent 默认模型 / 分离 API UI | P2 | ⬜ | → **v10** |
 | V5-11 | Slash | `/style` Legacy 路径 + 视频 chip 对齐 | P2 | 🔶 | 视频 `StylePresetChips` ✅；Legacy `/style` 路径未对齐 |
-| V5-12 | 文档 | `account-guide.md` | P2 | ⬜ | → **v10** |
+| V5-12 | 文档 | [account-guide.md](../v5/account-guide.md) | P2 | ✅ | v10 Wave D |
 | V5-13 | 测试 | auth 单测、e2e 扩展 | P1 | ✅ | `authValidation.test.ts` ✅；e2e **5 文件** / `workbench-smoke` |
 
 ### 1.4 横切 QA 债务
