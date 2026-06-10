@@ -1,12 +1,15 @@
 import { normalizeTextGenerateResult } from '../../../../src/utils/textGenerateResult'
 import type { AdapterRegistry } from '../model-adapter/factory'
 import type { AppConfig } from '../../../../src/types/config'
-import type { WorkflowPlan } from '../../../../src/types/agent'
+import type { GraphPatch, WorkflowPlan } from '../../../../src/types/agent'
+import { parseGraphPatch } from '../../../../src/utils/parseGraphPatch'
+import { enrichGraphPatchWithModels } from '../../../../src/capabilities/agent-patch-enrich'
 import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-errors'
 import { hasUsableApiKey, isAuthRelatedMessage } from '../../../../src/utils/apiKey'
 import { getLlmModelConfig, resolveDefaultLlmModelId } from '../../../../src/utils/configResolve'
 import { parseWorkflowPlan } from '../../../../src/utils/parseWorkflowPlan'
 import { WORKFLOW_PLANNER_SYSTEM_PROMPT } from './prompts/workflow-planner'
+import { GRAPH_PATCH_PLANNER_SYSTEM_PROMPT } from './prompts/graph-patch-planner'
 import { buildSkillPlan, rankSkillsForIntent } from './skills/index'
 import { buildModelCatalogSection } from '../../../../src/capabilities/agent-catalog'
 import { enrichWorkflowPlanWithModels } from '../../../../src/capabilities/agent-plan-enrich'
@@ -28,9 +31,28 @@ export interface SuggestedTemplate {
 export interface AgentChatResponse {
   reply: string
   plan?: WorkflowPlan
+  patch?: GraphPatch
   skillId?: string
   suggestedTemplates?: SuggestedTemplate[]
   planWarnings?: string[]
+}
+
+export interface AgentBuildPatchRequest {
+  message: string
+  focusedNodeIds: string[]
+  canvasNodes: Array<{
+    id: string
+    type: string
+    label?: string
+    data: Record<string, unknown>
+  }>
+  canvasEdges: Array<{
+    id: string
+    source: string
+    target: string
+    sourceHandle?: string | null
+    targetHandle?: string | null
+  }>
 }
 
 export interface AgentBuildTemplateRequest {
@@ -211,5 +233,69 @@ export async function agentChat(
       }
     }
     throw err
+  }
+}
+
+function formatCanvasContext(request: AgentBuildPatchRequest): string {
+  const nodeLines = request.canvasNodes.map((n) => {
+    const label = n.label ?? (n.data.label as string | undefined) ?? n.type
+    return `- ${n.id} (${n.type}) ${label}`
+  })
+  const edgeLines = request.canvasEdges.map(
+    (e) => `- ${e.source} --[${e.sourceHandle ?? 'out'}→${e.targetHandle ?? 'in'}]--> ${e.target}`,
+  )
+  return `选中节点 id：${request.focusedNodeIds.join(', ')}\n\n画布节点：\n${nodeLines.join('\n')}\n\n相关连线：\n${edgeLines.join('\n') || '（无）'}`
+}
+
+export async function agentBuildPatch(
+  adapters: AdapterRegistry,
+  config: AppConfig,
+  request: AgentBuildPatchRequest,
+): Promise<AgentChatResponse> {
+  const intent = request.message.trim()
+  if (!intent) {
+    return { reply: '请描述你想对选中节点做什么修改。' }
+  }
+  if (request.focusedNodeIds.length === 0) {
+    return { reply: 'Build 模式需要先选中至少一个画布节点。' }
+  }
+
+  const llmId = resolveDefaultLlmModelId(config)
+  if (!llmId) {
+    return { reply: '未配置默认 LLM，无法生成图补丁。' }
+  }
+  const llmConfig = getLlmModelConfig(config, llmId)
+  if (!hasUsableApiKey(llmConfig?.api_key)) {
+    return { reply: `未配置有效的 LLM API Key。${llmKeyHint(config, llmId)}` }
+  }
+
+  try {
+    const adapter = adapters.getLLMAdapter(llmId)
+    const catalog = buildModelCatalogSection(config)
+    const context = formatCanvasContext(request)
+    const raw = await adapter.generateText({
+      prompt: `用户意图：\n${intent}\n\n${context}\n\n请生成 GraphPatch JSON。`,
+      systemPrompt: `${GRAPH_PATCH_PLANNER_SYSTEM_PROMPT}\n\n${catalog}`,
+      model: '',
+      maxTokens: 4096,
+      temperature: 0.2,
+      stream: false,
+      nodeId: 'agent-build',
+    })
+    const { content: rawText } = normalizeTextGenerateResult(raw)
+    const parsed = parseGraphPatch(rawText, intent, request.focusedNodeIds)
+    const enriched = enrichGraphPatchWithModels(parsed, config)
+    const warn =
+      enriched.warnings.length > 0 ? `\n\n⚠ ${enriched.warnings.join('\n')}` : ''
+    const addCount = enriched.patch.addNodes?.length ?? 0
+    const edgeCount = enriched.patch.addEdges?.length ?? 0
+    return {
+      reply: `${enriched.patch.summary}\n\n将新增 ${addCount} 个节点、${edgeCount} 条连线。确认后应用到画布。${warn}`,
+      patch: enriched.patch,
+      planWarnings: enriched.warnings,
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { reply: `图补丁生成失败：${message}` }
   }
 }

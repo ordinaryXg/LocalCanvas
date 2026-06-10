@@ -280,6 +280,13 @@ export interface LocalCanvasAPI {
       sessionId?: string
       disabledSkills?: string[]
     }) => Promise<import('./agent').AgentChatResult>
+    buildPatch: (payload: {
+      message: string
+      sessionId?: string
+      focusedNodeIds: string[]
+      canvasNodes: import('./agent').CanvasNodeSnapshot[]
+      canvasEdges: import('./agent').CanvasEdgeSnapshot[]
+    }) => Promise<import('./agent').AgentChatResult>
     listSessions: (projectId?: string) => Promise<import('./agent').AgentSessionSummary[]>
     getSession: (sessionId: string) => Promise<import('./agent').AgentSessionDetail | null>
     listSkills: () => Promise<{ skills: Array<{ id: string; name: string; description: string }> }>

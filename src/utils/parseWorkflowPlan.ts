@@ -64,15 +64,30 @@ export function parseWorkflowPlan(raw: string, intent = ''): WorkflowPlan {
     throw new WorkflowPlanParseError('计划至少需要一个节点')
   }
 
+  const executionRaw = obj.executionMode
+  const executionMode =
+    executionRaw === 'manual'
+      ? 'manual'
+      : executionRaw === 'checkpoint'
+        ? 'checkpoint'
+        : 'auto'
+
+  const checkpointAfter = Array.isArray(obj.checkpointAfter)
+    ? (obj.checkpointAfter as unknown[])
+        .map(String)
+        .filter((t): t is 'script' | 'storyboard' => t === 'script' || t === 'storyboard')
+    : undefined
+
   return {
     version: 1,
     intent: String(obj.intent ?? intent),
     summary: String(obj.summary ?? '工作流计划'),
     nodes: plannedNodes,
     edges: plannedEdges,
-    executionMode: obj.executionMode === 'manual' ? 'manual' : 'auto',
+    executionMode,
     estimatedSteps: Number(obj.estimatedSteps ?? plannedNodes.length),
     skillId: obj.skillId ? String(obj.skillId) : undefined,
+    checkpointAfter,
   }
 }
 

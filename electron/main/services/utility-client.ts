@@ -343,6 +343,30 @@ export class UtilityClient {
     }
   }
 
+  async agentBuildPatch(payload: {
+    message: string
+    focusedNodeIds: string[]
+    canvasNodes: Array<{
+      id: string
+      type: string
+      label?: string
+      data: Record<string, unknown>
+    }>
+    canvasEdges: Array<{
+      id: string
+      source: string
+      target: string
+      sourceHandle?: string | null
+      targetHandle?: string | null
+    }>
+  }): Promise<{ reply: string; patch?: unknown; planWarnings?: string[] }> {
+    return (await this.send('agent:buildPatch', payload, 120000)) as {
+      reply: string
+      patch?: unknown
+      planWarnings?: string[]
+    }
+  }
+
   async agentBuildFromTemplate(payload: {
     skillId: string
     intent: string

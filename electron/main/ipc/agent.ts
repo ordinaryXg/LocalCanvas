@@ -81,6 +81,67 @@ export function registerAgentIpc(): void {
   })
 
   ipcMain.handle(
+    'agent:buildPatch',
+    async (
+      _e,
+      payload: {
+        message: string
+        sessionId?: string
+        focusedNodeIds: string[]
+        canvasNodes: Array<{
+          id: string
+          type: string
+          label?: string
+          data: Record<string, unknown>
+        }>
+        canvasEdges: Array<{
+          id: string
+          source: string
+          target: string
+          sourceHandle?: string | null
+          targetHandle?: string | null
+        }>
+      },
+    ) => {
+      try {
+        let sessionId = payload.sessionId
+        if (!sessionId) {
+          sessionId = agentSessionRepository.create(
+            getActiveProjectId() ?? undefined,
+            payload.message.slice(0, 40),
+          )
+          const userMsg: AgentMessage = {
+            role: 'user',
+            content: payload.message,
+            timestamp: new Date().toISOString(),
+          }
+          agentSessionRepository.appendMessage(sessionId, userMsg)
+        }
+
+        const result = await getUtilityClient().agentBuildPatch({
+          message: payload.message,
+          focusedNodeIds: payload.focusedNodeIds,
+          canvasNodes: payload.canvasNodes,
+          canvasEdges: payload.canvasEdges,
+        })
+
+        const assistantMsg: AgentMessage = {
+          role: 'assistant',
+          content: result.reply,
+          timestamp: new Date().toISOString(),
+        }
+        agentSessionRepository.appendMessage(sessionId, assistantMsg)
+
+        return { ...result, sessionId }
+      } catch (error) {
+        logger.error('agent:buildPatch failed', error)
+        const message = error instanceof Error ? error.message : String(error)
+        return { reply: '', sessionId: payload.sessionId ?? '', error: 'AGENT_FAILED', message }
+      }
+    },
+  )
+
+  ipcMain.handle(
     'agent:buildFromTemplate',
     async (
       _e,

@@ -31,7 +31,12 @@ import {
   initComposeService,
   type ComposeOptions,
 } from './services/compose-service'
-import { agentBuildFromTemplate, agentChat } from './services/agent/agent-service'
+import {
+  agentBuildFromTemplate,
+  agentBuildPatch,
+  agentChat,
+  type AgentBuildPatchRequest,
+} from './services/agent/agent-service'
 import { listSkills } from './services/agent/skills/index'
 import {
   exportStoryboardPng,
@@ -382,6 +387,22 @@ function handleAgentRequest(req: UtilityRequest): void {
     }
     case 'agent:listSkills': {
       post('agent:skills', { skills: listSkills() }, req.id)
+      break
+    }
+    case 'agent:buildPatch': {
+      void (async () => {
+        try {
+          const result = await agentBuildPatch(adapters!, currentConfig!, {
+            message: req.data.message as string,
+            focusedNodeIds: (req.data.focusedNodeIds as string[]) ?? [],
+            canvasNodes: (req.data.canvasNodes as AgentBuildPatchRequest['canvasNodes']) ?? [],
+            canvasEdges: (req.data.canvasEdges as AgentBuildPatchRequest['canvasEdges']) ?? [],
+          })
+          post('agent:buildPatchResult', result, req.id)
+        } catch (error) {
+          post('agent:error', { error: getAdapterErrorMessage(error) }, req.id)
+        }
+      })()
       break
     }
     case 'agent:buildFromTemplate': {

@@ -120,3 +120,14 @@ export function isTemplateEnabled(templateId: string, prefs?: AgentPreferences):
   const p = prefs ?? loadAgentPreferences()
   return !p.disabledTemplateIds.includes(templateId)
 }
+
+export function resolveAgentMode(
+  prefs: AgentPreferences,
+  selectedCount: number,
+  override: 'plan' | 'build' | null,
+): 'plan' | 'build' {
+  if (override) return override
+  if (prefs.defaultMode === 'plan') return 'plan'
+  if (prefs.defaultMode === 'build') return 'build'
+  return selectedCount > 0 ? 'build' : 'plan'
+}

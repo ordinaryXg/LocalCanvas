@@ -56,4 +56,19 @@ describe('parseWorkflowPlan', () => {
     expect(plan.edges).toHaveLength(1)
     expect(plan.executionMode).toBe('manual')
   })
+
+  it('parses checkpoint executionMode and checkpointAfter', () => {
+    const plan = parseWorkflowPlan(
+      JSON.stringify({
+        summary: '脚本成片',
+        nodes: [{ tempId: 's1', type: 'script', data: {} }],
+        edges: [],
+        executionMode: 'checkpoint',
+        checkpointAfter: ['script'],
+      }),
+      '短片',
+    )
+    expect(plan.executionMode).toBe('checkpoint')
+    expect(plan.checkpointAfter).toEqual(['script'])
+  })
 })

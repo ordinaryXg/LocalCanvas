@@ -11,8 +11,9 @@ export const scriptToFilmSkill: AgentSkill = {
       intent,
       summary: '创建脚本节点生成分镜，再批量生成图片、视频并合成导出',
       skillId: 'script-to-film',
-      executionMode: 'manual',
+      executionMode: 'checkpoint',
       estimatedSteps: 4,
+      checkpointAfter: ['script'],
       nodes: [
         {
           tempId: 'script-1',

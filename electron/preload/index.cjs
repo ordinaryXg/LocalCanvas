@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('api', {
     getSession: (sessionId) => ipcRenderer.invoke('agent:getSession', sessionId),
     listSkills: () => ipcRenderer.invoke('agent:listSkills'),
     buildFromTemplate: (payload) => ipcRenderer.invoke('agent:buildFromTemplate', payload),
+    buildPatch: (payload) => ipcRenderer.invoke('agent:buildPatch', payload),
   },
   dag: {
     createRun: (payload) => ipcRenderer.invoke('dag:createRun', payload),

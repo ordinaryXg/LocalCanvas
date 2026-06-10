@@ -4,6 +4,7 @@ import {
   loadAgentPreferences,
   saveAgentPreferences,
   DEFAULT_AGENT_PREFERENCES,
+  resolveAgentMode,
 } from './agentPreferences'
 
 describe('agentPreferences', () => {
@@ -35,5 +36,11 @@ describe('agentPreferences', () => {
     const prefs = loadAgentPreferences()
     expect(prefs.autoRunAfterConfirm).toBe(false)
     expect(prefs.disabledTemplateIds).toEqual(['script-to-film'])
+  })
+
+  it('resolveAgentMode auto picks build when nodes selected', () => {
+    expect(resolveAgentMode(DEFAULT_AGENT_PREFERENCES, 2, null)).toBe('build')
+    expect(resolveAgentMode(DEFAULT_AGENT_PREFERENCES, 0, null)).toBe('plan')
+    expect(resolveAgentMode({ ...DEFAULT_AGENT_PREFERENCES, defaultMode: 'plan' }, 2, null)).toBe('plan')
   })
 })
