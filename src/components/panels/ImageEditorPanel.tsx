@@ -31,6 +31,7 @@ import { ResizablePreviewPane, PreviewWidthSplitter } from './ResizablePreviewPa
 import { StylePresetChips, type StylePresetChipsHandle } from './StylePresetChips'
 import { useEditorShellStore } from '../../stores/editorShellStore'
 import { assetPathToBlobUrl } from '../../utils/assetStorage'
+import { findScrollParent, scrollElementWithinContainer } from '../../utils/scrollWithin'
 
 interface ImageEditorPanelProps {
   nodeId: string
@@ -155,8 +156,11 @@ export function ImageEditorPanel({ nodeId, hidePreview = false }: ImageEditorPan
   }, [focusStyleChips, clearFocusStyleChips])
 
   useEffect(() => {
-    if (!scrollToGeneratorWarnings) return
-    warningsRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    if (!scrollToGeneratorWarnings || !warningsRef.current) return
+    const scrollParent = findScrollParent(warningsRef.current)
+    if (scrollParent) {
+      scrollElementWithinContainer(scrollParent, warningsRef.current)
+    }
     clearScrollToGeneratorWarnings()
   }, [scrollToGeneratorWarnings, clearScrollToGeneratorWarnings])
 

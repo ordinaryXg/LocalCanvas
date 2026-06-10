@@ -35,7 +35,6 @@ import { agentChat } from './services/agent/agent-service'
 import { listSkills } from './services/agent/skills/index'
 import {
   exportStoryboardPng,
-  exportStoryboardPdf,
   exportFrame4k,
   type StoryboardExportFrame,
   type StoryboardExportLayout,
@@ -93,8 +92,7 @@ function loadConfigFromPath(configPath: string, outputDir = ''): AppConfig {
     const defaults = createDefaultUtilityConfig(outputDir)
     return {
       image_models: parsed.image_models ?? defaults.image_models,
-      video_models:
-        (parsed.video_models?.length ?? 0) > 0 ? parsed.video_models! : defaults.video_models,
+      video_models: parsed.video_models ?? defaults.video_models,
       llm_models: parsed.llm_models ?? defaults.llm_models,
       tts_models: parsed.tts_models ?? defaults.tts_models,
       settings: { ...defaults.settings, ...parsed.settings },
@@ -304,12 +302,8 @@ async function handleStoryboardRequest(req: UtilityRequest): Promise<void> {
         const frames = req.data.frames as StoryboardExportFrame[]
         const layout = (req.data.layout as StoryboardExportLayout) || 'grid3'
         const baseName = (req.data.baseName as string) || 'storyboard'
-        const format = req.data.format as 'png' | 'pdf'
-        const outputPath =
-          format === 'pdf'
-            ? await exportStoryboardPdf(utilityUserDataPath, frames, layout, baseName)
-            : await exportStoryboardPng(utilityUserDataPath, frames, layout, baseName)
-        post('storyboard:exportResult', { outputPath, format }, req.id)
+        const outputPath = await exportStoryboardPng(utilityUserDataPath, frames, layout, baseName)
+        post('storyboard:exportResult', { outputPath, format: 'png' }, req.id)
         break
       }
       case 'storyboard:exportFrame4k': {

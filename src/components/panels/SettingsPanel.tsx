@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AppConfig } from '../../types/config'
 import { useI18nStore, useT, type Locale } from '../../i18n'
 import { ModelSettingsSection } from './ModelSettingsSection'
@@ -13,6 +13,26 @@ type TabId = 'models' | 'settings'
 
 interface SettingsPanelProps {
   onClose: () => void
+}
+
+const CONFIG_PERSIST_DEBOUNCE_MS = 400
+
+function prepareConfigForSave(config: AppConfig): AppConfig {
+  const pickDefault = (models: { id: string }[], current: string | undefined) => {
+    if (current && models.some((m) => m.id === current)) return current
+    return models[0]?.id ?? ''
+  }
+
+  return {
+    ...config,
+    settings: {
+      ...config.settings,
+      default_image_model: pickDefault(config.image_models, config.settings.default_image_model),
+      default_video_model: pickDefault(config.video_models, config.settings.default_video_model),
+      default_llm: pickDefault(config.llm_models, config.settings.default_llm),
+      default_tts: pickDefault(config.tts_models, config.settings.default_tts),
+    },
+  }
 }
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
@@ -34,11 +54,73 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   })
   const [useEditorShellUi, setUseEditorShellUi] = useState(() => isEditorShell())
   const [useLegacyLayout, setUseLegacyLayout] = useState(() => isLegacyLayoutForced())
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestConfigRef = useRef<AppConfig | null>(null)
+
+  const flushConfig = useCallback(async (cfg: AppConfig) => {
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current)
+      persistTimerRef.current = null
+    }
+    const toSave = prepareConfigForSave(cfg)
+    latestConfigRef.current = toSave
+    await window.api.config.write(toSave)
+  }, [])
+
+  const schedulePersist = useCallback(
+    (cfg: AppConfig) => {
+      latestConfigRef.current = cfg
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+      persistTimerRef.current = setTimeout(() => {
+        persistTimerRef.current = null
+        void flushConfig(cfg).catch((err) => {
+          console.error('config auto-save failed', err)
+        })
+      }, CONFIG_PERSIST_DEBOUNCE_MS)
+    },
+    [flushConfig],
+  )
+
+  const updateConfig = useCallback(
+    (next: AppConfig | ((prev: AppConfig) => AppConfig)) => {
+      setConfig((prev) => {
+        if (!prev) return prev
+        const resolved = typeof next === 'function' ? next(prev) : next
+        schedulePersist(resolved)
+        return resolved
+      })
+    },
+    [schedulePersist],
+  )
 
   useEffect(() => {
     void window.api.config.read().then(setConfig)
     void window.api.agent.listSkills().then((r) => setAgentSkills(r.skills))
   }, [])
+
+  useEffect(() => {
+    if (config) latestConfigRef.current = config
+  }, [config])
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current)
+        persistTimerRef.current = null
+      }
+      const cfg = latestConfigRef.current
+      if (cfg) {
+        void window.api.config.write(prepareConfigForSave(cfg))
+      }
+    }
+  }, [])
+
+  const handleClose = () => {
+    void (async () => {
+      if (config) await flushConfig(config)
+      onClose()
+    })()
+  }
 
   const toggleAgentSkill = (skillId: string) => {
     setDisabledSkills((prev) => {
@@ -57,32 +139,16 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   }
 
   const handleSave = async () => {
-    const settings = { ...config.settings }
-    if (!settings.default_image_model && config.image_models.length > 0) {
-      settings.default_image_model = config.image_models[0].id
-    }
-    if (!settings.default_video_model && config.video_models.length > 0) {
-      settings.default_video_model = config.video_models[0].id
-    }
-    if (!settings.default_llm && config.llm_models.length > 0) {
-      settings.default_llm = config.llm_models[0].id
-    }
-    if (!settings.default_tts && config.tts_models.length > 0) {
-      settings.default_tts = config.tts_models[0].id
-    }
-    const toSave = { ...config, settings }
-    await window.api.config.write(toSave)
+    if (!config) return
+    await flushConfig(config)
     onClose()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="w-[820px] max-h-[85vh] bg-bg-secondary rounded-xl border border-border overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+        <div className="px-6 py-4 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">⚙️ 模型与能力</h2>
-          <button type="button" onClick={onClose} className="text-text-muted hover:text-white">
-            ✕
-          </button>
         </div>
 
         <div className="flex border-b border-border shrink-0">
@@ -124,7 +190,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           {activeTab === 'models' ? (
             <ModelSettingsSection
               config={config}
-              setConfig={setConfig}
+              setConfig={updateConfig}
               onStatus={setStatusMsg}
             />
           ) : (
@@ -186,7 +252,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <select
                   value={config.settings.default_image_model}
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: { ...config.settings, default_image_model: e.target.value },
                     })
@@ -206,7 +272,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <select
                   value={config.settings.default_video_model}
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: { ...config.settings, default_video_model: e.target.value },
                     })
@@ -226,7 +292,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <select
                   value={config.settings.default_llm}
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: { ...config.settings, default_llm: e.target.value },
                     })
@@ -246,7 +312,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <select
                   value={config.settings.default_tts}
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: { ...config.settings, default_tts: e.target.value },
                     })
@@ -304,7 +370,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   min={1}
                   max={10}
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: {
                         ...config.settings,
@@ -321,7 +387,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   type="text"
                   value={config.settings.output_dir}
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: { ...config.settings, output_dir: e.target.value },
                     })
@@ -337,7 +403,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     value={config.settings.ffmpeg_path}
                     placeholder="留空则自动检测系统 PATH"
                     onChange={(e) =>
-                      setConfig({
+                      updateConfig({
                         ...config,
                         settings: { ...config.settings, ffmpeg_path: e.target.value },
                       })
@@ -376,7 +442,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                         })
                         try {
                           const result = await window.api.ffmpeg.download()
-                          setConfig((prev) =>
+                          updateConfig((prev) =>
                             prev
                               ? {
                                   ...prev,
@@ -409,7 +475,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   value={config.settings.demucs_path ?? ''}
                   placeholder="留空则尝试 demucs 命令，否则使用 FFmpeg 简易分离"
                   onChange={(e) =>
-                    setConfig({
+                    updateConfig({
                       ...config,
                       settings: { ...config.settings, demucs_path: e.target.value },
                     })
@@ -421,17 +487,20 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-text-muted hover:text-white">
-            取消
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
+          <p className="text-[10px] text-text-muted">模型与应用设置会自动保存</p>
+          <div className="flex gap-3">
+          <button type="button" onClick={handleClose} className="px-4 py-2 text-sm text-text-muted hover:text-white">
+            关闭
           </button>
           <button
             type="button"
             onClick={() => void handleSave()}
             className="px-6 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
-            保存配置
+            保存并关闭
           </button>
+          </div>
         </div>
       </div>
     </div>

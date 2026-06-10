@@ -267,7 +267,7 @@ scripts/           # 包体报告等工具脚本
 | v7 | — | [v7/README](docs/v7/README.md)（未单独发版） |
 | v8 | [界面重设计](docs/LocalCanvas_v8_界面与体验重设计.md) | [v8/](docs/v8/) · [design/](docs/v8/design/) |
 | v9 | [精简收官](docs/LocalCanvas_v9_精简优化与体验收官.md) | [v9/](docs/v9/) |
-| v10 | [技术债清零](docs/LocalCanvas_v10_项目优化与技术债归集.md) | [v10/](docs/v10/) |
+| v10 | [冗余清除与技术债归零](docs/LocalCanvas_v10_项目优化与技术债归集.md) | [v10/](docs/v10/) |
 
 | 其他 | 说明 |
 |------|------|

@@ -1,6 +1,7 @@
 import {
   getSeedanceCapabilities,
   SEEDANCE_MODEL_1_0_PRO_FAST,
+  SEEDANCE_MODEL_1_5_PRO,
   SEEDANCE_MODEL_STANDARD,
 } from '../constants/seedance'
 import type { ModelCapabilityProfile } from '../types/capability'
@@ -31,6 +32,7 @@ export interface VideoGeneratorUiConfig {
 
 function resolveSeedanceApiModel(configId: string, apiModel?: string): string {
   if (apiModel) return apiModel
+  if (configId.includes('1-5')) return SEEDANCE_MODEL_1_5_PRO
   if (configId.includes('1-0')) return SEEDANCE_MODEL_1_0_PRO_FAST
   if (configId.includes('2-0')) return SEEDANCE_MODEL_STANDARD
   return ''

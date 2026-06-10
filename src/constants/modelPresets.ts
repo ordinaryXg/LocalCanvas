@@ -1,10 +1,11 @@
 import type { AppConfig, ImageModelConfig, VideoModelConfig, LLMModelConfig, TTSModelConfig } from '../types/config'
 import {
   SEEDANCE_1_0_PRO_FAST_VIDEO_MODEL,
+  SEEDANCE_1_5_PRO_VIDEO_MODEL,
   SEEDANCE_2_0_VIDEO_MODEL,
   SEEDANCE_2_0_FAST_VIDEO_MODEL,
 } from './seedance'
-import { SEEDREAM_4_5_IMAGE_MODEL, SEEDREAM_4_0_IMAGE_MODEL } from './seedream'
+import { SEEDREAM_4_5_IMAGE_MODEL, SEEDREAM_4_0_IMAGE_MODEL, SEEDREAM_5_0_LITE_IMAGE_MODEL } from './seedream'
 
 /** 内置远端模型预设 */
 export interface ModelPreset {
@@ -145,6 +146,17 @@ export const LLM_PRESETS: ModelPreset[] = [
 
 export const IMAGE_PRESETS: ModelPreset[] = [
   {
+    id: SEEDREAM_5_0_LITE_IMAGE_MODEL.id,
+    name: SEEDREAM_5_0_LITE_IMAGE_MODEL.name,
+    provider: 'openai_compatible',
+    endpoint: SEEDREAM_5_0_LITE_IMAGE_MODEL.endpoint,
+    model: SEEDREAM_5_0_LITE_IMAGE_MODEL.model,
+    envKey: SEEDREAM_5_0_LITE_IMAGE_MODEL.envKey,
+    kind: 'image',
+    profile_key: 'seedream-5-0-lite',
+    default_params: SEEDREAM_5_0_LITE_IMAGE_MODEL.default_params,
+  },
+  {
     id: SEEDREAM_4_5_IMAGE_MODEL.id,
     name: SEEDREAM_4_5_IMAGE_MODEL.name,
     provider: 'openai_compatible',
@@ -205,6 +217,18 @@ export const VIDEO_PRESETS: ModelPreset[] = [
     envKey: SEEDANCE_1_0_PRO_FAST_VIDEO_MODEL.envKey,
     kind: 'video',
     default_params: SEEDANCE_1_0_PRO_FAST_VIDEO_MODEL.default_params,
+  },
+  {
+    id: SEEDANCE_1_5_PRO_VIDEO_MODEL.id,
+    name: SEEDANCE_1_5_PRO_VIDEO_MODEL.name,
+    provider: 'volcengine_seedance',
+    endpoint: SEEDANCE_1_5_PRO_VIDEO_MODEL.endpoint,
+    poll_endpoint: SEEDANCE_1_5_PRO_VIDEO_MODEL.poll_endpoint,
+    model: SEEDANCE_1_5_PRO_VIDEO_MODEL.model,
+    envKey: SEEDANCE_1_5_PRO_VIDEO_MODEL.envKey,
+    kind: 'video',
+    profile_key: 'seedance-1-5-pro',
+    default_params: SEEDANCE_1_5_PRO_VIDEO_MODEL.default_params,
   },
   {
     id: SEEDANCE_2_0_VIDEO_MODEL.id,

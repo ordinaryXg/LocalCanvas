@@ -11,6 +11,15 @@ export const SEEDREAM_MODEL_4_5 = 'doubao-seedream-4-5-251128'
 /** Seedream 4.0 */
 export const SEEDREAM_MODEL_4_0 = 'doubao-seedream-4-0-250828'
 
+/** Seedream 5.0 Lite — 方舟 images/generations（官方 ID 带日期后缀） */
+export const SEEDREAM_MODEL_5_0_LITE = 'doubao-seedream-5-0-260128'
+
+/** 文档/第三方别名，调用时方舟可能仍接受 */
+export const SEEDREAM_MODEL_5_0_LITE_ALIASES = [
+  'doubao-seedream-5.0-lite',
+  'doubao-seedream-5-0-lite-260128',
+] as const
+
 export const SEEDREAM_4_5_IMAGE_MODEL = {
   id: 'seedream-4-5',
   name: 'Doubao Seedream 4.5',
@@ -41,6 +50,21 @@ export const SEEDREAM_4_0_IMAGE_MODEL = {
   },
 }
 
+export const SEEDREAM_5_0_LITE_IMAGE_MODEL = {
+  id: 'seedream-5-0-lite',
+  name: 'Doubao Seedream 5.0 Lite',
+  provider: 'openai_compatible' as const,
+  endpoint: SEEDREAM_ENDPOINTS.generate,
+  model: SEEDREAM_MODEL_5_0_LITE,
+  envKey: 'ARK_API_KEY',
+  supported_sizes: ['2K', '3K', '2560x1440', '1440x2560', '1920x1920', '3072x3072'],
+  default_params: {
+    response_format: 'url',
+    watermark: false,
+    sequential_image_generation: 'disabled',
+  },
+}
+
 /** 默认图像模型 */
 export const DEFAULT_SEEDREAM_IMAGE_MODEL = SEEDREAM_4_5_IMAGE_MODEL
 
@@ -56,7 +80,7 @@ export function isSeedreamModel(apiModelId: string): boolean {
 }
 
 export function isSeedream45OrNewer(apiModelId: string): boolean {
-  return /seedream-4-5|seedream-5-0|4-5-251|5-0-26/i.test(apiModelId)
+  return /seedream-4-5|seedream-5-0|seedream-5\.0|4-5-251|5-0-26|5\.0-lite/i.test(apiModelId)
 }
 
 /** 将画布宽高映射为 Seedream size 参数（满足方舟最小分辨率） */

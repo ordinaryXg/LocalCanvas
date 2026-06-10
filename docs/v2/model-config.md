@@ -79,6 +79,7 @@ video_models:
 |--------|----------|
 | DeepSeek V4 Flash / Pro | 文本生成；Flash 支持思考档位（关/均衡/深度） |
 | GPT-4o / Gemini / Kimi 等 | 文本 + 多图 Vision（最多 10–20 张，因模型而异） |
+| Seedream 5.0 Lite | 文生图；最多 14 张参考图；2K/3K |
 | Seedream 4.5 / 4.0 | 文生图；4.5 支持最多 4 张参考图 |
 | Seedance 1.0 Pro Fast | 文生视频、首帧图生视频 |
 | Seedance 2.0 / 2.0 Fast | 首帧、尾帧、最多 9 张参考图、参考音视频 |
@@ -110,6 +111,12 @@ video_models:
 
 ```yaml
 image_models:
+  - id: seedream-5-0-lite
+    name: Doubao Seedream 5.0 Lite
+    provider: openai_compatible
+    endpoint: https://ark.cn-beijing.volces.com/api/v3/images/generations
+    api_key: YOUR_ARK_API_KEY
+    model: doubao-seedream-5.0-lite
   - id: seedream-4.5
     name: Seedream 4.5
     provider: openai_compatible

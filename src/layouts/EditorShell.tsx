@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react'
 import { TopBar } from '../components/shell/TopBar'
 import { Dock } from '../components/shell/Dock'
 import { Inspector } from '../components/shell/Inspector'
-import { GeneratorDrawer } from '../components/shell/GeneratorDrawer'
 import { EditorCoachMark } from '../components/shell/EditorCoachMark'
 import { ShortcutsOverlay } from '../components/shell/ShortcutsOverlay'
 import { CanvasMode } from './modes/CanvasMode'
@@ -41,7 +40,7 @@ export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
       <TopBar onBack={onBack} onOpenSettings={onOpenSettings} />
       <div className="flex-1 min-h-0 flex">
         {!hideDock && <Dock />}
-        <div className="flex-1 min-w-0 relative flex flex-col min-h-0">
+        <div className="flex-1 min-w-0 relative flex flex-col min-h-0 overflow-hidden">
           {mode === 'canvas' && <CanvasMode />}
           {mode === 'workbench' && (
             <Suspense fallback={<EditorLoading />}>
@@ -50,7 +49,6 @@ export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
               </div>
             </Suspense>
           )}
-          {mode === 'canvas' && <GeneratorDrawer />}
         </div>
         {!hideInspector && <Inspector />}
         <Suspense fallback={null}>

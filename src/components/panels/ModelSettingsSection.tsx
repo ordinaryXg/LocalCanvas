@@ -46,6 +46,21 @@ function listConnectedModels(config: AppConfig, filter: KindFilter): ConnectedMo
   return items
 }
 
+function sortConnectedWithDefaultsFirst(
+  items: ConnectedModel[],
+  settings: AppConfig['settings'],
+): ConnectedModel[] {
+  const isDefaultForKind = (kind: ModelKind, id: string) =>
+    settings[defaultKeyForKind(kind)] === id
+
+  return [...items].sort((a, b) => {
+    const aDefault = isDefaultForKind(a.kind, a.model.id)
+    const bDefault = isDefaultForKind(b.kind, b.model.id)
+    if (aDefault === bDefault) return 0
+    return aDefault ? -1 : 1
+  })
+}
+
 function defaultKeyForKind(kind: ModelKind): keyof AppConfig['settings'] {
   if (kind === 'image') return 'default_image_model'
   if (kind === 'video') return 'default_video_model'
@@ -75,7 +90,10 @@ export function ModelSettingsSection({ config, setConfig, onStatus }: ModelSetti
   const [discovered, setDiscovered] = useState<DiscoveredModelEntry[]>([])
   const [unmappedCount, setUnmappedCount] = useState(0)
 
-  const connected = useMemo(() => listConnectedModels(config, kindFilter), [config, kindFilter])
+  const connected = useMemo(
+    () => sortConnectedWithDefaultsFirst(listConnectedModels(config, kindFilter), config.settings),
+    [config, kindFilter],
+  )
 
   const refreshCacheStatus = async () => {
     await hydrateProbedProfileCache()
@@ -130,14 +148,45 @@ export function ModelSettingsSection({ config, setConfig, onStatus }: ModelSetti
     : null
 
   const removeModel = (kind: ModelKind, id: string) => {
+    const key = defaultKeyForKind(kind)
+    const clearDefault = config.settings[key] === id
+
     if (kind === 'image') {
-      setConfig({ ...config, image_models: config.image_models.filter((m) => m.id !== id) })
+      const image_models = config.image_models.filter((m) => m.id !== id)
+      setConfig({
+        ...config,
+        image_models,
+        settings: clearDefault
+          ? { ...config.settings, default_image_model: image_models[0]?.id ?? '' }
+          : config.settings,
+      })
     } else if (kind === 'video') {
-      setConfig({ ...config, video_models: config.video_models.filter((m) => m.id !== id) })
+      const video_models = config.video_models.filter((m) => m.id !== id)
+      setConfig({
+        ...config,
+        video_models,
+        settings: clearDefault
+          ? { ...config.settings, default_video_model: video_models[0]?.id ?? '' }
+          : config.settings,
+      })
     } else if (kind === 'llm') {
-      setConfig({ ...config, llm_models: config.llm_models.filter((m) => m.id !== id) })
+      const llm_models = config.llm_models.filter((m) => m.id !== id)
+      setConfig({
+        ...config,
+        llm_models,
+        settings: clearDefault
+          ? { ...config.settings, default_llm: llm_models[0]?.id ?? '' }
+          : config.settings,
+      })
     } else {
-      setConfig({ ...config, tts_models: config.tts_models.filter((m) => m.id !== id) })
+      const tts_models = config.tts_models.filter((m) => m.id !== id)
+      setConfig({
+        ...config,
+        tts_models,
+        settings: clearDefault
+          ? { ...config.settings, default_tts: tts_models[0]?.id ?? '' }
+          : config.settings,
+      })
     }
   }
 

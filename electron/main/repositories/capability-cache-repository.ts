@@ -38,7 +38,7 @@ export class CapabilityCacheRepository {
     catalog_version: number
   }): void {
     const db = getDatabase()
-    const id = `${entry.provider_key}::${entry.model_id}`
+    const id = entry.model_id
     db.prepare(
       `INSERT INTO capability_cache (
         id, provider_key, provider, model_id, kind, profile_key, in_catalog,
@@ -127,6 +127,11 @@ export class CapabilityCacheRepository {
   purgeExpired(nowIso = new Date().toISOString()): void {
     const db = getDatabase()
     db.prepare('DELETE FROM capability_cache WHERE expires_at <= ?').run(nowIso)
+  }
+
+  purgeUnmapped(): void {
+    const db = getDatabase()
+    db.prepare('DELETE FROM capability_cache WHERE in_catalog = 0').run()
   }
 
   countValid(nowIso = new Date().toISOString()): number {

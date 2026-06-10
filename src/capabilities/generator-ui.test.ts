@@ -16,12 +16,28 @@ describe('getVideoGeneratorUi', () => {
     expect(ui.maxReferenceImages).toBe(9)
     expect(ui.supportsGenerateAudio).toBe(true)
   })
+
+  it('seedance 1.5 pro has last frame and audio without reference images', () => {
+    const ui = getVideoGeneratorUi('seedance-1-5-pro')
+    expect(ui.supportsFirstFrame).toBe(true)
+    expect(ui.supportsLastFrame).toBe(true)
+    expect(ui.supportsReferenceImage).toBe(false)
+    expect(ui.supportsGenerateAudio).toBe(true)
+    expect(ui.versionLabel).toBe('1.5')
+  })
 })
 
 describe('getImageGeneratorUi', () => {
-  it('seedream supports reference images', () => {
+  it('seedream 4.5 supports reference images', () => {
     const ui = getImageGeneratorUi('seedream-4-5')
     expect(ui.supportsReferenceImage).toBe(true)
+    expect(ui.maxReferenceImages).toBe(4)
+  })
+
+  it('seedream 5.0 lite supports up to 14 reference images', () => {
+    const ui = getImageGeneratorUi('seedream-5-0-lite')
+    expect(ui.supportsReferenceImage).toBe(true)
+    expect(ui.maxReferenceImages).toBe(14)
   })
 
   it('dall-e-3 is prompt only', () => {

@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { STYLE_PRESETS, buildEffectivePromptPreview, buildEffectiveNegative } from '../../constants/stylePresets'
 import { useI18nStore } from '../../i18n'
+import { findScrollParent, scrollElementWithinContainer } from '../../utils/scrollWithin'
 
 export interface StylePresetChipsHandle {
   focus: () => void
@@ -35,10 +36,13 @@ export const StylePresetChips = forwardRef<StylePresetChipsHandle, Props>(functi
 
   useImperativeHandle(ref, () => ({
     focus: () => {
-      rootRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      rootRef.current?.classList.add('ring-1', 'ring-[var(--studio-accent)]')
+      const root = rootRef.current
+      if (!root) return
+      const scrollParent = findScrollParent(root)
+      if (scrollParent) scrollElementWithinContainer(scrollParent, root)
+      root.classList.add('ring-1', 'ring-[var(--studio-accent)]')
       window.setTimeout(() => {
-        rootRef.current?.classList.remove('ring-1', 'ring-[var(--studio-accent)]')
+        root.classList.remove('ring-1', 'ring-[var(--studio-accent)]')
       }, 1200)
     },
   }))

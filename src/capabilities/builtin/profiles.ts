@@ -259,6 +259,23 @@ export const BUILTIN_PROFILES: ModelCapabilityProfile[] = [
     version: 1,
   },
   {
+    profile_key: 'seedream-5-0-lite',
+    provider: 'volcengine_ark',
+    model_pattern: 'doubao-seedream-5.0-lite*|doubao-seedream-5-0*',
+    kind: 'image',
+    display_name: 'Seedream 5.0 Lite',
+    config_ids: ['seedream-5-0-lite'],
+    inputs: [
+      { id: 'prompt', modality: 'text', required: true, max_count: 1 },
+      { id: 'reference_image', modality: 'image', max_count: 14 },
+    ],
+    outputs: [{ modality: 'image' }],
+    confidence: 'documented',
+    source: 'builtin',
+    doc_url: 'https://www.volcengine.com/docs/82379/1541523',
+    version: 1,
+  },
+  {
     profile_key: 'seedream-4-5',
     provider: 'volcengine_ark',
     model_pattern: 'doubao-seedream-4-5*',
@@ -320,6 +337,24 @@ export const BUILTIN_PROFILES: ModelCapabilityProfile[] = [
     version: 1,
   },
   {
+    profile_key: 'seedance-1-5-pro',
+    provider: 'volcengine_ark',
+    model_pattern: 'doubao-seedance-1-5-pro*',
+    kind: 'video',
+    display_name: 'Seedance 1.5 Pro',
+    config_ids: ['seedance-1-5-pro'],
+    inputs: [
+      { id: 'prompt', modality: 'text', max_count: 1 },
+      { id: 'first_frame', modality: 'image', max_count: 1 },
+      { id: 'last_frame', modality: 'image', max_count: 1 },
+    ],
+    outputs: [{ modality: 'video', async: true, poll_required: true }],
+    confidence: 'documented',
+    source: 'builtin',
+    doc_url: 'https://www.volcengine.com/docs/82379/1520757',
+    version: 1,
+  },
+  {
     profile_key: 'seedance-2-0',
     provider: 'volcengine_ark',
     model_pattern: 'doubao-seedance-2-0*',
@@ -341,4 +376,4 @@ export const BUILTIN_PROFILES: ModelCapabilityProfile[] = [
   },
 ]
 
-export const CATALOG_VERSION = 1
+export const CATALOG_VERSION = 2

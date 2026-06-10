@@ -22,7 +22,11 @@ export function GeneratorContent({ nodeId, nodeType, embedded = false, hidePrevi
       {nodeType === 'video' && <VideoEditorPanel nodeId={nodeId} hidePreview={hidePreview} />}
       {nodeType === 'audio' && <AudioGenerator nodeId={nodeId} />}
       {nodeType === 'script' && <ScriptGenerator nodeId={nodeId} />}
-      {nodeType === 'storyboard' && <StoryboardGenerator nodeId={nodeId} />}
+      {nodeType === 'storyboard' && (
+        <div className="h-full min-h-0">
+          <StoryboardGenerator nodeId={nodeId} />
+        </div>
+      )}
     </>
   )
 }

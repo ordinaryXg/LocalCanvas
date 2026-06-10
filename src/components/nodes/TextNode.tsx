@@ -1,19 +1,33 @@
-import { memo, useMemo } from 'react'
-import type { NodeProps } from '@xyflow/react'
-import { BaseNode } from './BaseNode'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { getTextNodePorts } from '../../capabilities/node-port-ui'
 import { applyPortSlotLabels, getTextPortSlotLabels } from '../../capabilities/port-slot-labels'
+import { useOpenGeneratorDrawer } from '../inspector/useOpenGeneratorDrawer'
 import { useCanvasStore } from '../../stores/canvasStore'
-import { listLlmVisionImageHandles } from '../../utils/llmVisionSlots'
-import { TextOutputBadge } from '../text/TextOutputBadge'
 import { useTextEditorStore } from '../../stores/textEditorStore'
-import { normalizeTextNodeData, previewLines, textCharStats } from '../../utils/textNodeOutput'
+import { listLlmVisionImageHandles } from '../../utils/llmVisionSlots'
+import { getNodeVisualVariant } from '../../utils/nodeVisualVariant'
+import { normalizeTextNodeData, textNodeOutput } from '../../utils/textNodeOutput'
 
-function TextNodeComponent({ id, data: rawData, selected, width, height }: NodeProps) {
+const MIN_WIDTH = 148
+const MIN_HEIGHT = 96
+const MAX_WIDTH = 320
+/** 便签本体（含内边距）最大高度 */
+const MAX_NOTE_HEIGHT = 280
+const SHELL_PAD = 8
+
+function TextNodeComponent({ id, data: rawData, selected }: NodeProps) {
+  const shellRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLPreElement>(null)
+  const lastMeasuredRef = useRef({ width: 0, height: 0 })
+  const [clipped, setClipped] = useState(false)
   const requestFocusDraft = useTextEditorStore((s) => s.requestFocusDraft)
+  const updateNodeSize = useCanvasStore((s) => s.updateNodeSize)
+  const { openDrawer } = useOpenGeneratorDrawer(id)
   const edges = useCanvasStore((s) => s.edges)
   const data = normalizeTextNodeData((rawData ?? {}) as Record<string, unknown>)
   const modelId = typeof data.modelId === 'string' ? data.modelId : undefined
+  const variant = useMemo(() => getNodeVisualVariant(id), [id])
 
   const inputPorts = useMemo(() => {
     const inbound = edges.filter((e) => e.target === id && e.targetHandle)
@@ -31,66 +45,98 @@ function TextNodeComponent({ id, data: rawData, selected, width, height }: NodeP
     return applyPortSlotLabels(ports, labels)
   }, [edges, id, modelId])
 
-  const output = data.output ?? ''
-  const title = data.title ?? '文本'
-  const outputMode = data.outputMode ?? 'passthrough'
-  const isEmpty = !output.trim()
+  const displayText = textNodeOutput((rawData ?? {}) as Record<string, unknown>).trim()
+
+  useLayoutEffect(() => {
+    const pre = contentRef.current
+    if (!pre || !displayText) {
+      setClipped(false)
+      return
+    }
+    setClipped(pre.scrollHeight > pre.clientHeight + 1)
+  }, [displayText])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    let rafId = 0
+    const measure = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const measuredWidth = Math.max(MIN_WIDTH, Math.ceil(shell.offsetWidth))
+        const measuredHeight = Math.min(
+          MAX_NOTE_HEIGHT + SHELL_PAD * 2,
+          Math.max(MIN_HEIGHT, Math.ceil(shell.offsetHeight)),
+        )
+        const { width: lastW, height: lastH } = lastMeasuredRef.current
+        if (Math.abs(measuredWidth - lastW) < 2 && Math.abs(measuredHeight - lastH) < 2) return
+
+        lastMeasuredRef.current = { width: measuredWidth, height: measuredHeight }
+        updateNodeSize(id, measuredWidth, measuredHeight)
+
+        const pre = contentRef.current
+        if (pre && displayText) {
+          setClipped(pre.scrollHeight > pre.clientHeight + 1)
+        }
+      })
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(shell)
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
+  }, [displayText, id, updateNodeSize])
+
+  const openEditor = () => {
+    openDrawer()
+    requestFocusDraft()
+  }
 
   return (
-    <BaseNode
-      nodeId={id}
-      color="var(--node-text)"
-      icon={<span className="text-sm">📝</span>}
-      title={title}
-      selected={selected}
-      width={width}
-      height={height}
-      defaultWidth={280}
-      minWidth={240}
-      minHeight={160}
-      resizable
-      inputs={inputPorts}
-      outputs={[{ id: 'prompt', top: '62%' }]}
-    >
+    <div ref={shellRef} className="text-note-node-shell">
       <div
-        className="w-full flex flex-col flex-1 min-h-0 gap-2 nodrag"
-        onDoubleClick={() => requestFocusDraft()}
+        className={`text-note-node ${selected ? 'text-note-node--selected' : ''}`}
+        style={{
+          borderRadius: variant.borderRadius,
+        }}
+        onDoubleClick={openEditor}
+        title={displayText || '双击在编辑台编辑'}
       >
-        <div
-          className={`relative rounded-md border p-2 min-h-[72px] max-h-[100px] overflow-hidden ${
-            outputMode === 'generated' ? 'bg-accent/5 border-accent/25' : 'bg-bg-tertiary/40 border-border'
-          }`}
-        >
-          {isEmpty ? (
-            <p className="text-[11px] text-text-muted italic leading-relaxed">
-              {data.draft?.trim()
-                ? '草稿已就绪，请同步或生成输出'
-                : '选中后在底部面板编辑'}
-            </p>
-          ) : (
-            <pre className="text-[11px] text-text-primary whitespace-pre-wrap break-words leading-relaxed font-sans m-0">
-              {previewLines(output, 3)}
+        {displayText ? (
+          <div className="text-note-node__body">
+            <pre ref={contentRef} className="text-note-node__content">
+              {displayText}
             </pre>
-          )}
-          {!isEmpty && output.split('\n').length > 3 && (
-            <div className="absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-bg-secondary/90 to-transparent pointer-events-none" />
-          )}
-        </div>
+            {clipped && <div className="text-note-node__fade" aria-hidden />}
+          </div>
+        ) : (
+          <div className="text-note-node__blank" aria-hidden />
+        )}
 
-        <div className="flex items-center justify-between shrink-0 gap-2">
-          <TextOutputBadge mode={outputMode} edited={data.outputEdited} />
-          <span className="text-[9px] text-text-muted">{textCharStats(output)}</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => requestFocusDraft()}
-          className="shrink-0 w-full text-[10px] py-1.5 bg-accent/15 text-accent border border-accent/30 rounded hover:bg-accent hover:text-white transition"
-        >
-          打开编辑
-        </button>
+        {inputPorts.map((port) => (
+          <Handle
+            key={`in-${port.id}`}
+            type="target"
+            position={Position.Left}
+            id={port.id}
+            isConnectable={port.disabled ? false : 1}
+            className="text-note-node__handle"
+            style={{ top: port.top ?? '50%' }}
+          />
+        ))}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="prompt"
+          className="text-note-node__handle"
+          style={{ top: '50%' }}
+        />
       </div>
-    </BaseNode>
+    </div>
   )
 }
 

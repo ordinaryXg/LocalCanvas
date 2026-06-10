@@ -93,7 +93,13 @@ export function GeneratorPanel() {
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto lc-scroll px-6 py-3">
+        <div
+          className={`flex-1 min-h-0 ${
+            selectedNode.type === 'storyboard'
+              ? 'overflow-hidden p-0'
+              : 'overflow-y-auto lc-scroll overscroll-contain px-6 py-3'
+          }`}
+        >
           <GeneratorContent
             nodeId={selectedNode.id}
             nodeType={selectedNode.type ?? 'text'}

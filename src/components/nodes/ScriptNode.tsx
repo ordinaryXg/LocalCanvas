@@ -1,147 +1,150 @@
-import { memo } from 'react'
-import type { NodeProps } from '@xyflow/react'
-import { BaseNode } from './BaseNode'
-import { useScriptNodeActions } from '../../hooks/useScriptNodeActions'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { useOpenGeneratorDrawer } from '../inspector/useOpenGeneratorDrawer'
+import { useCanvasStore } from '../../stores/canvasStore'
+import { CANVAS_NODE_SHELL_PAD } from '../../utils/imageNodeDisplay'
+import { getNodeVisualVariant } from '../../utils/nodeVisualVariant'
+import {
+  formatScriptShotLine,
+  scriptDisplayTitle,
+  scriptEmptyHint,
+  scriptFooterText,
+  SCRIPT_BODY_MAX_HEIGHT,
+  SCRIPT_EMPTY_HEIGHT,
+  SCRIPT_MAX_HEIGHT,
+  SCRIPT_MIN_HEIGHT,
+  SCRIPT_STRIP_WIDTH,
+  scriptTotalDuration,
+  truncateSynopsis,
+} from '../../utils/scriptNodeDisplay'
+import type { ScriptRow } from '../../types/node'
 
-function ScriptNodeComponent({ id, selected, width, height }: NodeProps) {
-  const {
-    rows,
-    storyInput,
-    scriptTitle,
-    generating,
-    progress,
-    isBusy,
-    setStoryInput,
-    addRow,
-    updateRow,
-    removeRow,
-    handleGenerateScript,
-    handleBatchImages,
-    handleBatchVideos,
-  } = useScriptNodeActions(id)
+function ScriptNodeComponent({ id, data, selected }: NodeProps) {
+  const shellRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const lastMeasuredRef = useRef({ width: 0, height: 0 })
+  const updateNodeSize = useCanvasStore((s) => s.updateNodeSize)
+  const { openDrawer } = useOpenGeneratorDrawer(id)
+  const variant = useMemo(() => getNodeVisualVariant(id), [id])
+  const [clipped, setClipped] = useState(false)
+
+  const rows = ((data.scriptRows as ScriptRow[] | undefined) ?? []).slice().sort(
+    (a, b) => a.sequence - b.sequence,
+  )
+  const storyInput = typeof data.storyInput === 'string' ? data.storyInput : ''
+  const scriptTitle = typeof data.scriptTitle === 'string' ? data.scriptTitle : ''
+  const isGenerating = data.isGenerating === true
+
+  const synopsis = storyInput.trim()
+  const hasRows = rows.length > 0
+  const isEmpty = !hasRows && !synopsis && !scriptTitle.trim()
+  const hasSynopsisOnly = !hasRows && !!synopsis
+  const totalDuration = scriptTotalDuration(rows)
+  const title = scriptDisplayTitle(scriptTitle)
+  const footer = hasRows ? scriptFooterText(rows.length, totalDuration) : '0 镜'
+
+  useLayoutEffect(() => {
+    const body = bodyRef.current
+    if (!body || isEmpty) {
+      setClipped(false)
+      return
+    }
+    setClipped(body.scrollHeight > body.clientHeight + 1)
+  }, [isEmpty, rows, synopsis, title])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    let rafId = 0
+    const measure = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const measuredWidth = Math.ceil(shell.offsetWidth)
+        const measuredHeight = Math.min(
+          SCRIPT_MAX_HEIGHT + CANVAS_NODE_SHELL_PAD * 2,
+          Math.max(SCRIPT_MIN_HEIGHT, Math.ceil(shell.offsetHeight)),
+        )
+        const { width: lastW, height: lastH } = lastMeasuredRef.current
+        if (Math.abs(measuredWidth - lastW) < 2 && Math.abs(measuredHeight - lastH) < 2) return
+
+        lastMeasuredRef.current = { width: measuredWidth, height: measuredHeight }
+        updateNodeSize(id, measuredWidth, measuredHeight)
+
+        const body = bodyRef.current
+        if (body && !isEmpty) {
+          setClipped(body.scrollHeight > body.clientHeight + 1)
+        }
+      })
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(shell)
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
+  }, [hasRows, id, isEmpty, rows, synopsis, title, updateNodeSize])
+
+  const openEditor = () => {
+    openDrawer()
+  }
 
   return (
-    <BaseNode
-      color="var(--node-script)"
-      icon={<span className="text-sm">🎬</span>}
-      title={scriptTitle || '分镜脚本'}
-      selected={selected}
-      width={width}
-      height={height}
-      defaultWidth={360}
-      minWidth={280}
-      minHeight={320}
-      outputs={[{ id: 'script', top: '50%' }]}
-    >
-      <div className="flex flex-col flex-1 min-h-0 gap-0">
-      <textarea
-        value={storyInput}
-        onChange={(e) => setStoryInput(e.target.value)}
-        placeholder="输入故事梗概..."
-        className="nodrag nowheel w-full h-16 bg-bg-tertiary text-white text-xs p-2 rounded resize-none outline-none border border-border focus:border-accent"
-      />
+    <div ref={shellRef} className="script-node-shell">
+      <div
+        className={`script-node-strip ${selected ? 'script-node-strip--selected' : ''} ${
+          isEmpty ? 'script-node-strip--empty' : ''
+        }`}
+        style={{
+          borderRadius: variant.borderRadius,
+          width: SCRIPT_STRIP_WIDTH,
+          minHeight: isEmpty ? SCRIPT_EMPTY_HEIGHT : undefined,
+        }}
+        onDoubleClick={openEditor}
+        title="双击在编辑台编辑分镜脚本"
+      >
+        {isEmpty ? (
+          <p className="script-node-strip__empty-hint">{scriptEmptyHint()}</p>
+        ) : (
+          <>
+            <p className="script-node-strip__title">{title}</p>
+            <div
+              ref={bodyRef}
+              className="script-node-strip__body"
+              style={{ maxHeight: SCRIPT_BODY_MAX_HEIGHT }}
+            >
+              {hasSynopsisOnly && (
+                <p className="script-node-strip__synopsis">{truncateSynopsis(synopsis)}</p>
+              )}
+              {hasRows &&
+                rows.map((row) => (
+                  <p key={row.id} className="script-node-strip__line">
+                    {formatScriptShotLine(row)}
+                  </p>
+                ))}
+              {clipped && <div className="script-node-strip__fade" aria-hidden />}
+            </div>
+            <p className="script-node-strip__footer">{footer}</p>
+          </>
+        )}
 
-      <div className="flex gap-1 mt-2">
-        <button
-          type="button"
-          disabled={isBusy}
-          onClick={() => void handleGenerateScript()}
-          className="flex-1 text-xs bg-amber-600/30 text-amber-300 py-1 rounded hover:bg-amber-600/50 transition disabled:opacity-50 nodrag"
-        >
-          {generating === 'script' ? '🤖 生成中...' : '🤖 生成脚本'}
-        </button>
-      </div>
-
-      {generating !== null && generating !== 'script' && progress > 0 && (
-        <div className="mt-2 shrink-0">
-          <div className="h-1 bg-bg-tertiary rounded overflow-hidden">
-            <div className="h-full bg-amber-500 transition-all" style={{ width: `${progress}%` }} />
+        {isGenerating && (
+          <div className="script-node-strip__overlay" aria-hidden>
+            <div className="script-node-strip__spinner" />
           </div>
-          <p className="text-[10px] text-text-muted mt-1">
-            {generating === 'images' ? '分镜图' : '视频'} {progress}%
-          </p>
-        </div>
-      )}
+        )}
 
-      {rows.length > 0 && (
-        <div className="mt-2 flex-1 min-h-0 max-h-[160px] overflow-y-auto lc-scroll nowheel">
-          <table className="w-full text-[10px] text-text-primary table-fixed">
-            <thead>
-              <tr className="text-text-secondary">
-                <th className="px-1 text-left w-6">#</th>
-                <th className="px-1 text-left">画面</th>
-                <th className="px-1 text-left">提示词</th>
-                <th className="px-1 w-8">时长</th>
-                <th className="px-1 w-10">运镜</th>
-                <th className="px-1 w-6" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="px-1 py-1">{row.sequence}</td>
-                  <td className="px-1 py-1">
-                    <input
-                      value={row.description}
-                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                      className="nodrag w-full bg-transparent outline-none text-text-primary truncate"
-                    />
-                  </td>
-                  <td className="px-1 py-1">
-                    <input
-                      value={row.prompt}
-                      onChange={(e) => updateRow(row.id, 'prompt', e.target.value)}
-                      className="nodrag w-full bg-transparent outline-none text-text-primary truncate"
-                    />
-                  </td>
-                  <td className="px-1 py-1 text-center">{row.duration}s</td>
-                  <td className="px-1 py-1 text-center truncate">{row.camera}</td>
-                  <td className="px-1 py-1 text-center">
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.id)}
-                      className="text-danger hover:text-red-400 nodrag"
-                      title="删除分镜"
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="flex gap-1 mt-2 items-center">
-        <button type="button" onClick={addRow} className="text-[10px] text-amber-300 hover:underline nodrag">
-          + 添加分镜
-        </button>
-        <button
-          type="button"
-          disabled={isBusy || rows.length === 0}
-          onClick={() => void handleBatchImages()}
-          className="text-[10px] text-amber-300 ml-auto hover:underline disabled:opacity-50 nodrag"
-        >
-          {generating === 'images' ? '生成中...' : '生成分镜图'}
-        </button>
-        <button
-          type="button"
-          disabled={isBusy || rows.length === 0}
-          onClick={() => void handleBatchVideos()}
-          className="text-[10px] text-amber-300 hover:underline disabled:opacity-50 nodrag"
-        >
-          {generating === 'videos' ? '生成中...' : 'Seedance 视频'}
-        </button>
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="script"
+          className="script-node-strip__handle"
+          style={{ top: '50%' }}
+        />
       </div>
-
-      {rows.length > 0 && (
-        <p className="text-[10px] text-text-muted mt-1 shrink-0">选中节点可在下方编辑面板操作</p>
-      )}
-
-      <div className="flex-1 min-h-[8px]" />
-      </div>
-    </BaseNode>
+    </div>
   )
 }
 

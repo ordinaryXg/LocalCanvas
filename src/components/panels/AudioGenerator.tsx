@@ -1,13 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { TTSModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
+import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
+import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
 import { handleError, showToast } from '../../utils/ErrorHandler'
 import { importGeneratedMedia } from '../../utils/generatedMedia'
 import { ResizableTextarea } from '../common/ResizableTextarea'
 import { generateNodeId } from '../../utils/id'
 import { useT } from '../../i18n'
+import {
+  AUDIO_CHIP_EMPTY_WIDTH,
+  AUDIO_CHIP_HEIGHT,
+} from '../../utils/audioNodeDisplay'
+import { CANVAS_NODE_SHELL_PAD } from '../../utils/imageNodeDisplay'
 
 interface AudioGeneratorProps {
   nodeId: string
@@ -15,6 +22,8 @@ interface AudioGeneratorProps {
 
 export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
   const t = useT()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadMedia = useNodeMediaUpload(nodeId, 'audio')
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const addNode = useCanvasStore((s) => s.addNode)
   const addConnection = useCanvasStore((s) => s.addConnection)
@@ -34,6 +43,20 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
   })
 
   const hasAudio = !!(data.audioSrc || data.audioAssetPath)
+  const audioAssetPath =
+    typeof data.audioAssetPath === 'string' ? data.audioAssetPath : undefined
+  const inlineAudioSrc = typeof data.audioSrc === 'string' ? data.audioSrc : undefined
+  const fileName = typeof data.fileName === 'string' ? data.fileName : undefined
+
+  const { src: previewSrc } = useLazyAssetBlob(
+    currentProjectId,
+    audioAssetPath,
+    inlineAudioSrc,
+  )
+  const previewAudioSrc = previewSrc ?? inlineAudioSrc
+
+  const defaultChipWidth = AUDIO_CHIP_EMPTY_WIDTH + CANVAS_NODE_SHELL_PAD * 2
+  const defaultChipHeight = AUDIO_CHIP_HEIGHT + CANVAS_NODE_SHELL_PAD * 2
 
   useEffect(() => {
     void window.api.config.read().then((config) => {
@@ -106,8 +129,8 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
         id: vocalsId,
         type: 'audio',
         position: { x: node.position.x + nodeWidth + 60, y: node.position.y - 40 },
-        width: 240,
-        height: 200,
+        width: defaultChipWidth,
+        height: defaultChipHeight,
         data: {
           audioSrc: vocalsMedia.src,
           audioAssetPath: vocalsMedia.assetPath,
@@ -120,8 +143,8 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
         id: instId,
         type: 'audio',
         position: { x: node.position.x + nodeWidth + 60, y: node.position.y + 120 },
-        width: 240,
-        height: 200,
+        width: defaultChipWidth,
+        height: defaultChipHeight,
         data: {
           audioSrc: instMedia.src,
           audioAssetPath: instMedia.assetPath,
@@ -155,7 +178,37 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
   }
 
   return (
-    <div className="flex gap-4 items-start">
+    <div className="space-y-4">
+      <div className="space-y-2 pb-3 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 text-xs rounded border border-border hover:border-[var(--node-audio)]/60 text-text-primary"
+          >
+            {hasAudio ? '替换音频' : '上传音频'}
+          </button>
+          {fileName && <span className="text-[10px] text-text-muted truncate">{fileName}</span>}
+        </div>
+        {previewAudioSrc ? (
+          <audio controls preload="metadata" src={previewAudioSrc} className="w-full h-9 nodrag" />
+        ) : (
+          <p className="text-[10px] text-text-muted">暂无音频，可上传或使用下方 TTS 生成</p>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="audio/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void uploadMedia(file)
+            e.target.value = ''
+          }}
+        />
+      </div>
+
+      <div className="flex gap-4 items-start">
       <div className="flex-1 space-y-2">
         <div>
           <label className="text-[10px] text-text-muted">配音文本</label>
@@ -236,6 +289,7 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
         {ttsModels.length === 0 && (
           <p className="text-[10px] text-amber-400">请先在 ⚙️ 模型配置 → TTS 中添加模型</p>
         )}
+      </div>
       </div>
     </div>
   )

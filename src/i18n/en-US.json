@@ -118,7 +118,6 @@
   "storyboard.frames": "frames",
   "storyboard.selectedLabel": "selected",
   "storyboard.exportPng": "Export PNG board",
-  "storyboard.exportPdf": "Export PDF",
   "storyboard.export4k": "Export selected frame 4K",
   "storyboard.exporting": "Exporting...",
   "storyboard.exportDone": "Storyboard exported",

@@ -3,6 +3,7 @@ import { join } from 'path'
 import { existsSync, mkdirSync, unlinkSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getFFmpegPath } from './ffmpeg'
+import { drawtextFontOption } from './ffmpeg-font'
 
 const CELL_W = 400
 const CELL_H = 300
@@ -37,7 +38,33 @@ function escapeDrawtext(text: string): string {
     .replace(/:/g, '\\:')
     .replace(/'/g, "\\'")
     .replace(/%/g, '\\%')
-    .slice(0, 72)
+}
+
+export function truncateDrawtextLabel(text: string, maxLen = 36): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= maxLen) return trimmed
+  return `${trimmed.slice(0, maxLen - 3)}...`
+}
+
+export function buildStoryboardCellVideoFilter(
+  frame: StoryboardExportFrame,
+  hasImage: boolean,
+  fontOption: string = drawtextFontOption(),
+): string {
+  const label = escapeDrawtext(
+    truncateDrawtextLabel(`#${frame.sequence} ${frame.description || ''}`),
+  )
+  const imageStack = `scale=${CELL_W}:${IMG_H}:force_original_aspect_ratio=decrease,pad=${CELL_W}:${IMG_H}:(ow-iw)/2:(oh-ih)/2:color=#1e1e2e,pad=${CELL_W}:${CELL_H}:0:0:color=#1e1e2e`
+
+  if (!fontOption) {
+    return hasImage ? imageStack : 'null'
+  }
+
+  const drawtext = hasImage
+    ? `drawtext=text='${label}':fontsize=13:fontcolor=white:x=12:y=${IMG_H + 24}${fontOption}`
+    : `drawtext=text='${label}':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2${fontOption}`
+
+  return hasImage ? `${imageStack},${drawtext}` : drawtext
 }
 
 function colsForLayout(layout: StoryboardExportLayout, count: number): number {
@@ -58,25 +85,34 @@ async function renderCell(
   frame: StoryboardExportFrame,
   outPath: string,
 ): Promise<void> {
-  const label = escapeDrawtext(`#${frame.sequence} ${frame.description || ''}`)
-  const vf = frame.imagePath && existsSync(frame.imagePath)
-    ? `scale=${CELL_W}:${IMG_H}:force_original_aspect_ratio=decrease,pad=${CELL_W}:${IMG_H}:(ow-iw)/2:(oh-ih)/2:color=#1e1e2e,pad=${CELL_W}:${CELL_H}:0:0:color=#1e1e2e,drawtext=text='${label}':fontsize=13:fontcolor=white:x=12:y=${IMG_H + 24}:w=${CELL_W - 24}`
-    : `drawtext=text='${label}':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2`
+  const hasImage = !!(frame.imagePath && existsSync(frame.imagePath))
+  const vf = buildStoryboardCellVideoFilter(frame, hasImage)
 
-  const args = frame.imagePath && existsSync(frame.imagePath)
-    ? ['-y', '-i', frame.imagePath, '-vf', vf, '-frames:v', '1', outPath]
-    : [
-        '-y',
-        '-f',
-        'lavfi',
-        '-i',
-        `color=c=#2d2d44:s=${CELL_W}x${CELL_H}:d=1`,
-        '-vf',
-        vf,
-        '-frames:v',
-        '1',
-        outPath,
-      ]
+  const args = hasImage
+    ? ['-y', '-i', frame.imagePath!, '-vf', vf, '-frames:v', '1', outPath]
+    : vf === 'null'
+      ? [
+          '-y',
+          '-f',
+          'lavfi',
+          '-i',
+          `color=c=#2d2d44:s=${CELL_W}x${CELL_H}:d=1`,
+          '-frames:v',
+          '1',
+          outPath,
+        ]
+      : [
+          '-y',
+          '-f',
+          'lavfi',
+          '-i',
+          `color=c=#2d2d44:s=${CELL_W}x${CELL_H}:d=1`,
+          '-vf',
+          vf,
+          '-frames:v',
+          '1',
+          outPath,
+        ]
 
   await runFFmpeg(args)
 }
@@ -147,27 +183,6 @@ export async function exportStoryboardPng(
       } catch {
         /* ignore */
       }
-    }
-  }
-}
-
-export async function exportStoryboardPdf(
-  userDataPath: string,
-  frames: StoryboardExportFrame[],
-  layout: StoryboardExportLayout,
-  baseName = 'storyboard',
-): Promise<string> {
-  const pngPath = await exportStoryboardPng(userDataPath, frames, layout, `${baseName}-tmp`)
-  const pdfPath = join(getOutputDir(userDataPath), `${baseName}.pdf`)
-
-  try {
-    await runFFmpeg(['-y', '-i', pngPath, pdfPath])
-    return pdfPath
-  } finally {
-    try {
-      unlinkSync(pngPath)
-    } catch {
-      /* ignore */
     }
   }
 }

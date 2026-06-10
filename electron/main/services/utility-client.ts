@@ -438,7 +438,7 @@ export class UtilityClient {
   async exportStoryboard(payload: {
     frames: Array<{ sequence: number; description: string; imagePath?: string }>
     layout: 'list' | 'grid3' | 'grid5'
-    format: 'png' | 'pdf'
+    format: 'png'
     baseName?: string
   }): Promise<string> {
     const result = (await this.send('storyboard:export', payload, 300000)) as {

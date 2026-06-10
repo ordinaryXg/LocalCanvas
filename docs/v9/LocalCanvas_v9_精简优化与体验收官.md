@@ -38,7 +38,7 @@ v9 是 **v8 之后的工程收官 + 体验收官**：功能不减，体积更小
 | 大画布 | 100 节点项目平移/缩放无明显掉帧（60fps 主观流畅） |
 | 视觉 | v9 新改区域 **零** `#333` / raw `zinc-*` 硬编码；状态色统一 `--status-*` |
 | 功能债 | v5 附录 A P1 项 **≥ 80%** 关闭或明确延期（收官后 **14/20 ✅ + 1 🔶 = 75%**） |
-| 测试 | `npm test` 全绿；补齐 auth / dag / storyboard 核心单测；e2e ≥ 5 条 smoke |
+| 测试 | `npm test` 全绿；补齐 auth / dag / storyboard 核心单测；e2e ≥ 5 条 smoke | **210** 用例 / **48** 文件；e2e **5** 条 |
 
 **图例**：✅ 已交付　🔶 部分完成　⬜ 未开始
 
@@ -54,22 +54,23 @@ v9 是 **v8 之后的工程收官 + 体验收官**：功能不减，体积更小
 | **Wave 2** 功能债 | ✅ | DAG 重试/跳过/并发/执行到此节点；分镜同步画布 + 批量重生视频；`UserProfilePanel`；`audioVolume` FFmpeg 混流；StartPage 模板预置节点图；Agent 会话历史 + `agent:getSession`；合成导出取消 |
 | **Wave 3** 视觉抛光 | ✅ | `mode-crossfade` / `drawer-slide` + `prefers-reduced-motion`；`ProjectSummary` 虚线边计数；Drawer 滑入；视频 `StylePresetChips`；端口 `n/max` badge；`DagRunPanel` `--status-*`；生成中 Drawer 禁止外部关闭 |
 | **Wave 4** 收官补项 | ✅ | **工作台合并**（`canvas \| workbench`）；`WorkbenchNodePreview` 独立预览；`ProjectSummary` 一键断开警告连线；死代码清理；包体报告；e2e 第 5 条；剪辑台 `embedded` + preload 打包修复 |
+| **Wave 5** 节点精简续补 | ✅ | **分镜组**画布联系表 + layout 同步；编辑器左右分栏 / 去 PDF / 智能重生成 / accent 按钮；P2 虚拟列表与失败重试；**合成**切片段黑屏修复 + 迷你时间轴；**PNG 导出** Windows 字体 |
 
 ### 量化完成度
 
 | 维度 | v9 目标 | 当前 |
 |------|---------|------|
-| 附录债务项（§1.1–1.3，共 34 项） | P0/P1 ≥ 80% 关闭 | **17/34 ✅（50%）**；4 项 🔶 部分；13 项 ⬜（多已标 v10+） |
-| 其中 P1 子集（20 项） | ≥ 80% | **14 ✅ + 1 🔶 = 75%**（含部分）；严格关闭 **70%** |
+| 附录债务项（§1.1–1.3，共 34 项） | P0/P1 ≥ 80% 关闭 | **20/34 ✅（59%）**；4 项 🔶 部分；10 项 ⬜（多已标 v10+） |
+| 其中 P1 子集（20 项） | ≥ 80% | **16 ✅ + 1 🔶 = 85%**（含部分）；严格关闭 **80%** |
 | 验收检查表（§八 R1–R8） | 全绿 | **8/8 通过**（R3 主观流畅未单独归档） |
-| 单测 | 全绿 + 核心补齐 | **38 文件 / 166 用例** 全绿（含 `workbenchTarget`、`authValidation`） |
+| 单测 | 全绿 + 核心补齐 | **48 文件 / 210 用例** 全绿（含 `storyboardNodeDisplay`、`storyboard-export`） |
 | 包体 R2 | 首包 ≥8% 下降 | **64.2%**（529.7 KB vs 基线 1480 KB）→ 见 [v9-bundle-size-report.md](./v9-bundle-size-report.md) |
 | 构建 / 安装包 | 可发布 | `npm run build` ✅；`preload/index.cjs` 打包路径已修复 |
 
-### 验证命令（2026-06-08）
+### 验证命令（2026-06-08 晚）
 
 ```bash
-npm test              # 166 passed
+npm test              # 210 passed（48 files）
 npm run build
 npm run report:bundle # 生成包体对比报告
 npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
@@ -77,7 +78,7 @@ npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
 
 ### 债务已迁至 v10
 
-跨版本未完成项已统一归入 **[LocalCanvas_v10_项目优化与技术债归集.md](../../LocalCanvas_v10_项目优化与技术债归集.md)**（§一 共 50 项，含 16 项部分完成）。v9 本文仅保留收官记录，不再追加新债。
+跨版本未完成项已统一归入 **[LocalCanvas_v10_项目优化与技术债归集.md](../../LocalCanvas_v10_项目优化与技术债归集.md)**（§三 共 50 项，含 16 项部分完成）。v9 本文仅保留收官记录，不再追加新债。
 
 ---
 
@@ -106,6 +107,8 @@ npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
 |---|------|--------|--------|------|------|
 | V6-1 | 合成 | FFmpeg 应用 `audioVolume` 混流 | P1 | ✅ | `compose-service.ts` `mergeAudioVideo(..., audioVolume)` |
 | V6-2 | 合成 | 导出取消按钮（renderer 接线） | P2 | ✅ | `ComposeToolbar` + `ComposeEditor` → `compose:cancel` |
+| V6-2a | 合成 | 剪辑台切片段预览黑屏 | P1 | ✅ | `ComposePreview.tsx`：`blobSrc` 与 `video.src` 同步后再切换 |
+| V6-2b | 合成 | 合成节点方案 B 迷你时间轴 | P2 | ✅ | `ComposeNode.tsx` + `composeNodeDisplay.ts` |
 | V6-3 | 合成 | 音频淡入淡出 | P2 | ⬜ | → **v10** |
 | V6-4 | 能力 | 端口槽位计数 `2/9` on handle | P1 | ✅ | `port-slot-labels.ts` + `PortHandle` `slotLabel` |
 | V6-5 | 能力 | 连线健康检查面板（虚线边一览） | P1 | 🔶 | `ProjectSummary` 计数 + **一键断开** + `EdgeInspector`；无独立 Dock 总览 |
@@ -126,7 +129,13 @@ npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
 | V5-3 | DAG | 崩溃恢复确认弹窗 | P1 | ⬜ | `dag:recover` 有 IPC，无启动弹窗 → **v10** |
 | V5-4 | DAG | 同层并发（`max_concurrent_tasks`） | P1 | ✅ | `useDagRun` Promise 池 |
 | V5-5 | 分镜 | 同步到画布（每帧关联节点） | P1 | ✅ | `storyboardSyncToCanvas.ts` + 分镜面板按钮 |
-| V5-6 | 分镜 | 批量重生视频 | P1 | ✅ | `regenerateSelectedVideos()` |
+| V5-6 | 分镜 | 批量重生（图/视频，按帧状态智能合并） | P1 | ✅ | `regenerateSelected()` + `inferStoryboardRegenKind` |
+| V5-6a | 分镜 | 画布节点 layout 与编辑器同步 | P1 | ✅ | `storyboardCanvasLayoutSpec` + `StoryboardGroupNode` list/grid3/grid5 |
+| V5-6b | 分镜 | 编辑器左右分栏 + 移除 PDF 导出 | P2 | ✅ | `StoryboardGenerator` 侧栏；IPC/utility 仅 `png`/`frame4k` |
+| V5-6c | 分镜 | PNG 导出 Windows 字体 / drawtext | P1 | ✅ | `ffmpeg-font.ts` + `truncateDrawtextLabel` |
+| V5-6d | 分镜 | P2：失败重试 / 聚焦 / grid5 虚拟列表 / 同步 chip | P2 | ✅ | `StoryboardFrameBrowser`、`storyboardEditorStore`、Inspector chip |
+| V5-6e | 分镜 | 重生成前 API Key 校验 | P1 | ✅ | `resolveImageModelId` / `resolveVideoModelId`（对齐脚本节点） |
+| V5-19 | 分镜 | PDF 导出 | P1 | ➖ | **v9 移除**（精简范围；保留 PNG 拼图 + 4K 单帧） |
 | V5-7 | 账号 | `UserProfilePanel`（昵称/头像） | P1 | ✅ | `UserProfilePanel` + `AccountMenu` |
 | V5-8 | Agent | 会话历史 UI | P2 | ✅ | `AgentPanel` 历史列表 + `agent:getSession` |
 | V5-9 | 音频 | 人声分离 HTTP API | P2 | ⬜ | → **v10** |
@@ -141,7 +150,7 @@ npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
 |----|-------|-------|
 | v5 附录 A 手工验收 | 绝大多数 ⬜ | **未系统性跑表**；功能实现与用例 ID 已大量对齐，需专项验收轮 |
 | E2E smoke | 2 文件 | **5 文件**：`app`、`compose-smoke`、`dag-smoke`、`storyboard-export`、`workbench-smoke` |
-| Vitest | ~35 文件 | **38 文件 / 166 用例**；新增 `workbenchTarget`、`port-slot-labels`、`authValidation` |
+| Vitest | ~35 文件 | **48 文件 / 210 用例**；新增 `workbenchTarget`、`storyboardNodeDisplay`、`storyboard-export` |
 | 构建 | — | `npm run build` ✅；[v9-bundle-size-report.md](./v9-bundle-size-report.md) 首包 **-64.2%** |
 | 安装包 | — | `preload/index.cjs` 路径修复；`signAndEditExecutable: false` 本地打包 |
 
@@ -329,6 +338,47 @@ npm run test:e2e      # 5 个 smoke 文件（playwright 5 projects）
 - ✅ e2e：`dag-smoke`、`storyboard-export`、`workbench-smoke`
 - **验收**：零 `#333` ✅；`npm test` 166 绿 ✅；e2e 5 条 ✅
 
+### Wave 5 — 分镜 / 合成节点精简续补 ✅（2026-06-08 晚）
+
+> 对齐 v8 设计「分镜组画布只读预览 + 编辑器深度操作」；不新增大型模块。
+
+#### 分镜组画布节点（方案 B）
+
+| 项 | 说明 | 状态 |
+|----|------|------|
+| 联系表条 | 移除 BaseNode / 画布内编辑 UI；标题 + 迷你预览 + 统计 footer | ✅ |
+| layout 同步 | 编辑器切换 **列表 / 九宫格 / 二十五宫格** → 画布节点同步（列表 5 行 / 3×3 / 5×5） | ✅ |
+| cell 交互 | 点击帧 → 打开 Drawer 并 `scrollIntoView` 聚焦 | ✅ |
+
+#### 分镜组编辑器（Generator / Workbench）
+
+| 项 | 说明 | 状态 |
+|----|------|------|
+| 布局 | 左：帧浏览（`StoryboardFrameBrowser`）；右：操作侧栏（~192px） | ✅ |
+| 导出精简 | 移除 PDF；保留 PNG 拼图 + 4K 单帧 | ✅ |
+| 重生成 | 合并「图/视频」为 **重生成选中帧**，按 `inferStoryboardRegenKind` 自动分流 | ✅ |
+| 校验 | 调用前读取配置并校验 API Key（与 `ScriptGenerator` 一致） | ✅ |
+| 按钮 | 操作区统一 **浅蓝 accent**（`bg-accent/15 text-accent`） | ✅ |
+| 宫格 UI | grid3/grid5 单元格固定 **72×72** 方块（非纵向长条） | ✅ |
+| P2 | grid5 ≥15 帧虚拟列表；失败帧单帧/批量重试；Inspector「已同步 M 帧」 | ✅ |
+
+#### 合成剪辑台
+
+| 项 | 说明 | 状态 |
+|----|------|------|
+| 黑屏修复 | 两视频合成首次播第二段黑屏：`blobSrc` 就绪后再换 `video.src` | ✅ |
+| 节点 UI | 方案 B 横向迷你时间轴（保留多槽 + audio + composed） | ✅ |
+
+#### 分镜导出（utility）
+
+| 项 | 说明 | 状态 |
+|----|------|------|
+| drawtext | 移除无效 `:w=` 参数；长描述 `truncateDrawtextLabel` | ✅ |
+| Windows | `electron/utility/services/ffmpeg-font.ts` 指定 `msyh.ttc` 等系统字体 | ✅ |
+| PDF | 删除 `exportStoryboardPdf` 及 IPC `format: 'pdf'` | ✅ |
+
+**验收**：`npm test` **210** 绿 ✅；分镜 layout 切换画布可见变化 ✅；PNG 导出 Windows 不再 Fontconfig 崩溃 ✅
+
 ---
 
 ## 六、明确不在 v9 范围
@@ -357,31 +407,48 @@ src/
     canvas/Canvas.tsx           # ✅ RF visible-only + token 背景
     compose/
       ComposeEditor.tsx         # ✅ 导出取消；embedded 全屏
-      ComposePreview.tsx        # ✅ 预览空状态 / 黑底可见文案
+      ComposePreview.tsx        # ✅ 切片段黑屏修复；预览空状态
+      ComposeNode.tsx           # ✅ 方案 B 迷你时间轴
+    nodes/
+      StoryboardGroupNode.tsx   # ✅ 联系表条；layout 同步 list/grid3/grid5
+    inspector/
+      details/StoryboardInspectorDetails.tsx  # ✅ 已同步 M 帧 chip
     inspector/ProjectSummary.tsx # ✅ 虚线边计数 + 一键断开
     panels/
       AgentPanel.tsx            # ✅ 会话历史 UI
       VideoEditorPanel.tsx      # ✅ StylePresetChips + hidePreview
       WorkbenchNodePreview.tsx  # ✅ 工作台独立预览区
       UserProfilePanel.tsx      # ✅ 昵称编辑
-      StoryboardGenerator.tsx   # ✅ 同步画布 / 批量视频
+      StoryboardGenerator.tsx   # ✅ 左右分栏 / 智能重生成 / 去 PDF
+      StoryboardFrameBrowser.tsx # ✅ grid5 虚拟列表；方块宫格
     project/StartPage.tsx       # ✅ 模板预置工作流
     shell/GeneratorDrawer.tsx   # ✅ 滑入 / 生成中守卫
-  hooks/useDagRun.ts            # ✅ 并发 / retry / skip / until
+  hooks/
+    useDagRun.ts                # ✅ 并发 / retry / skip / until
+    useStoryboardGroup.ts       # ✅ 智能重生成 / API Key 校验
   layouts/
     EditorShell.tsx             # canvas | workbench
-    modes/WorkbenchMode.tsx     # ✅ 预览 | 编辑 | 历史 三栏
-  stores/canvasStore.ts         # ✅ removeEdges 批量删边
+    modes/WorkbenchMode.tsx     # ✅ 预览 | 编辑 | 历史 三栏；分镜 h-full
+  stores/
+    canvasStore.ts              # ✅ removeEdges 批量删边
+    storyboardEditorStore.ts    # ✅ 帧聚焦 scrollIntoView
   styles/index.css              # ✅ mode-crossfade / drawer-slide
+  styles/nodes.css              # ✅ 分镜 generator / 画布 layout 样式
   utils/
+    storyboardNodeDisplay.ts    # ✅ canvas layout spec / 预览切片
     storyboardSyncToCanvas.ts   # ✅ 分镜同步
+    storyboardNodeDisplay.test.ts
+    storyboard-export.test.ts
     workbenchTarget.ts          # ✅ 工作台路由
     authValidation.test.ts      # ✅ 注册校验单测
 
 electron/
   main/index.ts                 # ✅ preload → ../preload/index.cjs
   main/ipc/agent.ts             # ✅ agent:getSession
+  main/ipc/storyboard.ts        # ✅ export format: png | frame4k
   utility/services/compose-service.ts  # ✅ audioVolume
+  utility/services/storyboard-export.ts # ✅ PNG 拼图；Windows fontfile
+  utility/services/ffmpeg-font.ts       # ✅ Windows drawtext 字体解析
 
 scripts/
   report-bundle-size.mjs        # ✅ R2 包体对比
@@ -412,10 +479,11 @@ docs/
 | R2 | 包体 | 构建产物体积下降 ≥ 8% 或有 lazy 加载证据 | ✅ 首包 **-64.2%**（见 bundle 报告） |
 | R3 | 性能 | 100 节点画布操作流畅；RF visible-only 已开 | ✅ 代码已开；主观流畅未归档 |
 | R4 | DAG | 重试/跳过/并发至少一项 E2E 可演示 | ✅ `dag-smoke` + 面板/右键可演示 |
-| R5 | 分镜 | 「同步到画布」可创建关联节点 | ✅ |
+| R5 | 分镜 | 「同步到画布」可创建关联节点；layout 切换画布预览同步 | ✅ |
+| R5a | 分镜 | PNG 导出在 Windows 可用（字体 / drawtext） | ✅ |
 | R6 | 账号 | 昵称可改并持久化 | ✅ `UserProfilePanel` |
 | R7 | 视觉 | 抽检 10 屏无 `#333`、无 raw status 色 | ✅ Canvas + DagRunPanel 已改 |
-| R8 | 测试 | `npm test` 绿；e2e ≥ 5 | ✅ **166** 绿；e2e **5** 条 |
+| R8 | 测试 | `npm test` 绿；e2e ≥ 5 | ✅ **210** 绿；e2e **5** 条 |
 
 ---
 
@@ -427,13 +495,15 @@ docs/
 | Legacy 双轨冻结 | 🔶 | | | 未移除；`GenerateMode`/`EditMode` 已废弃 |
 | React.lazy / RF 优化 | ✅ | ✅ | | R2 包体报告已归档 |
 | DAG 重试/并发/直到节点 | | ✅ | | |
-| 分镜同步/批量视频 | | ✅ | | |
+| 分镜同步/智能重生成/layout 同步 | | ✅ | ✅ | Wave 5 |
+| 分镜编辑器侧栏 / 去 PDF / accent 按钮 | | ✅ | ✅ | Wave 5 |
+| 合成剪辑台黑屏 + 迷你时间轴 | | ✅ | | Wave 5 |
 | UserProfile / Agent 历史 | | ✅ | ✅ | |
 | 工作台预览 + 历史 | | ✅ | ✅ | `WorkbenchNodePreview` ✅ |
 | 合成 audioVolume / 导出取消 / embedded | | ✅ | | 安装包 preload 已修 |
 | Token / 动效 / 视频 chip | | | ✅ | 双轨 token 合并 🔶 |
 | 槽位计数 / 边健康 / 一键断开 | | ✅ | ✅ | Dock 健康总览 → v10 |
-| 测试与 e2e | ✅ | ✅ | | e2e **5/5** ✅ |
+| 测试与 e2e | ✅ | ✅ | | e2e **5/5** ✅；vitest **210** |
 | Settings 卡片化 / 响应式 / Badge | | | 🔶 | v10 |
 
 ---

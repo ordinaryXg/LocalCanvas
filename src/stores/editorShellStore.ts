@@ -77,7 +77,20 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
   focusStyleChips: false,
   scrollToGeneratorWarnings: false,
 
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    if (mode === 'canvas') {
+      const updates: Partial<Pick<EditorShellState, 'mode' | 'openDrawer' | 'inspectorCollapsed'>> = {
+        mode: 'canvas',
+        inspectorCollapsed: false,
+      }
+      if (get().openDrawer === null) {
+        updates.openDrawer = 'nodes'
+      }
+      set(updates)
+      return
+    }
+    set({ mode })
+  },
 
   toggleDrawer: (drawer) => {
     const current = get().openDrawer

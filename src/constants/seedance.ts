@@ -16,6 +16,9 @@ export const SEEDANCE_ARK_CONSOLE = {
 /** Seedance 1.0 Pro Fast — 当前默认测试模型 */
 export const SEEDANCE_MODEL_1_0_PRO_FAST = 'doubao-seedance-1-0-pro-fast-251015'
 
+/** Seedance 1.5 Pro */
+export const SEEDANCE_MODEL_1_5_PRO = 'doubao-seedance-1-5-pro-251215'
+
 /** Seedance 2.0 标准版 */
 export const SEEDANCE_MODEL_STANDARD = 'doubao-seedance-2-0-260128'
 /** Seedance 2.0 快速版 */
@@ -45,7 +48,7 @@ export const SEEDANCE_CAMERA_PROMPTS: Record<string, string> = {
 }
 
 export interface SeedanceCapabilities {
-  version: '1.0' | '2.0'
+  version: '1.0' | '1.5' | '2.0'
   durations: readonly number[]
   resolutions: SeedanceResolution[]
   supportsGenerateAudio: boolean
@@ -58,6 +61,10 @@ export function isSeedanceV2Model(apiModelId: string): boolean {
   return /seedance-2|2-0-\d+/i.test(apiModelId)
 }
 
+export function isSeedanceV15Model(apiModelId: string): boolean {
+  return /seedance-1-5|1-5-pro/i.test(apiModelId)
+}
+
 export function getSeedanceCapabilities(apiModelId: string): SeedanceCapabilities {
   if (isSeedanceV2Model(apiModelId)) {
     return {
@@ -68,6 +75,17 @@ export function getSeedanceCapabilities(apiModelId: string): SeedanceCapabilitie
       supportsLastFrame: true,
       minDuration: 4,
       maxDuration: 15,
+    }
+  }
+  if (isSeedanceV15Model(apiModelId)) {
+    return {
+      version: '1.5',
+      durations: SEEDANCE_DURATIONS_V1,
+      resolutions: ['480p', '720p', '1080p'],
+      supportsGenerateAudio: true,
+      supportsLastFrame: true,
+      minDuration: 2,
+      maxDuration: 12,
     }
   }
   return {
@@ -97,6 +115,25 @@ export const SEEDANCE_1_0_PRO_FAST_VIDEO_MODEL = {
     generate_audio: false,
     watermark: false,
     version: '1.0',
+  },
+}
+
+export const SEEDANCE_1_5_PRO_VIDEO_MODEL = {
+  id: 'seedance-1-5-pro',
+  name: 'Doubao Seedance 1.5 Pro',
+  provider: 'volcengine_seedance' as const,
+  endpoint: SEEDANCE_ENDPOINTS.createTask,
+  poll_endpoint: SEEDANCE_ENDPOINTS.pollTask,
+  model: SEEDANCE_MODEL_1_5_PRO,
+  envKey: 'ARK_API_KEY',
+  max_duration: 12,
+  supported_resolutions: ['480p', '720p', '1080p'],
+  default_params: {
+    ratio: '16:9' as SeedanceRatio,
+    resolution: '720p' as SeedanceResolution,
+    generate_audio: true,
+    watermark: false,
+    version: '1.5',
   },
 }
 

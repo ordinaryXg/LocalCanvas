@@ -410,7 +410,7 @@ export interface LocalCanvasAPI {
   storyboard: {
     export: (payload: {
       projectId: string
-      format: 'png' | 'pdf' | 'frame4k'
+      format: 'png' | 'frame4k'
       layout?: 'list' | 'grid3' | 'grid5'
       baseName?: string
       frames: Array<{

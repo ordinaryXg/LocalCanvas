@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { VideoModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 import { handleError, showToast } from '../../utils/ErrorHandler'
 import {
   assertNoWarnEdgesForNode,
@@ -52,6 +53,8 @@ interface VideoEditorPanelProps {
 }
 
 export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPanelProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadMedia = useNodeMediaUpload(nodeId, 'video')
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
   const addNode = useCanvasStore((s) => s.addNode)
   const removeEdge = useCanvasStore((s) => s.removeEdge)
@@ -326,6 +329,8 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
   const displayTitle = node ? nodeDisplayTitle(node, '视频') : '视频'
   const videoAssetPath =
     typeof data.videoAssetPath === 'string' ? data.videoAssetPath : undefined
+  const hasVideoAsset = !!(data.videoSrc || videoAssetPath)
+  const videoFileName = typeof data.fileName === 'string' ? data.fileName : undefined
 
   const generateButton = (
     <div className="flex items-center gap-2">
@@ -351,6 +356,30 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
 
   return (
     <div className="flex flex-col min-h-0 gap-3">
+      <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-border">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="px-3 py-1.5 text-xs rounded border border-border hover:border-[var(--node-video)]/60 text-text-primary"
+        >
+          {hasVideoAsset ? '替换视频' : '上传视频'}
+        </button>
+        {videoFileName && (
+          <span className="text-[10px] text-text-muted truncate">{videoFileName}</span>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void uploadMedia(file)
+            e.target.value = ''
+          }}
+        />
+      </div>
+
       <div ref={rowRef} className="flex min-h-0 items-start w-full">
         {!hidePreview && (
           <>

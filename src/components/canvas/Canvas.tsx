@@ -27,11 +27,16 @@ import { useAgentStore } from '../../stores/agentStore'
 import { ContextMenu, NodePicker, useContextMenuHandlers, type ContextMenuState } from './ContextMenu'
 import { CanvasToolbar } from './CanvasToolbar'
 import { GeneratorPanel } from '../panels/GeneratorPanel'
+import { GeneratorDrawer } from '../shell/GeneratorDrawer'
 import { ComposeEditor } from '../compose/ComposeEditor'
 import { isEditorShell } from '../../constants/editorFeatures'
 import { useComposeEditorStore } from '../../stores/composeEditorStore'
 import { isPortCompatible, getNodeTypeFromId, isTargetHandleAvailable } from '../../utils/portCompat'
 import { evaluateEdgeCompat } from '../../capabilities/edge-compat'
+import {
+  isUnifiedInboundUnresolved,
+  normalizeInboundConnection,
+} from '../../capabilities/canvas-inbound-connection'
 import type { ModelKind } from '../../types/capability'
 import { useDataFlow } from '../../hooks/useDataFlow'
 import { useFileDrop, useSidebarNodeDrop, useAssetDrop, useKeyboardShortcuts, useSpacePan } from '../../hooks/useKeyboard'
@@ -273,12 +278,22 @@ function CanvasInner() {
       const sourceType = getNodeTypeFromId(nodes, connection.source)
       const targetNode = nodes.find((n) => n.id === connection.target)
       const targetType = targetNode?.type ?? getNodeTypeFromId(nodes, connection.target)
+      const normalized = normalizeInboundConnection(
+        connection,
+        sourceType,
+        targetType,
+        targetNode?.data?.modelId as string | undefined,
+        edges,
+      )
+      if (isUnifiedInboundUnresolved(targetType, connection.targetHandle, normalized.targetHandle)) {
+        return false
+      }
       if (
         !isPortCompatible(
           sourceType,
-          connection.sourceHandle,
+          normalized.sourceHandle,
           targetType,
-          connection.targetHandle,
+          normalized.targetHandle,
         )
       ) {
         return false
@@ -287,19 +302,19 @@ function CanvasInner() {
         targetType === 'image' ? 'image' : targetType === 'video' ? 'video' : 'llm'
       const compat = evaluateEdgeCompat({
         sourceType,
-        sourceHandle: connection.sourceHandle,
+        sourceHandle: normalized.sourceHandle,
         targetType,
-        targetHandle: connection.targetHandle,
+        targetHandle: normalized.targetHandle,
         targetModelId: targetNode?.data?.modelId as string | undefined,
         targetKind,
         edges,
-        targetNodeId: connection.target,
+        targetNodeId: normalized.target,
       })
       if (compat.status === 'reject') return false
       return isTargetHandleAvailable(
         edges,
-        connection.target,
-        connection.targetHandle,
+        normalized.target,
+        normalized.targetHandle,
       )
     },
     [nodes, edges],
@@ -307,9 +322,22 @@ function CanvasInner() {
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      onConnect(connection)
+      const sourceType = getNodeTypeFromId(nodes, connection.source)
+      const targetNode = nodes.find((n) => n.id === connection.target)
+      const targetType = targetNode?.type ?? getNodeTypeFromId(nodes, connection.target)
+      const normalized = normalizeInboundConnection(
+        connection,
+        sourceType,
+        targetType,
+        targetNode?.data?.modelId as string | undefined,
+        edges,
+      )
+      if (isUnifiedInboundUnresolved(targetType, connection.targetHandle, normalized.targetHandle)) {
+        return
+      }
+      onConnect(normalized)
     },
-    [onConnect],
+    [edges, nodes, onConnect],
   )
 
   useEffect(() => {
@@ -431,7 +459,7 @@ function CanvasInner() {
   return (
     <div
       ref={canvasRef}
-      className={`w-full h-full relative${spacePanHeld ? ' canvas-space-pan' : ''}`}
+      className={`w-full h-full relative overflow-hidden${spacePanHeld ? ' canvas-space-pan' : ''}`}
     >
       <ReactFlow
         nodes={nodes}
@@ -490,6 +518,7 @@ function CanvasInner() {
       </ReactFlow>
 
       <CanvasToolbar />
+      {isEditorShell() && <GeneratorDrawer containerRef={canvasRef} />}
       {!isEditorShell() && <GeneratorPanel />}
       {!isEditorShell() && composeEditorNodeId && !composeEditorDismissed && (
         <ComposeEditor nodeId={composeEditorNodeId} />

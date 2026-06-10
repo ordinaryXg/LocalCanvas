@@ -45,7 +45,7 @@ export function ComposePreview({
   onSeek,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const loadedClipIdRef = useRef<string | null>(null)
+  const attachedClipIdRef = useRef<string | null>(null)
   const blobCacheRef = useRef<Map<string, string>>(new Map())
   const resizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const [blobSrc, setBlobSrc] = useState<string | null>(null)
@@ -114,6 +114,9 @@ export function ComposePreview({
     const video = videoRef.current
     if (!video || !active || !blobSrc) return
 
+    const blobForActiveClip = blobCacheRef.current.get(active.clip.id)
+    if (!blobForActiveClip || blobSrc !== blobForActiveClip) return
+
     const offset = (active.clip.trimIn ?? 0) + active.offsetInClip
     if (!Number.isFinite(offset)) return
 
@@ -124,8 +127,8 @@ export function ComposePreview({
       }
     }
 
-    if (loadedClipIdRef.current !== active.clip.id) {
-      loadedClipIdRef.current = active.clip.id
+    if (attachedClipIdRef.current !== active.clip.id) {
+      attachedClipIdRef.current = active.clip.id
       video.src = blobSrc
       video.load()
       video.addEventListener('loadeddata', applySeek, { once: true })
@@ -201,19 +204,22 @@ export function ComposePreview({
               <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
                 无法预览该片段
               </div>
-            ) : !blobSrc || loadingClipId === displayClip.clip.id ? (
-              <div className="w-full h-full flex items-center justify-center text-white/70 text-sm">
-                加载预览…
-              </div>
             ) : (
-              <video
-                ref={videoRef}
-                className="w-full h-full object-contain"
-                muted
-                playsInline
-                preload="auto"
-                onError={() => setDecodeError(true)}
-              />
+              <>
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-contain"
+                  muted
+                  playsInline
+                  preload="auto"
+                  onError={() => setDecodeError(true)}
+                />
+                {(!blobSrc || loadingClipId === displayClip.clip.id) && (
+                  <div className="absolute inset-0 flex items-center justify-center text-white/70 text-sm bg-black/60">
+                    加载预览…
+                  </div>
+                )}
+              </>
             )}
             <SubtitleOverlay cue={activeCue} />
             {displayClip && (

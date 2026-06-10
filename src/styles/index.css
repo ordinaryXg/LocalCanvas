@@ -199,15 +199,15 @@ textarea.resize-y {
 }
 
 .generator-drawer-enter {
-  animation: drawer-slide 250ms ease-out;
+  animation: drawer-fade-in 180ms ease-out;
 }
 
-@keyframes drawer-slide {
+@keyframes drawer-fade-in {
   from {
-    transform: translateY(100%);
+    opacity: 0;
   }
   to {
-    transform: translateY(0);
+    opacity: 1;
   }
 }
 

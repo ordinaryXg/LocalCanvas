@@ -6,13 +6,13 @@ const COMPONENT_GAP = 200
 const LAYOUT_PADDING = 80
 
 const DEFAULT_NODE_SIZE: Record<string, { width: number; height: number }> = {
-  text: { width: 280, height: 160 },
+  text: { width: 240, height: 280 },
   image: { width: 240, height: 280 },
-  video: { width: 280, height: 360 },
-  audio: { width: 220, height: 120 },
-  script: { width: 300, height: 200 },
-  compose: { width: 280, height: 200 },
-  storyboard: { width: 400, height: 300 },
+  video: { width: 176, height: 106 },
+  audio: { width: 176, height: 64 },
+  script: { width: 236, height: 112 },
+  compose: { width: 264, height: 88 },
+  storyboard: { width: 268, height: 156 },
   group: { width: 400, height: 300 },
 }
 

@@ -83,30 +83,22 @@ async function ensureConfigDir(): Promise<void> {
   }
 }
 
-function mergeImageModels(
-  existing: ImageModelConfig[],
-  defaults: ImageModelConfig[],
-): ImageModelConfig[] {
-  const byId = new Map(existing.map((m) => [m.id, m]))
-  for (const preset of defaults) {
-    if (!byId.has(preset.id)) {
-      byId.set(preset.id, preset)
-    }
+function sanitizeModelDefaults(config: AppConfig): AppConfig {
+  const pickDefault = (models: { id: string }[], current: string | undefined) => {
+    if (current && models.some((m) => m.id === current)) return current
+    return models[0]?.id ?? ''
   }
-  return Array.from(byId.values())
-}
 
-function mergeVideoModels(
-  existing: VideoModelConfig[],
-  defaults: VideoModelConfig[],
-): VideoModelConfig[] {
-  const byId = new Map(existing.map((m) => [m.id, m]))
-  for (const preset of defaults) {
-    if (!byId.has(preset.id)) {
-      byId.set(preset.id, preset)
-    }
+  return {
+    ...config,
+    settings: {
+      ...config.settings,
+      default_image_model: pickDefault(config.image_models, config.settings.default_image_model),
+      default_video_model: pickDefault(config.video_models, config.settings.default_video_model),
+      default_llm: pickDefault(config.llm_models, config.settings.default_llm),
+      default_tts: pickDefault(config.tts_models, config.settings.default_tts),
+    },
   }
-  return Array.from(byId.values())
 }
 
 export async function readConfig(): Promise<AppConfig> {
@@ -118,19 +110,13 @@ export async function readConfig(): Promise<AppConfig> {
   try {
     const raw = await readFile(getConfigPath(), 'utf-8')
     const parsed = parse(raw) as Partial<AppConfig>
-    const merged: AppConfig = {
-      image_models: mergeImageModels(
-        (parsed.image_models?.length ?? 0) > 0 ? parsed.image_models! : defaults.image_models,
-        defaults.image_models,
-      ),
-      video_models: mergeVideoModels(
-        (parsed.video_models?.length ?? 0) > 0 ? parsed.video_models! : defaults.video_models,
-        defaults.video_models,
-      ),
+    const merged: AppConfig = sanitizeModelDefaults({
+      image_models: parsed.image_models ?? defaults.image_models,
+      video_models: parsed.video_models ?? defaults.video_models,
       llm_models: parsed.llm_models ?? defaults.llm_models,
       tts_models: parsed.tts_models ?? defaults.tts_models,
       settings: { ...defaults.settings, ...parsed.settings },
-    }
+    })
     return replaceEnvVars(merged)
   } catch (error) {
     logger.warn('Failed to read config.yaml', error)
@@ -157,13 +143,13 @@ export async function readConfigRaw(): Promise<AppConfig> {
   }
   const raw = await readFile(getConfigPath(), 'utf-8')
   const parsed = parse(raw) as Partial<AppConfig>
-  return {
+  return sanitizeModelDefaults({
     image_models: parsed.image_models ?? defaults.image_models,
     video_models: parsed.video_models ?? defaults.video_models,
     llm_models: parsed.llm_models ?? defaults.llm_models,
     tts_models: parsed.tts_models ?? defaults.tts_models,
     settings: { ...defaults.settings, ...parsed.settings },
-  }
+  })
 }
 
 export async function writeConfig(config: AppConfig): Promise<void> {

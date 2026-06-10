@@ -8,6 +8,7 @@ import {
 import { SEEDANCE_ENDPOINTS } from '../constants/seedance'
 import type { AppConfig } from '../types/config'
 import type { Confidence, ModelCapabilityProfile, ModelKind } from '../types/capability'
+import type { DiscoveredModelEntry } from '../types/capability-sync'
 import { CATALOG_VERSION } from './builtin/profiles'
 import { resolveProfile } from './registry'
 
@@ -28,7 +29,7 @@ export interface SyncCredentialSource {
 
 export interface MappedDiscoveredModel {
   model_id: string
-  kind: ModelKind
+  kind: ModelKind | null
   profile: ModelCapabilityProfile
   in_catalog: boolean
   preset?: ModelPreset
@@ -63,13 +64,14 @@ export function parseModelsListResponse(data: unknown): string[] {
   const obj = data as Record<string, unknown>
   const dataArr = obj.data
   if (Array.isArray(dataArr)) {
-    return dataArr
+    const ids = dataArr
       .map((item) => {
         if (typeof item !== 'object' || !item || !('id' in item)) return null
         const id = (item as { id: unknown }).id
         return typeof id === 'string' && id.length > 0 ? id : null
       })
       .filter((id): id is string => Boolean(id))
+    return [...new Set(ids)]
   }
   return []
 }
@@ -103,22 +105,25 @@ export function collectSyncCredentialSources(config: AppConfig): SyncCredentialS
   return [...seen.values()]
 }
 
-export function inferKindForModel(modelId: string, hintKind?: ModelKind): ModelKind {
-  const ordered: ModelKind[] = hintKind
-    ? [hintKind, 'video', 'image', 'tts', 'llm'].filter(
-        (k, i, arr) => arr.indexOf(k) === i,
-      ) as ModelKind[]
-    : ['video', 'image', 'tts', 'llm']
-
-  for (const kind of ordered) {
-    const profile = resolveProfile({ model: modelId, kind })
-    if (profile.source === 'builtin') return kind
-  }
+export function inferKindForModel(modelId: string, hintKind?: ModelKind): ModelKind | null {
+  const profile = resolveProfile({ model: modelId, kind: hintKind ?? 'llm' })
+  if (profile.source === 'builtin') return profile.kind
 
   if (/seedance|video|sora|cogvideo/i.test(modelId)) return 'video'
-  if (/seedream|dall-e|flux|midjourney|gpt-image|image/i.test(modelId)) return 'image'
+  if (/seedream|dall-e|flux|midjourney|gpt-image/i.test(modelId)) return 'image'
   if (/tts|speech|voice/i.test(modelId)) return 'tts'
-  return hintKind ?? 'llm'
+  if (/deepseek|gpt-|o[134]|claude|gemini|qwen|glm|kimi|llm|instruct|chat/i.test(modelId)) {
+    return 'llm'
+  }
+  return null
+}
+
+export function shouldCacheDiscoveredModel(mapped: MappedDiscoveredModel): boolean {
+  return mapped.in_catalog && mapped.kind !== null
+}
+
+export function shouldShowDiscoveredModel(mapped: MappedDiscoveredModel): boolean {
+  return shouldCacheDiscoveredModel(mapped)
 }
 
 export function mapDiscoveredModel(
@@ -126,20 +131,37 @@ export function mapDiscoveredModel(
   hintKind?: ModelKind,
 ): MappedDiscoveredModel {
   const kind = inferKindForModel(modelId, hintKind)
-  const profile = resolveProfile({ model: modelId, kind })
+  const profileKind = kind ?? hintKind ?? 'llm'
+  const profile = resolveProfile({ model: modelId, kind: profileKind })
   const in_catalog = profile.source === 'builtin'
-  const preset = findPresetForModel(modelId, kind)
+  const preset = kind ? findPresetForModel(modelId, kind) : undefined
   return { model_id: modelId, kind, profile, in_catalog, preset }
 }
 
 function findPresetForModel(modelId: string, kind: ModelKind): ModelPreset | undefined {
   const exact = ALL_PRESETS.find((p) => p.kind === kind && p.model === modelId)
   if (exact) return exact
-  return ALL_PRESETS.find(
-    (p) =>
-      p.kind === kind &&
-      (modelId.startsWith(p.model) || p.model.startsWith(modelId.split('-')[0] ?? '')),
+
+  const byPrefix = ALL_PRESETS.find(
+    (p) => p.kind === kind && (modelId.startsWith(p.model) || modelId.startsWith(`${p.model}-`)),
   )
+  if (byPrefix) return byPrefix
+
+  const profile = resolveProfile({ model: modelId, kind })
+  if (profile.source !== 'builtin') return undefined
+
+  if (profile.config_ids?.length) {
+    for (const configId of profile.config_ids) {
+      const byConfig = ALL_PRESETS.find((p) => p.kind === kind && p.id === configId)
+      if (byConfig) return byConfig
+    }
+  }
+
+  if (profile.profile_key) {
+    return ALL_PRESETS.find((p) => p.kind === kind && p.profile_key === profile.profile_key)
+  }
+
+  return undefined
 }
 
 export function isModelAlreadyConfigured(config: AppConfig, modelId: string): boolean {
@@ -163,4 +185,42 @@ export function isPresetAlreadyConfigured(config: AppConfig, presetId: string): 
     ...config.tts_models.map((m) => m.id),
   ])
   return allIds.has(presetId)
+}
+
+/** 将内置目录中尚未接入的预设补入「可添加」列表（不依赖厂商 /models 是否返回） */
+export function supplementDiscoveredWithCatalog(
+  config: AppConfig,
+  entries: DiscoveredModelEntry[],
+): DiscoveredModelEntry[] {
+  const seenPresets = new Set(entries.map((e) => e.preset_id).filter(Boolean))
+  const seenModels = new Set(entries.map((e) => e.model_id))
+  const merged = [...entries]
+
+  for (const preset of ALL_PRESETS) {
+    if (!preset.profile_key) continue
+    if (isPresetAlreadyConfigured(config, preset.id)) continue
+    if (seenPresets.has(preset.id) || seenModels.has(preset.model)) continue
+
+    const mapped = mapDiscoveredModel(preset.model, preset.kind)
+    if (!shouldShowDiscoveredModel(mapped) || mapped.kind === null || !mapped.preset) continue
+
+    merged.push({
+      model_id: preset.model,
+      kind: mapped.kind,
+      profile_key: mapped.profile.profile_key,
+      display_name: preset.name,
+      in_catalog: true,
+      already_added: false,
+      has_preset: true,
+      preset_id: preset.id,
+      confidence: mapped.profile.confidence,
+    })
+    seenPresets.add(preset.id)
+    seenModels.add(preset.model)
+  }
+
+  return merged.sort((a, b) => {
+    if (a.in_catalog !== b.in_catalog) return a.in_catalog ? -1 : 1
+    return a.model_id.localeCompare(b.model_id)
+  })
 }

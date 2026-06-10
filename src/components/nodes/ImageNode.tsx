@@ -1,45 +1,77 @@
-import { memo, useRef, useCallback, useState, useMemo } from 'react'
-import type { NodeProps } from '@xyflow/react'
-import { BaseNode } from './BaseNode'
-import { ImagePreview } from '../common/ImagePreview'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { IMAGE_UNIFIED_INPUT_HANDLE } from '../../capabilities/image-inbound-handle'
+import { getImageNodePorts } from '../../capabilities/node-port-ui'
+import { useOpenGeneratorDrawer } from '../inspector/useOpenGeneratorDrawer'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
-import { useProjectStore } from '../../stores/projectStore'
 import { useCanvasStore } from '../../stores/canvasStore'
-import { getImageNodePorts } from '../../capabilities/node-port-ui'
-import { applyPortSlotLabels, getImagePortSlotLabels } from '../../capabilities/port-slot-labels'
-import { getStylePreset } from '../../constants/stylePresets'
-import { nodeDisplayTitle } from '../../utils/nodeNaming'
+import { useProjectStore } from '../../stores/projectStore'
+import {
+  CANVAS_NODE_SHELL_PAD,
+  computeImageDisplaySize,
+  IMAGE_CANVAS_EMPTY_HEIGHT,
+  IMAGE_CANVAS_EMPTY_WIDTH,
+  IMAGE_CANVAS_MAX_HEIGHT,
+  IMAGE_CANVAS_MIN_HEIGHT,
+  IMAGE_CANVAS_MIN_WIDTH,
+} from '../../utils/imageNodeDisplay'
+import { getNodeVisualVariant } from '../../utils/nodeVisualVariant'
 
-function ImageNodeComponent({ id, data, selected, width, height }: NodeProps) {
+function ImageNodeComponent({ id, data, selected }: NodeProps) {
+  const shellRef = useRef<HTMLDivElement>(null)
+  const lastMeasuredRef = useRef({ width: 0, height: 0 })
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadMedia = useNodeMediaUpload(id, 'image')
+  const updateNodeSize = useCanvasStore((s) => s.updateNodeSize)
   const edges = useCanvasStore((s) => s.edges)
   const projectId = useProjectStore((s) => s.currentProjectId)
+  const { openDrawer } = useOpenGeneratorDrawer(id)
   const modelId = typeof data.modelId === 'string' ? data.modelId : undefined
+  const variant = useMemo(() => getNodeVisualVariant(id), [id])
 
-  const inputPorts = useMemo(() => {
-    const hasReferenceEdge = edges.some(
-      (e) => e.target === id && e.targetHandle === 'reference',
-    )
-    const ports = getImageNodePorts(modelId, undefined, {
-      reference: hasReferenceEdge,
-    })
-    const labels = getImagePortSlotLabels(id, edges, modelId)
-    return applyPortSlotLabels(ports, labels)
+  const [displaySize, setDisplaySize] = useState({
+    width: IMAGE_CANVAS_EMPTY_WIDTH,
+    height: IMAGE_CANVAS_EMPTY_HEIGHT,
+    clipped: false,
+  })
+
+  const hiddenInputHandles = useMemo(() => {
+    const fromModel = getImageNodePorts(modelId).map((p) => p.id)
+    const fromEdges = edges
+      .filter(
+        (e) =>
+          e.target === id &&
+          e.targetHandle &&
+          e.targetHandle !== IMAGE_UNIFIED_INPUT_HANDLE,
+      )
+      .map((e) => e.targetHandle as string)
+    return [...new Set([...fromModel, ...fromEdges])]
   }, [edges, id, modelId])
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [showPreview, setShowPreview] = useState(false)
 
   const imageAssetPath =
     typeof data.imageAssetPath === 'string' ? data.imageAssetPath : undefined
   const inlineImageSrc = typeof data.imageSrc === 'string' ? data.imageSrc : undefined
   const hasImage = !!(inlineImageSrc || imageAssetPath)
+  const isGenerating = data.isGenerating === true
+  const errorMessage = typeof data.error === 'string' ? data.error : undefined
 
-  const { src: mediaSrc, loading: mediaLoading, load: loadMedia } = useLazyAssetBlob(
+  const { src: mediaSrc, loading: mediaLoading } = useLazyAssetBlob(
     projectId,
     imageAssetPath,
     inlineImageSrc,
   )
+
+  const imageSrc = mediaSrc ?? inlineImageSrc
+
+  useEffect(() => {
+    if (!imageSrc) return
+    const probe = new Image()
+    probe.onload = () => {
+      setDisplaySize(computeImageDisplaySize(probe.naturalWidth, probe.naturalHeight))
+    }
+    probe.src = imageSrc
+  }, [imageSrc])
 
   const loadFile = useCallback(
     (file: File) => {
@@ -58,134 +90,154 @@ function ImageNodeComponent({ id, data, selected, width, height }: NodeProps) {
     [loadFile],
   )
 
-  const handleOpenPreview = useCallback(() => {
-    if (!hasImage) return
-    if (mediaSrc) {
-      setShowPreview(true)
-      return
-    }
-    void loadMedia().then((url) => {
-      if (url) setShowPreview(true)
-    })
-  }, [hasImage, mediaSrc, loadMedia])
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    setDisplaySize(computeImageDisplaySize(img.naturalWidth, img.naturalHeight))
+  }, [])
 
-  const prompt = typeof data.prompt === 'string' ? data.prompt : ''
-  const hasReference = typeof data.referenceSrc === 'string' && data.referenceSrc.length > 0
-  const previewSrc = mediaSrc ?? inlineImageSrc
-  const fileName = typeof data.fileName === 'string' ? data.fileName : '图片'
-  const displayTitle = nodeDisplayTitle({ type: 'image', data }, '图片')
-  const styleId = typeof data.styleId === 'string' ? data.styleId : ''
-  const stylePreset = styleId ? getStylePreset(styleId) : undefined
+  useEffect(() => {
+    if (!imageSrc) {
+      setDisplaySize({
+        width: IMAGE_CANVAS_EMPTY_WIDTH,
+        height: IMAGE_CANVAS_EMPTY_HEIGHT,
+        clipped: false,
+      })
+    }
+  }, [imageSrc])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    let rafId = 0
+    const measure = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const measuredWidth = Math.max(
+          IMAGE_CANVAS_MIN_WIDTH,
+          Math.ceil(shell.offsetWidth),
+        )
+        const measuredHeight = Math.min(
+          IMAGE_CANVAS_MAX_HEIGHT + CANVAS_NODE_SHELL_PAD * 2,
+          Math.max(IMAGE_CANVAS_MIN_HEIGHT, Math.ceil(shell.offsetHeight)),
+        )
+        const { width: lastW, height: lastH } = lastMeasuredRef.current
+        if (Math.abs(measuredWidth - lastW) < 2 && Math.abs(measuredHeight - lastH) < 2) return
+
+        lastMeasuredRef.current = { width: measuredWidth, height: measuredHeight }
+        updateNodeSize(id, measuredWidth, measuredHeight)
+      })
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(shell)
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
+  }, [displaySize, id, imageSrc, updateNodeSize])
+
+  const openEditor = () => {
+    openDrawer()
+  }
+
+  const showEmpty = !imageSrc
+  const frameWidth = hasImage && imageSrc ? displaySize.width : IMAGE_CANVAS_EMPTY_WIDTH
+  const frameHeight = hasImage && imageSrc ? displaySize.height : IMAGE_CANVAS_EMPTY_HEIGHT
 
   return (
     <>
-      <BaseNode
-        nodeId={id}
-        color="var(--node-image)"
-        icon={<span className="text-sm">🖼️</span>}
-        title={displayTitle}
-        selected={selected}
-        width={width}
-        height={height}
-        badge={stylePreset ? stylePreset.name : undefined}
-        defaultWidth={240}
-        minWidth={200}
-        minHeight={280}
-        inputs={inputPorts}
-        outputs={[{ id: 'image', top: '50%' }]}
-      >
-        <div className="flex flex-col flex-1 min-h-0 gap-2">
-          <div
-            className="w-full flex-1 min-h-[80px] bg-bg-tertiary rounded flex items-center justify-center cursor-pointer overflow-hidden"
-            onDrop={handleFileDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {inlineImageSrc || mediaSrc ? (
-              <img
-                src={inlineImageSrc ?? mediaSrc}
-                alt=""
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="text-text-muted text-xs text-center">
-                <div className="text-2xl mb-1">📁</div>
-                拖入或点击上传
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2 shrink-0">
-            <div className="flex-1 min-w-0 rounded border border-border bg-bg-tertiary/40 p-1.5">
-              <div className="text-[9px] text-text-muted mb-0.5">提示词</div>
-              {prompt ? (
-                <p className="text-[10px] text-text-primary line-clamp-2 break-all" title={prompt}>
-                  {prompt}
-                </p>
-              ) : (
-                <p className="text-[10px] text-text-muted italic">连接文本/脚本</p>
-              )}
-            </div>
-            <div className="w-14 shrink-0 rounded border border-border bg-bg-tertiary/40 p-1 flex flex-col items-center">
-              <div className="text-[9px] text-text-muted mb-0.5">参考</div>
-              {hasReference ? (
-                <img
-                  src={data.referenceSrc as string}
-                  alt=""
-                  className="w-10 h-10 object-cover rounded"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded border border-dashed border-border/60" />
-              )}
-            </div>
-          </div>
-
-          {hasImage && (
-            <button
-              type="button"
-              onClick={() => void handleOpenPreview()}
-              disabled={mediaLoading && !previewSrc}
-              className="shrink-0 w-full text-[10px] py-1.5 bg-bg-tertiary text-text-secondary rounded hover:bg-bg-primary nodrag disabled:opacity-50"
-            >
-              {mediaLoading && !previewSrc ? '加载中…' : '🔍 预览图片'}
-            </button>
-          )}
-
-          {data.isGenerating === true && (
-            <div className="shrink-0 w-full bg-bg-tertiary rounded-full h-1">
-              <div
-                className="bg-[var(--node-image)] h-1 rounded-full transition-all"
-                style={{ width: `${(data.progress as number) || 0}%` }}
-              />
-            </div>
-          )}
-
-          {typeof data.error === 'string' && (
-            <p className="shrink-0 text-[10px] text-danger line-clamp-2">{data.error}</p>
-          )}
-
-          <div className="flex-1 min-h-[8px]" />
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) loadFile(file)
+      <div ref={shellRef} className="image-node-shell">
+        <div
+          className={`image-node-frame ${selected ? 'image-node-frame--selected' : ''} ${
+            showEmpty ? 'image-node-frame--empty' : ''
+          } ${errorMessage ? 'image-node-frame--error' : ''}`}
+          style={{
+            borderRadius: variant.borderRadius,
+            width: frameWidth,
+            height: frameHeight,
           }}
-        />
-      </BaseNode>
+          onDoubleClick={openEditor}
+          onDrop={handleFileDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onClick={(e) => {
+            if (!showEmpty) return
+            if (!selected) return
+            e.stopPropagation()
+            fileInputRef.current?.click()
+          }}
+          title={
+            errorMessage ??
+            (hasImage
+              ? '双击在编辑台编辑'
+              : selected
+                ? '点击上传本地图片，或拖入图片'
+                : '选中后点击上传，或拖入图片')
+          }
+        >
+          {imageSrc ? (
+            <div className="image-node__media">
+              <img
+                src={imageSrc}
+                alt=""
+                className="image-node__img"
+                style={{ objectFit: displaySize.clipped ? 'cover' : 'contain' }}
+                onLoad={handleImageLoad}
+                draggable={false}
+              />
+              {displaySize.clipped && <div className="image-node__fade" aria-hidden />}
+            </div>
+          ) : (
+            <div className="image-node__placeholder" aria-hidden>
+              <span className="media-node__empty-icon">🖼️</span>
+            </div>
+          )}
 
-      {showPreview && previewSrc && (
-        <ImagePreview
-          src={previewSrc}
-          title={fileName}
-          onClose={() => setShowPreview(false)}
-        />
-      )}
+          {(mediaLoading || isGenerating) && (
+            <div className="image-node__overlay" aria-hidden>
+              <div className="image-node__spinner" />
+            </div>
+          )}
+
+          <Handle
+            type="target"
+            position={Position.Left}
+            id={IMAGE_UNIFIED_INPUT_HANDLE}
+            className="image-node__handle"
+            style={{ top: '50%' }}
+          />
+          {hiddenInputHandles.map((handleId) => (
+            <Handle
+              key={`hidden-in-${handleId}`}
+              type="target"
+              position={Position.Left}
+              id={handleId}
+              className="image-node__handle image-node__handle--hidden"
+              style={{ top: '50%' }}
+            />
+          ))}
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="image"
+            className="image-node__handle"
+            style={{ top: '50%' }}
+          />
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) loadFile(file)
+          e.target.value = ''
+        }}
+      />
     </>
   )
 }

@@ -11,6 +11,9 @@ import {
   isPresetAlreadyConfigured,
   mapDiscoveredModel,
   parseModelsListResponse,
+  shouldCacheDiscoveredModel,
+  shouldShowDiscoveredModel,
+  supplementDiscoveredWithCatalog,
 } from '../../../src/capabilities/l2-sync'
 import type {
   CapabilityCacheStatus,
@@ -45,6 +48,7 @@ export async function syncCapabilityCache(): Promise<CapabilitySyncResult> {
   const sourceResults: CapabilitySyncResult['sources'] = []
 
   repo.purgeExpired(syncedAt)
+  repo.purgeUnmapped()
 
   if (sources.length === 0) {
     return {
@@ -65,6 +69,7 @@ export async function syncCapabilityCache(): Promise<CapabilitySyncResult> {
       )
       for (const modelId of modelIds) {
         const mapped = mapDiscoveredModel(modelId, source.hint_kind)
+        if (!shouldCacheDiscoveredModel(mapped) || mapped.kind === null) continue
         const expiresAt = new Date(
           Date.now() + cacheTtlMs(mapped.profile.confidence),
         ).toISOString()
@@ -135,7 +140,9 @@ function buildDiscoveredList(config: Awaited<ReturnType<typeof readConfig>>): Di
     if (seen.has(row.model_id)) continue
     seen.add(row.model_id)
 
-    const mapped = mapDiscoveredModel(row.model_id, row.kind)
+    const mapped = mapDiscoveredModel(row.model_id)
+    if (!shouldShowDiscoveredModel(mapped) || mapped.kind === null) continue
+
     const preset = mapped.preset
     const alreadyAdded =
       isModelAlreadyConfigured(config, row.model_id) ||
@@ -145,7 +152,7 @@ function buildDiscoveredList(config: Awaited<ReturnType<typeof readConfig>>): Di
 
     entries.push({
       model_id: row.model_id,
-      kind: row.kind,
+      kind: mapped.kind,
       profile_key: mapped.profile.profile_key,
       display_name: mapped.profile.display_name,
       in_catalog: row.in_catalog === 1,
@@ -156,14 +163,12 @@ function buildDiscoveredList(config: Awaited<ReturnType<typeof readConfig>>): Di
     })
   }
 
-  return entries.sort((a, b) => {
-    if (a.in_catalog !== b.in_catalog) return a.in_catalog ? -1 : 1
-    return a.model_id.localeCompare(b.model_id)
-  })
+  return supplementDiscoveredWithCatalog(config, entries)
 }
 
 export async function getCapabilityCacheStatus(): Promise<CapabilityCacheStatus> {
   const config = await readConfig()
+  repo.purgeUnmapped()
   const rows = repo.listValidCache()
   const meta = repo.listSyncMeta()
   const discovered = buildDiscoveredList(config)

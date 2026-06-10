@@ -119,7 +119,7 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
   }, [modelId])
 
   useEffect(() => {
-    draftRef.current?.focus()
+    draftRef.current?.focus({ preventScroll: true })
   }, [focusDraftTick])
 
   if (!textData) return null

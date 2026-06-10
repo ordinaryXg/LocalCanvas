@@ -1,89 +1,73 @@
-import { memo, useRef, useCallback, useMemo } from 'react'
-import type { NodeProps } from '@xyflow/react'
-import { BaseNode } from './BaseNode'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { getVideoNodePorts } from '../../capabilities/node-port-ui'
+import { VIDEO_UNIFIED_INPUT_HANDLE } from '../../capabilities/video-inbound-handle'
+import { useOpenGeneratorDrawer } from '../inspector/useOpenGeneratorDrawer'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
 import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
-import { NodeImageThumb } from '../common/NodeImageThumb'
-import { getVideoNodePorts } from '../../capabilities/node-port-ui'
-import { applyPortSlotLabels, getVideoPortSlotLabels } from '../../capabilities/port-slot-labels'
-import { listVideoReferenceHandles } from '../../utils/videoReferenceSlots'
-import { getStylePreset } from '../../constants/stylePresets'
-import { nodeDisplayTitle } from '../../utils/nodeNaming'
+import { getNodeVisualVariant } from '../../utils/nodeVisualVariant'
+import { CANVAS_NODE_SHELL_PAD } from '../../utils/imageNodeDisplay'
+import {
+  computeVideoDisplaySize,
+  emptyVideoDisplaySize,
+  VIDEO_CANVAS_EMPTY_HEIGHT,
+  VIDEO_CANVAS_EMPTY_WIDTH,
+  VIDEO_CANVAS_MAX_HEIGHT,
+  VIDEO_CANVAS_MIN_HEIGHT,
+  VIDEO_CANVAS_MIN_WIDTH,
+} from '../../utils/videoNodeDisplay'
 
-function FrameSlot({
-  label,
-  projectId,
-  src,
-  assetPath,
-  emptyHint,
-}: {
-  label: string
-  projectId: string | null
-  src?: string
-  assetPath?: string
-  emptyHint: string
-}) {
-  const hasImage = !!(src || assetPath)
-  return (
-    <div className="flex-1 min-w-0 flex flex-col items-center gap-0.5">
-      <span className="text-[9px] text-text-muted">{label}</span>
-      {hasImage ? (
-        <div className="w-full aspect-video rounded border border-border overflow-hidden">
-          <NodeImageThumb
-            projectId={projectId}
-            src={src}
-            assetPath={assetPath}
-            alt={label}
-            className="w-full h-full object-cover"
-            placeholder="…"
-          />
-        </div>
-      ) : (
-        <div className="w-full aspect-video rounded border border-dashed border-border/50 flex items-center justify-center">
-          <span className="text-[8px] text-text-muted text-center px-1">{emptyHint}</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
+function VideoNodeComponent({ id, data, selected }: NodeProps) {
+  const shellRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const lastMeasuredRef = useRef({ width: 0, height: 0 })
   const uploadMedia = useNodeMediaUpload(id, 'video')
+  const updateNodeSize = useCanvasStore((s) => s.updateNodeSize)
   const edges = useCanvasStore((s) => s.edges)
   const projectId = useProjectStore((s) => s.currentProjectId)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { openDrawer } = useOpenGeneratorDrawer(id)
+  const modelId = typeof data.modelId === 'string' ? data.modelId : undefined
+  const variant = useMemo(() => getNodeVisualVariant(id), [id])
+
+  const [displaySize, setDisplaySize] = useState(emptyVideoDisplaySize())
+  const [playing, setPlaying] = useState(false)
 
   const videoAssetPath =
     typeof data.videoAssetPath === 'string' ? data.videoAssetPath : undefined
   const inlineVideoSrc = typeof data.videoSrc === 'string' ? data.videoSrc : undefined
   const hasVideo = !!(inlineVideoSrc || videoAssetPath)
-  const modelId = typeof data.modelId === 'string' ? data.modelId : undefined
-
-  const inputPorts = useMemo(() => {
-    const inbound = edges.filter((e) => e.target === id && e.targetHandle)
-    const slotDisabled: Partial<Record<string, boolean>> = {}
-    for (const handle of ['video', 'firstFrame', 'lastFrame', 'audio'] as const) {
-      if (inbound.some((e) => e.targetHandle === handle)) {
-        slotDisabled[handle] = true
-      }
-    }
-    for (const handle of listVideoReferenceHandles(9)) {
-      if (inbound.some((e) => e.targetHandle === handle)) {
-        slotDisabled[handle] = true
-      }
-    }
-    const ports = getVideoNodePorts(modelId, undefined, slotDisabled)
-    const labels = getVideoPortSlotLabels(id, edges, modelId)
-    return applyPortSlotLabels(ports, labels)
-  }, [edges, id, modelId])
+  const firstFrameSrc = typeof data.firstFrameSrc === 'string' ? data.firstFrameSrc : undefined
+  const firstFrameAssetPath =
+    typeof data.firstFrameAssetPath === 'string' ? data.firstFrameAssetPath : undefined
+  const hasPoster = !!(firstFrameSrc || firstFrameAssetPath)
+  const isEmpty = !hasVideo && !hasPoster
+  const isGenerating = data.isGenerating === true
+  const errorMessage = typeof data.error === 'string' ? data.error : undefined
 
   const { src: mediaSrc, loading: mediaLoading } = useLazyAssetBlob(
     projectId,
     videoAssetPath,
     inlineVideoSrc,
   )
+  const { src: posterSrc, loading: posterLoading } = useLazyAssetBlob(
+    projectId,
+    firstFrameAssetPath,
+    firstFrameSrc,
+  )
+
+  const videoSrc = mediaSrc ?? inlineVideoSrc
+  const posterImageSrc = posterSrc ?? firstFrameSrc
+
+  const hiddenInputHandles = useMemo(() => {
+    const fromModel = getVideoNodePorts(modelId).map((p) => p.id)
+    const fromEdges = edges
+      .filter((e) => e.target === id && e.targetHandle && e.targetHandle !== VIDEO_UNIFIED_INPUT_HANDLE)
+      .map((e) => e.targetHandle as string)
+    return [...new Set([...fromModel, ...fromEdges])]
+  }, [edges, id, modelId])
 
   const loadFile = useCallback(
     (file: File) => {
@@ -92,113 +76,216 @@ function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
     [uploadMedia],
   )
 
-  const prompt = typeof data.prompt === 'string' ? data.prompt : ''
-  const firstFrame = typeof data.firstFrameSrc === 'string' ? data.firstFrameSrc : undefined
-  const lastFrame = typeof data.lastFrameSrc === 'string' ? data.lastFrameSrc : undefined
-  const firstFrameAssetPath =
-    typeof data.firstFrameAssetPath === 'string' ? data.firstFrameAssetPath : undefined
-  const lastFrameAssetPath =
-    typeof data.lastFrameAssetPath === 'string' ? data.lastFrameAssetPath : undefined
-  const hasStoryboardFrame = !!(firstFrame || firstFrameAssetPath)
-  const displayTitle = nodeDisplayTitle({ type: 'video', data }, '视频')
-  const styleId = typeof data.styleId === 'string' ? data.styleId : ''
-  const stylePreset = styleId ? getStylePreset(styleId) : undefined
-  const posterSrc = mediaSrc ?? inlineVideoSrc
+  const handleFileDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const file = e.dataTransfer.files[0]
+      if (file?.type.startsWith('video/')) loadFile(file)
+    },
+    [loadFile],
+  )
+
+  const togglePlay = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!selected || !videoRef.current || !videoSrc) return
+      if (playing) {
+        videoRef.current.pause()
+        setPlaying(false)
+        return
+      }
+      void videoRef.current.play().then(
+        () => setPlaying(true),
+        () => setPlaying(false),
+      )
+    },
+    [playing, selected, videoSrc],
+  )
+
+  useEffect(() => {
+    if (!selected && playing) {
+      videoRef.current?.pause()
+      setPlaying(false)
+    }
+  }, [playing, selected])
+
+  useEffect(() => {
+    setPlaying(false)
+    if (!videoSrc && !posterImageSrc) {
+      setDisplaySize(emptyVideoDisplaySize())
+    }
+  }, [posterImageSrc, videoSrc])
+
+  useEffect(() => {
+    if (!posterImageSrc || videoSrc) return
+    const probe = new Image()
+    probe.onload = () => {
+      setDisplaySize(computeVideoDisplaySize(probe.naturalWidth, probe.naturalHeight))
+    }
+    probe.src = posterImageSrc
+  }, [posterImageSrc, videoSrc])
+
+  const handleVideoMetadata = useCallback(() => {
+    const el = videoRef.current
+    if (!el || el.videoWidth <= 0) return
+    setDisplaySize(computeVideoDisplaySize(el.videoWidth, el.videoHeight))
+  }, [])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    let rafId = 0
+    const measure = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const measuredWidth = Math.max(VIDEO_CANVAS_MIN_WIDTH, Math.ceil(shell.offsetWidth))
+        const measuredHeight = Math.min(
+          VIDEO_CANVAS_MAX_HEIGHT + CANVAS_NODE_SHELL_PAD * 2,
+          Math.max(VIDEO_CANVAS_MIN_HEIGHT, Math.ceil(shell.offsetHeight)),
+        )
+        const { width: lastW, height: lastH } = lastMeasuredRef.current
+        if (Math.abs(measuredWidth - lastW) < 2 && Math.abs(measuredHeight - lastH) < 2) return
+
+        lastMeasuredRef.current = { width: measuredWidth, height: measuredHeight }
+        updateNodeSize(id, measuredWidth, measuredHeight)
+      })
+    }
+
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(shell)
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
+  }, [displaySize, id, posterImageSrc, updateNodeSize, videoSrc])
+
+  const openEditor = () => {
+    openDrawer()
+  }
+
+  const frameWidth = isEmpty ? VIDEO_CANVAS_EMPTY_WIDTH : displaySize.width
+  const frameHeight = isEmpty ? VIDEO_CANVAS_EMPTY_HEIGHT : displaySize.height
+  const busy = mediaLoading || posterLoading || isGenerating
+  const canPlay = !!(selected && videoSrc && !busy)
 
   return (
-    <BaseNode
-      nodeId={id}
-      color="var(--node-video)"
-      icon={<span className="text-sm">🎥</span>}
-      title={displayTitle}
-      selected={selected}
-      width={width}
-      height={height}
-      badge={stylePreset ? stylePreset.name : undefined}
-      defaultWidth={240}
-      minWidth={200}
-      minHeight={280}
-      inputs={inputPorts}
-      outputs={[{ id: 'video', top: '50%' }]}
-    >
-      <div className="flex flex-col flex-1 min-h-0 gap-2">
+    <>
+      <div ref={shellRef} className="video-node-shell">
         <div
-          className="w-full flex-1 min-h-[80px] bg-bg-tertiary rounded flex items-center justify-center cursor-pointer overflow-hidden relative"
-          onClick={() => fileInputRef.current?.click()}
+          className={`video-node-frame ${selected ? 'video-node-frame--selected' : ''} ${
+            isEmpty ? 'video-node-frame--empty' : ''
+          } ${errorMessage ? 'video-node-frame--error' : ''}`}
+          style={{
+            borderRadius: variant.borderRadius,
+            width: frameWidth,
+            height: frameHeight,
+          }}
+          onDoubleClick={openEditor}
+          onDrop={handleFileDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onClick={(e) => {
+            if (!isEmpty) return
+            if (!selected) return
+            e.stopPropagation()
+            fileInputRef.current?.click()
+          }}
+          title={
+            errorMessage ??
+            (hasVideo
+              ? selected
+                ? '点击 ▶ 播放，双击在编辑台编辑'
+                : '选中后可播放，双击在编辑台编辑'
+              : hasPoster
+                ? '双击在编辑台编辑'
+                : selected
+                  ? '点击上传本地视频，或拖入视频'
+                  : '选中后点击上传，或拖入视频')
+          }
         >
-          {hasVideo && posterSrc ? (
-            <video
-              src={posterSrc}
-              className="w-full h-full object-contain pointer-events-none"
-              preload="metadata"
-              muted
-              playsInline
-            />
-          ) : hasStoryboardFrame ? (
-            <NodeImageThumb
-              projectId={projectId}
-              src={firstFrame}
-              assetPath={firstFrameAssetPath}
-              alt="分镜首帧"
-              className="w-full h-full object-contain opacity-90"
-              placeholder="🖼️"
-            />
-          ) : hasVideo && mediaLoading ? (
-            <span className="text-text-muted text-xs">加载中…</span>
-          ) : (
-            <div className="text-text-muted text-xs text-center">
-              <div className="text-2xl mb-1">🎬</div>
-              拖入或点击上传
-            </div>
-          )}
-          {hasVideo && (
-            <div className="absolute bottom-1 right-1 text-[8px] bg-black/50 text-white/80 px-1 rounded pointer-events-none">
-              下方编辑器预览
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-1.5 shrink-0">
-          <FrameSlot
-            label="首帧"
-            projectId={projectId}
-            src={firstFrame}
-            assetPath={firstFrameAssetPath}
-            emptyHint="接图片"
-          />
-          <FrameSlot
-            label="尾帧"
-            projectId={projectId}
-            src={lastFrame}
-            assetPath={lastFrameAssetPath}
-            emptyHint="接图片"
-          />
-          <div className="flex-[1.2] min-w-0 flex flex-col rounded border border-border bg-bg-tertiary/40 p-1.5">
-            <span className="text-[9px] text-text-muted shrink-0">画面描述</span>
-            {prompt ? (
-              <p className="text-[10px] text-text-primary line-clamp-2 break-all flex-1 mt-0.5" title={prompt}>
-                {prompt}
-              </p>
+          <div className="video-node__media">
+            {videoSrc ? (
+              <video
+                ref={videoRef}
+                src={videoSrc}
+                className="video-node__video"
+                style={{ objectFit: displaySize.clipped ? 'cover' : 'contain' }}
+                preload="metadata"
+                muted
+                playsInline
+                onLoadedMetadata={handleVideoMetadata}
+                onEnded={() => setPlaying(false)}
+                onPause={() => setPlaying(false)}
+                onPlay={() => setPlaying(true)}
+              />
+            ) : posterImageSrc ? (
+              <img
+                src={posterImageSrc}
+                alt=""
+                className="video-node__poster"
+                style={{ objectFit: displaySize.clipped ? 'cover' : 'contain' }}
+                draggable={false}
+                onLoad={(e) => {
+                  const img = e.currentTarget
+                  setDisplaySize(
+                    computeVideoDisplaySize(img.naturalWidth, img.naturalHeight),
+                  )
+                }}
+              />
             ) : (
-              <p className="text-[10px] text-text-muted italic mt-0.5">连接文本或脚本</p>
+              <div className="video-node__placeholder" aria-hidden />
             )}
-          </div>
-        </div>
 
-        {data.isGenerating === true && (
-          <div className="shrink-0 w-full bg-bg-tertiary rounded-full h-1">
-            <div
-              className="bg-[var(--node-video)] h-1 rounded-full transition-all"
-              style={{ width: `${(data.progress as number) || 0}%` }}
+            {displaySize.clipped && !isEmpty && (
+              <div className="video-node__fade" aria-hidden />
+            )}
+
+            <button
+              type="button"
+              className={`video-node__play nodrag ${
+                canPlay ? '' : 'video-node__play--idle'
+              }`}
+              onClick={togglePlay}
+              disabled={!canPlay}
+              aria-label={playing ? '暂停' : '播放'}
+            >
+              {playing ? '⏸' : '▶'}
+            </button>
+          </div>
+
+          {busy && (
+            <div className="video-node__overlay" aria-hidden>
+              <div className="video-node__spinner" />
+            </div>
+          )}
+
+          <Handle
+            type="target"
+            position={Position.Left}
+            id={VIDEO_UNIFIED_INPUT_HANDLE}
+            className="video-node__handle"
+            style={{ top: '50%' }}
+          />
+          {hiddenInputHandles.map((handleId) => (
+            <Handle
+              key={`hidden-in-${handleId}`}
+              type="target"
+              position={Position.Left}
+              id={handleId}
+              className="video-node__handle video-node__handle--hidden"
+              style={{ top: '50%' }}
             />
-          </div>
-        )}
-
-        {typeof data.error === 'string' && (
-          <p className="shrink-0 text-[10px] text-danger line-clamp-2">{data.error}</p>
-        )}
-
-        <div className="flex-1 min-h-[8px]" />
+          ))}
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="video"
+            className="video-node__handle"
+            style={{ top: '50%' }}
+          />
+        </div>
       </div>
 
       <input
@@ -209,9 +296,10 @@ function VideoNodeComponent({ id, data, selected, width, height }: NodeProps) {
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) loadFile(file)
+          e.target.value = ''
         }}
       />
-    </BaseNode>
+    </>
   )
 }
 

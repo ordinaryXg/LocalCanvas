@@ -14,9 +14,12 @@ export interface ResolveProfileInput {
 }
 
 function matchPattern(pattern: string, model: string): boolean {
-  if (pattern === model) return true
-  if (pattern.endsWith('*')) {
-    return model.startsWith(pattern.slice(0, -1))
+  const normalized = model.toLowerCase()
+  const variants = pattern.includes('|') ? pattern.split('|') : [pattern]
+  for (const raw of variants) {
+    const p = raw.trim()
+    if (p === normalized) return true
+    if (p.endsWith('*') && normalized.startsWith(p.slice(0, -1))) return true
   }
   return false
 }

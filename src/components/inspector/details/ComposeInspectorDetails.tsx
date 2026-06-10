@@ -37,6 +37,9 @@ export function ComposeInspectorDetails({ node }: Props) {
     <div className="space-y-4">
       <InspectorStatusChips chips={chips} />
       <InspectorSummary lines={summaryLines} />
+      <p className="text-[10px] text-text-muted leading-relaxed">
+        选中节点后底部展开剪辑台；双击画布节点可进入工作台全屏剪辑。
+      </p>
       <InspectorSection title="合成">
         <div className="space-y-1.5 rounded-lg border border-border/60 bg-bg-tertiary/20 p-2.5">
           <InspectorField label="有效片段" value={activeCount} />

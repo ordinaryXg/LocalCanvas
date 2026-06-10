@@ -7,7 +7,6 @@ import { useWorkbenchTarget } from '../../hooks/useWorkbenchTarget'
 
 export function WorkbenchMode() {
   const setMode = useEditorShellStore((s) => s.setMode)
-  const setInspectorCollapsed = useEditorShellStore((s) => s.setInspectorCollapsed)
   const target = useWorkbenchTarget()
 
   if (!target) {
@@ -22,10 +21,7 @@ export function WorkbenchMode() {
         <button
           type="button"
           className="text-sm text-[var(--studio-accent)] hover:underline"
-          onClick={() => {
-            setMode('canvas')
-            setInspectorCollapsed(false)
-          }}
+          onClick={() => setMode('canvas')}
         >
           返回画布
         </button>
@@ -45,10 +41,7 @@ export function WorkbenchMode() {
           </span>
           <button
             type="button"
-            onClick={() => {
-              setMode('canvas')
-              setInspectorCollapsed(false)
-            }}
+            onClick={() => setMode('canvas')}
             className="text-xs text-[var(--studio-accent)] hover:underline"
           >
             返回画布
@@ -75,8 +68,16 @@ export function WorkbenchMode() {
         <aside className="w-80 shrink-0 border-r border-[var(--studio-border)] bg-bg-primary min-h-0 flex flex-col">
           <WorkbenchNodePreview nodeId={target.nodeId} nodeType={nodeType} />
         </aside>
-        <div className="flex-1 min-w-0 overflow-y-auto lc-scroll p-4">
-          <div className="w-full max-w-5xl mx-auto min-h-0">
+        <div
+          className={`flex-1 min-w-0 min-h-0 ${
+            nodeType === 'storyboard' ? 'overflow-hidden p-3' : 'overflow-y-auto lc-scroll p-4'
+          }`}
+        >
+          <div
+            className={`w-full mx-auto min-h-0 ${
+              nodeType === 'storyboard' ? 'h-full max-w-none' : 'max-w-5xl'
+            }`}
+          >
             <GeneratorContent nodeId={target.nodeId} nodeType={nodeType} embedded hidePreview />
           </div>
         </div>
