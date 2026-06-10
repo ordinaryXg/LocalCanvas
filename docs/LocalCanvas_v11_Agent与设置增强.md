@@ -19,5 +19,8 @@
 | 文档 | 路径 |
 |------|------|
 | 完整规划 | [v11/LocalCanvas_v11_Agent与设置增强.md](./v11/LocalCanvas_v11_Agent与设置增强.md) |
+| Agent 功能设计 | [v11/LocalCanvas_Agent功能设计.md](./v11/LocalCanvas_Agent功能设计.md) |
+| Agent UI 设计 | [v11/LocalCanvas_Agent-UI设计.md](./v11/LocalCanvas_Agent-UI设计.md) |
+| 复杂片型生产模型 | [v11/LocalCanvas_Agent-复杂片型生产模型.md](./v11/LocalCanvas_Agent-复杂片型生产模型.md) |
 
 **前置**：[v10 收官](./LocalCanvas_v10_项目优化与技术债归集.md)

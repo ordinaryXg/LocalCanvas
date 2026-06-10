@@ -27,6 +27,10 @@
 | 3 | Agent 文档 | `docs/v5/agent-guide.md` 与设置页交叉链接 | P1 |
 | 4 | AgentCompanion | 会话持久化、错误 Toast 统一审计 | P2 |
 
+**功能设计详案**：[LocalCanvas_Agent功能设计.md](./LocalCanvas_Agent功能设计.md)（参照 ComfyUI-Copilot / n8n / Dify / LangGraph；Plan·Build 双模式、模板召回、HITL 检查点；Slice A/B/C 交付切片）  
+**UI 设计详案**：[LocalCanvas_Agent-UI设计.md](./LocalCanvas_Agent-UI设计.md)（Agent 设置 Tab · 对话窗/浮岛 · 预览卡 · 两界面深链接）  
+**复杂片型**：[LocalCanvas_Agent-复杂片型生产模型.md](./LocalCanvas_Agent-复杂片型生产模型.md)（品牌片/叙事短片 · 七阶段 · Shot List · 检查点矩阵）
+
 ## 三、代码触点
 
 | 路径 | 说明 |
