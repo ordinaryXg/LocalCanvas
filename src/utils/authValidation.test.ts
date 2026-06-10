@@ -1,22 +1,37 @@
 import { describe, expect, it } from 'vitest'
+import {
+  AuthValidationError,
+  normalizeLoginUsername,
+  validateRegistrationInput,
+} from './authValidation'
 
-export function validateRegisterInput(username: string, password: string): string | null {
-  const trimmed = username.trim()
-  if (trimmed.length < 2) return 'USERNAME_TOO_SHORT'
-  if (password.length < 8) return 'PASSWORD_TOO_SHORT'
-  return null
-}
+describe('validateRegistrationInput', () => {
+  it('accepts valid username and password', () => {
+    expect(() => validateRegistrationInput('alice', 'password1')).not.toThrow()
+  })
 
-describe('validateRegisterInput', () => {
   it('rejects short username', () => {
-    expect(validateRegisterInput('a', 'password1')).toBe('USERNAME_TOO_SHORT')
+    expect(() => validateRegistrationInput('a', 'password1')).toThrow(AuthValidationError)
+    try {
+      validateRegistrationInput('a', 'password1')
+    } catch (err) {
+      expect(err).toBeInstanceOf(AuthValidationError)
+      expect((err as AuthValidationError).code).toBe('USERNAME_TOO_SHORT')
+    }
   })
 
   it('rejects short password', () => {
-    expect(validateRegisterInput('alice', 'short')).toBe('PASSWORD_TOO_SHORT')
+    expect(() => validateRegistrationInput('alice', 'short')).toThrow(AuthValidationError)
+    try {
+      validateRegistrationInput('alice', 'short')
+    } catch (err) {
+      expect((err as AuthValidationError).code).toBe('PASSWORD_TOO_SHORT')
+    }
   })
+})
 
-  it('accepts valid input', () => {
-    expect(validateRegisterInput('alice', 'password1')).toBeNull()
+describe('normalizeLoginUsername', () => {
+  it('trims whitespace', () => {
+    expect(normalizeLoginUsername('  bob  ')).toBe('bob')
   })
 })

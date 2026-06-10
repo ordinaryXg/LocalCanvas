@@ -58,6 +58,9 @@ export function targetHandleToSlotId(
   if (targetType === 'video' && isVideoReferenceImageHandle(targetHandle)) {
     return 'reference_image'
   }
+  if (targetType === 'image' && isVideoReferenceImageHandle(targetHandle)) {
+    return 'reference_image'
+  }
   const key = targetKey(targetType, targetHandle)
   if (!key) return null
   return TARGET_SLOT[key] ?? null

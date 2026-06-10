@@ -69,7 +69,7 @@ export function AgentCompanion() {
         <button
           type="button"
           onClick={() => setAgentExpanded(true)}
-          className={`fixed z-[70] bottom-4 right-4 w-14 h-14 rounded-full shadow-lg border border-[var(--studio-border)] bg-zinc-800 flex items-center justify-center text-xl hover:bg-zinc-700 transition ${
+          className={`fixed z-[70] bottom-4 right-4 w-14 h-14 rounded-full shadow-lg border border-[var(--studio-border)] bg-[var(--studio-surface)] flex items-center justify-center text-xl hover:bg-[var(--studio-surface-hover)] transition ${
             hasUnread ? 'ring-2 ring-[var(--studio-accent)]' : ''
           }`}
           title="Agent"

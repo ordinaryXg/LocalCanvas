@@ -53,7 +53,8 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
   const edges = useCanvasStore((s) => s.edges)
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const { isGenerating, run, cancel } = useModelGeneration(nodeId)
+  const { isGenerating, run, cancel, lastReasoningContent } = useModelGeneration(nodeId)
+  const [reasoningOpen, setReasoningOpen] = useState(false)
 
   useEffect(() => {
     if (!textData) return
@@ -127,6 +128,8 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
   const draft = textData.draft ?? ''
   const output = textData.output ?? ''
   const outputMode = textData.outputMode ?? 'passthrough'
+  const reasoningContent =
+    (textData.reasoningContent as string | undefined) ?? lastReasoningContent ?? ''
   const patch = (data: Record<string, unknown>) => updateNodeData(nodeId, data)
 
   const handleDraftChange = (value: string) => {
@@ -182,7 +185,7 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
         edges,
         currentProjectId,
       )
-      const result = await run(() =>
+      const { result, reasoningContent: generatedReasoning } = await run(() =>
         window.api.model.beginGenerateText({
           modelId,
           nodeId,
@@ -199,7 +202,9 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
         modelId,
         systemPrompt,
         thinkingPreset,
+        ...(generatedReasoning ? { reasoningContent: generatedReasoning } : {}),
       })
+      if (generatedReasoning) setReasoningOpen(true)
     } catch (err) {
       if (err instanceof GenerationBlockedError) {
         showToast(err.message, 'error')
@@ -288,6 +293,25 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
           />
         </div>
       </div>
+
+      {reasoningContent.trim() && (
+        <div className="rounded-lg border border-border/60 bg-bg-tertiary/30">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-3 py-2 text-left text-xs text-text-muted hover:text-text-primary"
+            onClick={() => setReasoningOpen((v) => !v)}
+            aria-expanded={reasoningOpen}
+          >
+            <span>思考过程（reasoning）</span>
+            <span>{reasoningOpen ? '收起' : '展开'}</span>
+          </button>
+          {reasoningOpen && (
+            <pre className="px-3 pb-3 text-[11px] text-text-secondary whitespace-pre-wrap max-h-48 overflow-y-auto lc-scroll">
+              {reasoningContent}
+            </pre>
+          )}
+        </div>
+      )}
 
       {visionEdges.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">

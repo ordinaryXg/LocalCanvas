@@ -1,13 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AppConfig } from '../../types/config'
+import { getCatalogVersion } from '../../capabilities/profile-display'
 import { useI18nStore, useT, type Locale } from '../../i18n'
 import { ModelSettingsSection } from './ModelSettingsSection'
-import {
-  isEditorShell,
-  setEditorShellEnabled,
-  isLegacyLayoutForced,
-  setLegacyLayoutEnabled,
-} from '../../constants/editorFeatures'
 
 type TabId = 'models' | 'settings'
 
@@ -16,6 +11,8 @@ interface SettingsPanelProps {
 }
 
 const CONFIG_PERSIST_DEBOUNCE_MS = 400
+const CATALOG_SEEN_KEY = 'lc-seen-catalog-version'
+const catalogVersion = getCatalogVersion()
 
 function prepareConfigForSave(config: AppConfig): AppConfig {
   const pickDefault = (models: { id: string }[], current: string | undefined) => {
@@ -52,8 +49,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       return []
     }
   })
-  const [useEditorShellUi, setUseEditorShellUi] = useState(() => isEditorShell())
-  const [useLegacyLayout, setUseLegacyLayout] = useState(() => isLegacyLayoutForced())
+  const [catalogNotice, setCatalogNotice] = useState(false)
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestConfigRef = useRef<AppConfig | null>(null)
 
@@ -96,6 +92,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   useEffect(() => {
     void window.api.config.read().then(setConfig)
     void window.api.agent.listSkills().then((r) => setAgentSkills(r.skills))
+    const seen = Number(localStorage.getItem(CATALOG_SEEN_KEY) ?? String(catalogVersion))
+    setCatalogNotice(seen < catalogVersion)
   }, [])
 
   useEffect(() => {
@@ -130,6 +128,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     })
   }
 
+  const dismissCatalogNotice = () => {
+    localStorage.setItem(CATALOG_SEEN_KEY, String(catalogVersion))
+    setCatalogNotice(false)
+  }
+
   if (!config) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -149,6 +152,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       <div className="w-[820px] max-h-[85vh] bg-bg-secondary rounded-xl border border-border overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-border shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">⚙️ 模型与能力</h2>
+          <p className="text-xs text-text-muted mt-1">
+            {t('settings.catalogVersion').replace('{{version}}', String(catalogVersion))}
+          </p>
         </div>
 
         <div className="flex border-b border-border shrink-0">
@@ -177,6 +183,18 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </div>
 
         <div className="p-4 overflow-y-auto lc-scroll flex-1 min-h-0">
+          {catalogNotice && (
+            <div className="mb-3 text-sm p-3 rounded bg-accent/10 text-text-primary flex items-start justify-between gap-3">
+              <span>{t('settings.catalogUpdated')}</span>
+              <button
+                type="button"
+                onClick={dismissCatalogNotice}
+                className="shrink-0 text-xs text-accent hover:underline"
+              >
+                {t('settings.catalogDismiss')}
+              </button>
+            </div>
+          )}
           {statusMsg && (
             <div
               className={`mb-3 text-sm p-3 rounded ${
@@ -196,36 +214,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           ) : (
             <div className="space-y-4 max-w-lg">
               <div className="rounded-lg border border-[var(--studio-border)] p-3 space-y-3">
-                <h3 className="text-sm font-medium text-text-primary">界面（v8）</h3>
-                <label className="flex items-center gap-2 text-xs text-text-primary cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useEditorShellUi && !useLegacyLayout}
-                    onChange={(e) => {
-                      const on = e.target.checked
-                      setUseEditorShellUi(on)
-                      setEditorShellEnabled(on)
-                      if (on) {
-                        setUseLegacyLayout(false)
-                        setLegacyLayoutEnabled(false)
-                      }
-                    }}
-                  />
-                  使用新版编辑器壳层（Dock + 检查器）
-                </label>
-                <label className="flex items-center gap-2 text-xs text-text-primary cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useLegacyLayout}
-                    onChange={(e) => {
-                      const on = e.target.checked
-                      setUseLegacyLayout(on)
-                      setLegacyLayoutEnabled(on)
-                      if (on) setUseEditorShellUi(false)
-                    }}
-                  />
-                  使用经典布局（v6 侧栏，需重启编辑器视图）
-                </label>
+                <h3 className="text-sm font-medium text-text-primary">界面</h3>
                 <button
                   type="button"
                   className="text-xs text-[var(--studio-accent)] hover:underline"
@@ -235,14 +224,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     } catch {
                       /* ignore */
                     }
-                    setStatusMsg({ ok: true, text: '已重置引导，下次打开新版编辑器将显示' })
+                    setStatusMsg({ ok: true, text: '已重置引导，下次打开编辑器将显示' })
                   }}
                 >
                   重置界面引导
                 </button>
-                <p className="text-[10px] text-text-muted">
-                  切换布局后请关闭并重新打开项目以生效。
-                </p>
               </div>
               <p className="text-xs text-text-muted">
                 默认模型也可在「已接入模型」卡片上点击「设为默认」。
@@ -288,7 +274,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-text-muted block mb-1">默认 LLM</label>
+                <label className="text-xs text-text-muted block mb-1">{t('settings.agentDefaultLlm')}</label>
                 <select
                   value={config.settings.default_llm}
                   onChange={(e) =>
@@ -467,6 +453,36 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     {ffmpegDownloading ? `下载中 ${ffmpegDownloadPct}%` : '下载安装'}
                   </button>
                 </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">{t('settings.vocalSeparationEndpoint')}</label>
+                <input
+                  type="text"
+                  value={config.settings.vocal_separation_endpoint ?? ''}
+                  placeholder="https://api.example.com/v1/separate"
+                  onChange={(e) =>
+                    updateConfig({
+                      ...config,
+                      settings: { ...config.settings, vocal_separation_endpoint: e.target.value },
+                    })
+                  }
+                  className="w-full bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-muted block mb-1">{t('settings.vocalSeparationApiKey')}</label>
+                <input
+                  type="password"
+                  value={config.settings.vocal_separation_api_key ?? ''}
+                  placeholder="可选"
+                  onChange={(e) =>
+                    updateConfig({
+                      ...config,
+                      settings: { ...config.settings, vocal_separation_api_key: e.target.value },
+                    })
+                  }
+                  className="w-full bg-bg-tertiary text-text-primary px-3 py-2 rounded outline-none text-sm"
+                />
               </div>
               <div>
                 <label className="text-xs text-text-muted block mb-1">Demucs 路径（人声分离，可选）</label>

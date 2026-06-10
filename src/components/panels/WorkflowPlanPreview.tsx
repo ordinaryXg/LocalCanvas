@@ -1,4 +1,5 @@
 import type { WorkflowPlan } from '../../types/agent'
+import { isValidWorkflowPlan } from '../../utils/parseWorkflowPlan'
 import { useT } from '../../i18n'
 
 interface WorkflowPlanPreviewProps {
@@ -9,6 +10,8 @@ interface WorkflowPlanPreviewProps {
 
 export function WorkflowPlanPreview({ plan, onConfirm, onDismiss }: WorkflowPlanPreviewProps) {
   const t = useT()
+
+  if (!isValidWorkflowPlan(plan)) return null
 
   return (
     <div className="mt-3 p-3 rounded-lg border border-accent/40 bg-bg-tertiary/80">

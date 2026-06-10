@@ -127,6 +127,7 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">LocalCanvas</h1>
             <p className="text-text-primary/80">{t('app.tagline')}</p>
+            <p className="text-xs text-text-muted mt-2">本地工作室 · 画布编排 · 一键生成</p>
           </div>
           <div className="flex items-center gap-2">
             <AccountMenu />

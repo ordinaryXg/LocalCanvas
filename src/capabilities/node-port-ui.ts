@@ -1,7 +1,7 @@
 import { DEFAULT_SEEDANCE_VIDEO_MODEL } from '../constants/seedance'
 import { DEFAULT_SEEDREAM_IMAGE_MODEL } from '../constants/seedream'
 import { listLlmVisionImageHandles } from '../utils/llmVisionSlots'
-import { listVideoReferenceHandles } from '../utils/videoReferenceSlots'
+import { listVideoReferenceHandles, isVideoReferenceImageHandle } from '../utils/videoReferenceSlots'
 import { getImageGeneratorUi, getLlmGeneratorUi, getVideoGeneratorUi } from './generator-ui'
 
 export interface NodePortDef {
@@ -74,13 +74,18 @@ export function getImageNodePorts(
   slotDisabled?: Partial<Record<string, boolean>>,
 ): NodePortDef[] {
   const ui = getImageGeneratorUi(configId || DEFAULT_SEEDREAM_IMAGE_MODEL.id, apiModel)
-  const ports: NodePortDef[] = [{ id: 'prompt', top: '35%' }]
-  if (ui.supportsReferenceImage) {
-    ports.push({
-      id: 'reference',
-      top: '65%',
-      disabled: slotDisabled?.reference,
-    })
+  const portIds: string[] = ['prompt']
+  if (ui.supportsReferenceImage && ui.maxReferenceImages > 0) {
+    if (ui.maxReferenceImages === 1) {
+      portIds.push('reference')
+    } else {
+      portIds.push(...listVideoReferenceHandles(ui.maxReferenceImages))
+    }
   }
-  return ports
+  const tops = distributePortTops(portIds.length)
+  return portIds.map((id, i) => ({
+    id,
+    top: tops[i],
+    disabled: slotDisabled?.[id],
+  }))
 }

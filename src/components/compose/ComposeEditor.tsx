@@ -86,6 +86,8 @@ export function ComposeEditor({ nodeId, embedded = false }: Props) {
   useComposeProgress(useCallback((pct) => setComposeProgress(pct), []))
 
   const audioVolume = (composeNode?.data.audioVolume as number) ?? 1
+  const audioFadeIn = (composeNode?.data.audioFadeIn as number) ?? 0
+  const audioFadeOut = (composeNode?.data.audioFadeOut as number) ?? 0
 
   const persistLayout = useCallback(
     (patch: { previewHeight?: number; pixelsPerSecond?: number }) => {
@@ -163,6 +165,8 @@ export function ComposeEditor({ nodeId, embedded = false }: Props) {
         burnSubtitles ? subtitlePath : undefined,
         burnSubtitles,
         audioVolume,
+        audioFadeIn,
+        audioFadeOut,
       )
       await finishComposeAndCreateVideoNode(nodeId, outputPath, projectId)
       showToast('合成完成，已在画布创建视频节点', 'info')
@@ -399,12 +403,16 @@ export function ComposeEditor({ nodeId, embedded = false }: Props) {
             clip={selectedClip}
             audioSelected={audioSelected}
             audioVolume={audioVolume}
+            audioFadeIn={audioFadeIn}
+            audioFadeOut={audioFadeOut}
             onClipUpdate={(clipId, patch) => {
               updateClips(
                 clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)),
               )
             }}
             onAudioVolumeChange={(v) => updateNodeData(nodeId, { audioVolume: v })}
+            onAudioFadeInChange={(v) => updateNodeData(nodeId, { audioFadeIn: v })}
+            onAudioFadeOutChange={(v) => updateNodeData(nodeId, { audioFadeOut: v })}
             onOpenSourceNode={handleOpenSourceNode}
             onClose={() => {
               setInspectorOpen(false)

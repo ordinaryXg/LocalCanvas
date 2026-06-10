@@ -1,5 +1,6 @@
 import type { Edge } from '@xyflow/react'
 import { isTargetHandleAvailable } from '../utils/portCompat'
+import { isVideoReferenceImageHandle } from '../utils/videoReferenceSlots'
 import { getImageNodePorts } from './node-port-ui'
 
 /** 画布上图片节点统一入边端口 id */
@@ -15,12 +16,14 @@ export function resolveImageInboundHandle(
   if (sourceType === 'text' || sourceType === 'script') return 'prompt'
 
   if (sourceType === 'image') {
-    const portIds = new Set(getImageNodePorts(modelId).map((p) => p.id))
-    if (
-      portIds.has('reference') &&
-      isTargetHandleAvailable(edges, targetNodeId, 'reference')
-    ) {
-      return 'reference'
+    const portIds = getImageNodePorts(modelId).map((p) => p.id)
+    const refHandles = portIds.filter(
+      (id) => id === 'reference' || isVideoReferenceImageHandle(id),
+    )
+    for (const handle of refHandles) {
+      if (isTargetHandleAvailable(edges, targetNodeId, handle)) {
+        return handle
+      }
     }
     return null
   }

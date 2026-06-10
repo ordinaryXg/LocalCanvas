@@ -28,6 +28,7 @@ export interface ModelCompleteEvent {
   taskId: string
   nodeId: string
   result: string
+  reasoningContent?: string
 }
 
 export interface ModelErrorEvent {
@@ -399,6 +400,8 @@ export interface LocalCanvasAPI {
       clips: ComposeClip[]
       audioPath?: string
       audioVolume?: number
+      audioFadeIn?: number
+      audioFadeOut?: number
       subtitlePath?: string
       burnSubtitles?: boolean
       outputName?: string

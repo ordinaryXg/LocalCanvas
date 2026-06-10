@@ -5,7 +5,7 @@ import { topologicalSort, DagCycleError } from '../utils/dag/topologicalSort'
 import { computeDataFlowPatches } from '../utils/dataFlow'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
-import { handleError } from '../utils/ErrorHandler'
+import { handleError, showToast } from '../utils/ErrorHandler'
 import type { DagRunNodeState, DagRunState, DagNodeStatus } from '../types/dag'
 import { executeDagNode } from './dagNodeExecutor'
 
@@ -199,6 +199,18 @@ export function useDagRun() {
           status: 'completed',
           completedNodes: completed,
         })
+        syncRunState(ctx)
+      } else if (!ctx.aborted && failed) {
+        const failCount = ctx.executable.filter((id) => ctx.status.get(id) === 'failed').length
+        const firstErr = ctx.executable
+          .map((id) => ctx.errors.get(id))
+          .find((e) => e && e.length > 0)
+        showToast(
+          firstErr
+            ? `DAG 执行失败（${failCount} 个节点）：${firstErr}`
+            : `DAG 执行失败，${failCount} 个节点未完成`,
+          'error',
+        )
         syncRunState(ctx)
       }
       setIsRunning(false)

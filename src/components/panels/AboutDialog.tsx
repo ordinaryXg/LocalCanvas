@@ -100,6 +100,10 @@ export function AboutDialog({ onClose }: AboutDialogProps) {
           )}
         </div>
 
+        <p className="text-[10px] text-text-muted mt-4 leading-relaxed border-t border-border pt-3">
+          {t('about.accountGuide')}: {t('about.accountHint')}
+        </p>
+
         <button
           type="button"
           onClick={onClose}

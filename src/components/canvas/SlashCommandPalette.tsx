@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { filterSlashCommands, type SlashCommand } from '../../utils/slashCommands'
 
 interface SlashCommandPaletteProps {
@@ -10,8 +10,10 @@ interface SlashCommandPaletteProps {
 }
 
 export function SlashCommandPalette({ open, query, onSelect, onClose, position }: SlashCommandPaletteProps) {
+  const listboxId = useId()
   const [highlight, setHighlight] = useState(0)
   const commands = filterSlashCommands(query)
+  const activeId = commands[highlight] ? `${listboxId}-opt-${highlight}` : undefined
 
   useEffect(() => {
     setHighlight(0)
@@ -57,6 +59,10 @@ export function SlashCommandPalette({ open, query, onSelect, onClose, position }
 
   return (
     <div
+      role="listbox"
+      id={listboxId}
+      aria-label="Slash 命令"
+      aria-activedescendant={activeId}
       className="fixed z-[60] bg-bg-secondary border border-border rounded-lg shadow-xl py-1 min-w-[240px] max-h-[200px] overflow-y-auto"
       style={{ left: position.x, top: position.y }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -68,7 +74,10 @@ export function SlashCommandPalette({ open, query, onSelect, onClose, position }
         commands.map((cmd, i) => (
           <button
             key={cmd.id}
+            id={`${listboxId}-opt-${i}`}
             type="button"
+            role="option"
+            aria-selected={i === highlight}
             className={`w-full text-left px-3 py-2 ${i === highlight ? 'bg-bg-tertiary' : 'hover:bg-bg-tertiary'}`}
             onMouseEnter={() => setHighlight(i)}
             onClick={() => onSelect(cmd)}

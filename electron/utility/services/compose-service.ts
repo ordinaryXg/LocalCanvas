@@ -45,6 +45,8 @@ export interface ComposeOptions {
   clips: ComposeClip[]
   audioPath?: string
   audioVolume?: number
+  audioFadeIn?: number
+  audioFadeOut?: number
   subtitlePath?: string
   burnSubtitles?: boolean
   outputName?: string
@@ -63,6 +65,8 @@ export async function compose(
     clips,
     audioPath,
     audioVolume = 1,
+    audioFadeIn = 0,
+    audioFadeOut = 0,
     subtitlePath,
     burnSubtitles: shouldBurnSubtitles,
     outputName,
@@ -143,7 +147,15 @@ export async function compose(
 
   if (audioPath && existsSync(audioPath)) {
     const mergedOutput = join(getTempDir(), `merged-${uuid()}.mp4`)
-    await mergeAudioVideo(concatOutput, audioPath, mergedOutput, undefined, audioVolume)
+    await mergeAudioVideo(
+      concatOutput,
+      audioPath,
+      mergedOutput,
+      undefined,
+      audioVolume,
+      audioFadeIn,
+      audioFadeOut,
+    )
     finalOutput = mergedOutput
     if (finalOutput !== concatOutput) {
       try {

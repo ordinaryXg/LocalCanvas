@@ -9,12 +9,7 @@ import {
   cancelledError,
 } from './task-cancellation'
 import type { ModelAdapter } from './model-adapter/base'
-import type {
-  GenerateImageParams,
-  GenerateVideoParams,
-  GenerateTextParams,
-  GenerateAudioParams,
-} from './model-adapter/base'
+import { normalizeTextGenerateResult, type TextGenerateResult } from '../../../src/utils/textGenerateResult'
 
 export interface GenerateTask {
   id: string
@@ -33,7 +28,10 @@ export interface GenerateTask {
   completedAt?: string
 }
 
-type TaskExecutor = (task: GenerateTask, adapter: ModelAdapter) => Promise<string>
+type TaskExecutor = (
+  task: GenerateTask,
+  adapter: ModelAdapter,
+) => Promise<string | TextGenerateResult>
 
 interface TaskQueueOptions {
   maxConcurrent: number
@@ -65,8 +63,7 @@ export class TaskQueue extends EventEmitter {
           nodeId: task.nodeId,
           taskId: task.id,
         } as GenerateVideoParams),
-      text: (task, adapter) =>
-        adapter.generateText({
+      text: async (task, adapter) => adapter.generateText({
           ...task.params,
           nodeId: task.nodeId,
           taskId: task.id,
@@ -219,13 +216,19 @@ export class TaskQueue extends EventEmitter {
       }
       adapter.on('progress', progressHandler)
 
-      const result = await this.executors[task.type](task, adapter)
+      const rawResult = await this.executors[task.type](task, adapter)
       adapter.off('progress', progressHandler)
 
       if (isTaskCancelled(task.id)) {
         clearTaskCancelled(task.id)
         return
       }
+
+      const normalized =
+        task.type === 'text'
+          ? normalizeTextGenerateResult(rawResult as TextGenerateResult)
+          : { content: rawResult as string, reasoningContent: undefined }
+      const { content: result, reasoningContent } = normalized
 
       this.db
         .prepare(
@@ -234,7 +237,12 @@ export class TaskQueue extends EventEmitter {
         )
         .run(result, task.id)
       this.running.delete(task.id)
-      this.emit('task:complete', { taskId: task.id, nodeId: task.nodeId, result })
+      this.emit('task:complete', {
+        taskId: task.id,
+        nodeId: task.nodeId,
+        result,
+        ...(reasoningContent ? { reasoningContent } : {}),
+      })
       clearTaskCancelled(task.id)
       void this.process()
     } catch (err) {

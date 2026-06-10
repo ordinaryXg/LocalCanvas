@@ -26,6 +26,8 @@ export interface TextNodeData {
   thinkingPreset?: ThinkingPreset
   isGenerating?: boolean
   editorLayout?: TextEditorLayout
+  /** 模型 reasoning 输出（展示用，不连线下游） */
+  reasoningContent?: string
   /** @deprecated 加载时迁移到 draft */
   inputContent?: string
   /** @deprecated 加载时迁移到 output */
@@ -131,6 +133,8 @@ export interface ComposeNodeData {
   audioAssetPath?: string
   audioSrc?: string
   audioVolume?: number
+  audioFadeIn?: number
+  audioFadeOut?: number
   subtitleCues?: Array<{ id: string; startTime: number; endTime: number; text: string }>
   subtitlePath?: string
   subtitleFileName?: string

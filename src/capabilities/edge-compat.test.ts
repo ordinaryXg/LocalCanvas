@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { evaluateEdgeCompat } from './edge-compat'
+import { evaluateEdgeCompat, clearEdgeCompatProfileCache } from './edge-compat'
 
 describe('evaluateEdgeCompat', () => {
+  it('caches profile resolution for repeated calls', () => {
+    clearEdgeCompatProfileCache()
+    const input = {
+      sourceType: 'text',
+      sourceHandle: 'output',
+      targetType: 'image',
+      targetHandle: 'prompt',
+      targetModelId: 'seedream-4-5',
+      targetKind: 'image' as const,
+    }
+    const a = evaluateEdgeCompat(input)
+    const b = evaluateEdgeCompat(input)
+    expect(a.status).toBe(b.status)
+  })
+
   it('allows text to image prompt as solid', () => {
     const r = evaluateEdgeCompat({
       sourceType: 'text',
@@ -93,6 +108,18 @@ describe('evaluateEdgeCompat', () => {
       targetHandle: 'lastFrame',
       targetModelId: 'seedance-2-0',
       targetKind: 'video',
+    })
+    expect(r.status).toBe('solid')
+  })
+
+  it('allows reference image to seedream', () => {
+    const r = evaluateEdgeCompat({
+      sourceType: 'image',
+      sourceHandle: 'image',
+      targetType: 'image',
+      targetHandle: 'reference2',
+      targetModelId: 'seedream-4-5',
+      targetKind: 'image',
     })
     expect(r.status).toBe('solid')
   })

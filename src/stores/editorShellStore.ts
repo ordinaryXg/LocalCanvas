@@ -4,10 +4,28 @@ import { useCanvasStore } from './canvasStore'
 import { useComposeEditorStore } from './composeEditorStore'
 
 export type EditorMode = 'canvas' | 'workbench'
-export type DockDrawer = 'nodes' | 'tools' | 'assets' | 'history' | null
+export type DockDrawer = 'nodes' | 'tools' | 'assets' | 'history' | 'health' | null
 
 const LS_DRAWER_HEIGHT = 'lc-generator-drawer-ratio'
 const LS_INSPECTOR_WIDTH = 'lc-inspector-width'
+const LS_MODE = 'lc-editor-mode'
+
+function readPersistedMode(): EditorMode {
+  try {
+    const raw = localStorage.getItem(LS_MODE)
+    return raw === 'workbench' ? 'workbench' : 'canvas'
+  } catch {
+    return 'canvas'
+  }
+}
+
+function persistMode(mode: EditorMode): void {
+  try {
+    localStorage.setItem(LS_MODE, mode)
+  } catch {
+    /* ignore */
+  }
+}
 
 function readDrawerRatio(): number {
   try {
@@ -62,10 +80,11 @@ interface EditorShellState {
   clearScrollToGeneratorWarnings: () => void
   openWorkbenchForGenerate: (nodeId: string, nodeType: string | undefined) => void
   openWorkbenchForCompose: (nodeId: string) => void
+  hydrateModeFromStorage: () => void
 }
 
 export const useEditorShellStore = create<EditorShellState>((set, get) => ({
-  mode: 'canvas',
+  mode: readPersistedMode(),
   openDrawer: 'nodes',
   generatorDrawerOpen: false,
   generatorDrawerHeightRatio: readDrawerRatio(),
@@ -78,6 +97,7 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
   scrollToGeneratorWarnings: false,
 
   setMode: (mode) => {
+    persistMode(mode)
     if (mode === 'canvas') {
       const updates: Partial<Pick<EditorShellState, 'mode' | 'openDrawer' | 'inspectorCollapsed'>> = {
         mode: 'canvas',
@@ -90,6 +110,12 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
       return
     }
     set({ mode })
+  },
+
+  hydrateModeFromStorage: () => {
+    const mode = readPersistedMode()
+    if (mode === get().mode) return
+    get().setMode(mode)
   },
 
   toggleDrawer: (drawer) => {

@@ -6,7 +6,7 @@ export const IMAGE_NODE_MAX_WIDTH = 560
 export const IMAGE_NODE_MAX_HEIGHT = 720
 
 /** 底部编辑器预览区默认/边界（与画布节点尺寸无关） */
-export const DEFAULT_EDITOR_PREVIEW_HEIGHT = 260
+export const DEFAULT_EDITOR_PREVIEW_HEIGHT = 220
 export const DEFAULT_EDITOR_PREVIEW_WIDTH = 480
 export const PREVIEW_HEIGHT_MIN = 120
 export const PREVIEW_HEIGHT_MAX = 720

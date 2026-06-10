@@ -26,8 +26,8 @@ describe('port-slot-labels', () => {
   })
 
   it('image shows reference slot', () => {
-    const labels = getImagePortSlotLabels('img', [edge('img', 'reference')], 'seedream-4-5')
-    expect(labels.reference).toBe('1/1')
+    const labels = getImagePortSlotLabels('img', [edge('img', 'reference1')], 'seedream-4-5')
+    expect(labels.reference1).toBe('1/4')
   })
 
   it('text gpt-4o shows vision aggregate', () => {

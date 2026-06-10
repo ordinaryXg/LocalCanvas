@@ -108,7 +108,12 @@ export class UtilityClient {
         break
       }
       case 'model:complete': {
-        const payload = data as { taskId: string; nodeId: string; result: string }
+        const payload = data as {
+          taskId: string
+          nodeId: string
+          result: string
+          reasoningContent?: string
+        }
         trackGenerationComplete(payload.taskId, payload.result)
         const resolver = this.taskResolvers.get(payload.taskId)
         if (resolver) {
@@ -418,6 +423,8 @@ export class UtilityClient {
     clips: Array<{ id: string; path: string; startTime: number; duration: number }>
     audioPath?: string
     audioVolume?: number
+    audioFadeIn?: number
+    audioFadeOut?: number
     subtitlePath?: string
     burnSubtitles?: boolean
     outputName?: string

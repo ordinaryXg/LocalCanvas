@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useEditorShellStore } from '../stores/editorShellStore'
-import { GENERATABLE_NODE_TYPES, isEditorShell } from '../constants/editorFeatures'
+import { GENERATABLE_NODE_TYPES } from '../constants/editorFeatures'
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
@@ -21,8 +21,6 @@ export function useEditorShellShortcuts() {
   const nodes = useCanvasStore((s) => s.nodes)
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
   useEffect(() => {
-    if (!isEditorShell()) return
-
     const handler = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return
 

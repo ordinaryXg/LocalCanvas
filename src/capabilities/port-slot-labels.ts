@@ -58,7 +58,19 @@ export function getImagePortSlotLabels(
 ): Record<string, string> {
   const ui = getImageGeneratorUi(configId || DEFAULT_SEEDREAM_IMAGE_MODEL.id, apiModel)
   if (!ui.supportsReferenceImage) return {}
-  return { reference: singleSlotLabel(edges, nodeId, 'reference') }
+  if (ui.maxReferenceImages <= 1) {
+    return { reference: singleSlotLabel(edges, nodeId, 'reference') }
+  }
+  const refHandles = listVideoReferenceHandles(ui.maxReferenceImages)
+  const refCount = edges.filter(
+    (e) =>
+      e.target === nodeId &&
+      e.targetHandle &&
+      isVideoReferenceImageHandle(e.targetHandle),
+  ).length
+  const labels: Record<string, string> = {}
+  if (refHandles[0]) labels[refHandles[0]] = `${refCount}/${ui.maxReferenceImages}`
+  return labels
 }
 
 export function getTextPortSlotLabels(

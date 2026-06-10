@@ -42,8 +42,14 @@ describe('getTextNodePorts', () => {
 })
 
 describe('getImageNodePorts', () => {
-  it('seedream shows reference port', () => {
-    expect(getImageNodePorts('seedream-4-5').map((p) => p.id)).toContain('reference')
+  it('seedream shows multi reference ports', () => {
+    expect(getImageNodePorts('seedream-4-5').map((p) => p.id)).toEqual([
+      'prompt',
+      'reference1',
+      'reference2',
+      'reference3',
+      'reference4',
+    ])
   })
 
   it('dall-e-3 hides reference port', () => {

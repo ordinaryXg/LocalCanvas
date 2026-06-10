@@ -39,7 +39,7 @@ function ConnectionTags({
         const peerTitle = peer
           ? nodeDisplayTitle(peer, TYPE_LABELS[peerType] ?? peerType)
           : peerId.slice(0, 8)
-        const typeColor = NODE_TYPE_COLORS[peerType] ?? 'var(--color-accent)'
+        const typeColor = NODE_TYPE_COLORS[peerType] ?? 'var(--token-canvas-accent)'
 
         return (
           <button

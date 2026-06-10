@@ -3,6 +3,7 @@ import {
   parseScriptResponse,
   type ScriptPayload,
 } from '../../../src/utils/scriptGenerator'
+import { normalizeTextGenerateResult } from '../../../src/utils/textGenerateResult'
 import type { AdapterRegistry } from './model-adapter/factory'
 
 export async function generateScriptFromStory(
@@ -16,7 +17,7 @@ export async function generateScriptFromStory(
     ? `故事梗概：\n${storyInput}\n\n人物小传：\n${characterInput}`
     : `故事梗概：\n${storyInput}`
 
-  const content = await adapter.generateText({
+  const raw = await adapter.generateText({
     prompt: userPrompt,
     systemPrompt: SCRIPT_SYSTEM_PROMPT,
     model: '',
@@ -25,5 +26,6 @@ export async function generateScriptFromStory(
     nodeId: '',
   })
 
+  const { content } = normalizeTextGenerateResult(raw)
   return parseScriptResponse(content)
 }

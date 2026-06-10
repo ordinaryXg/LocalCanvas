@@ -27,10 +27,10 @@ export function PortHandle({ id, type, color, top, disabled, slotLabel }: PortHa
         title={hint}
         style={{
           top,
-          background: disabled ? 'var(--color-text-muted)' : color,
+          background: disabled ? 'var(--token-text-muted)' : color,
           width: 10,
           height: 10,
-          border: '2px solid var(--color-bg-primary, #1a1a1a)',
+          border: '2px solid var(--token-surface-primary, #1a1a1a)',
           opacity: disabled ? 0.45 : 1,
         }}
       />

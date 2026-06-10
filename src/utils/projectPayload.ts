@@ -1,5 +1,6 @@
 import type { Node, Edge } from '@xyflow/react'
 import type { ProjectGroup } from '../types/project'
+import { getCatalogVersion } from '../capabilities/profile-display'
 import { stripTransientMediaFields } from './assetStorage'
 import { ensureEdgeIds } from './canvasEdge'
 
@@ -51,6 +52,7 @@ export function buildProjectSavePayload(params: {
   edges: Edge[]
   groups: ProjectGroup[]
   updatedAt: string
+  capabilityCatalogVersion: number
 } {
   return {
     id: params.id,
@@ -60,5 +62,6 @@ export function buildProjectSavePayload(params: {
     edges: ensureEdgeIds(params.edges),
     groups: extractGroupsFromNodes(params.nodes),
     updatedAt: new Date().toISOString(),
+    capabilityCatalogVersion: getCatalogVersion(),
   }
 }

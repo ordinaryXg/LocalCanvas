@@ -3,6 +3,7 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
 import { collectLlmVisionImagesFromEdges } from '../utils/collectLlmVisionImages'
 import { importGeneratedMedia } from '../utils/generatedMedia'
+import { normalizeTextNodeData } from '../utils/textNodeOutput'
 
 const RATIO_MAP: Record<string, [number, number]> = {
   '1:1': [1920, 1920],
@@ -101,13 +102,8 @@ export async function executeDagNode(
   }
 
   if (node.type === 'text') {
-    const modelId = (data.modelId as string) || ''
-    const draft =
-      (data.draft as string) ||
-      (data.inputContent as string) ||
-      (data.prompt as string) ||
-      ''
-    if (!modelId || !draft) throw new Error('文本节点缺少模型或草稿')
+    const { modelId, draft, systemPrompt } = normalizeTextNodeData(data)
+    if (!modelId || !draft.trim()) throw new Error('文本节点缺少模型或草稿')
     const images = await collectLlmVisionImagesFromEdges(
       node.id,
       subgraphNodes,
@@ -118,7 +114,7 @@ export async function executeDagNode(
       modelId,
       nodeId: node.id,
       prompt: draft,
-      systemPrompt: (data.systemPrompt as string) || undefined,
+      systemPrompt: systemPrompt || undefined,
       ...(images.length > 0 ? { images } : {}),
     })
     const result = await waitForGeneration(taskId)

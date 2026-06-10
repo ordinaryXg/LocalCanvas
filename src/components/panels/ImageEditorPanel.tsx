@@ -196,7 +196,7 @@ export function ImageEditorPanel({ nodeId, hidePreview = false }: ImageEditorPan
       const referenceImage = referenceEdge
         ? await resolveImageRefFromNodeId(referenceEdge.source, nodes, currentProjectId)
         : undefined
-      const resultPath = await run(() =>
+      const { result: resultPath } = await run(() =>
         window.api.model.beginGenerateImage({
           modelId,
           nodeId,

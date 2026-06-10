@@ -75,3 +75,9 @@ export function parseWorkflowPlan(raw: string, intent = ''): WorkflowPlan {
     skillId: obj.skillId ? String(obj.skillId) : undefined,
   }
 }
+
+export function isValidWorkflowPlan(plan: unknown): plan is WorkflowPlan {
+  if (!plan || typeof plan !== 'object') return false
+  const candidate = plan as WorkflowPlan
+  return Array.isArray(candidate.nodes) && candidate.nodes.length > 0
+}

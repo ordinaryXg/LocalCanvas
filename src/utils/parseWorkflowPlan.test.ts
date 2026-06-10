@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseWorkflowPlan, WorkflowPlanParseError } from './parseWorkflowPlan'
+import { parseWorkflowPlan, WorkflowPlanParseError, isValidWorkflowPlan } from './parseWorkflowPlan'
 
 describe('parseWorkflowPlan', () => {
   it('parses minimal valid plan', () => {
@@ -28,5 +28,32 @@ describe('parseWorkflowPlan', () => {
     expect(() =>
       parseWorkflowPlan(JSON.stringify({ summary: 'x', nodes: [{ tempId: 'a', type: 'unknown', data: {} }], edges: [] })),
     ).toThrow(WorkflowPlanParseError)
+  })
+
+  it('validates workflow plan shape', () => {
+    expect(isValidWorkflowPlan(null)).toBe(false)
+    expect(isValidWorkflowPlan({ summary: 'x', nodes: [] })).toBe(false)
+    expect(
+      isValidWorkflowPlan({
+        summary: 'x',
+        nodes: [{ tempId: 'a', type: 'text', data: {} }],
+      }),
+    ).toBe(true)
+  })
+
+  it('parses plan with edges and manual execution mode', () => {
+    const plan = parseWorkflowPlan(
+      JSON.stringify({
+        summary: '分镜链路',
+        nodes: [
+          { tempId: 's1', type: 'script', data: {} },
+          { tempId: 'i1', type: 'image', data: {} },
+        ],
+        edges: [{ source: 's1', target: 'i1' }],
+        executionMode: 'manual',
+      }),
+    )
+    expect(plan.edges).toHaveLength(1)
+    expect(plan.executionMode).toBe('manual')
   })
 })

@@ -7,6 +7,7 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
   const [isGenerating, setIsGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [lastError, setLastError] = useState<string | null>(null)
+  const [lastReasoningContent, setLastReasoningContent] = useState<string | undefined>(undefined)
   const taskIdRef = useRef<string | null>(null)
   const onProgressRef = useRef(onProgress)
 
@@ -15,14 +16,16 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
   }, [onProgress])
 
   const run = useCallback(
-    async (begin: BeginFn): Promise<string> => {
+    async (begin: BeginFn): Promise<{ result: string; reasoningContent?: string }> => {
       setIsGenerating(true)
       setProgress(0)
       setLastError(null)
+      setLastReasoningContent(undefined)
 
       try {
-        return await new Promise<string>((resolve, reject) => {
+        return await new Promise<{ result: string; reasoningContent?: string }>((resolve, reject) => {
           let taskId: string | null = null
+          let reasoningContent: string | undefined
 
           const cleanup = () => {
             unsubProgress()
@@ -45,7 +48,9 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
             const e = args[0] as ModelCompleteEvent
             if (taskId && e.taskId === taskId) {
               cleanup()
-              resolve(e.result)
+              reasoningContent = e.reasoningContent
+              if (e.reasoningContent) setLastReasoningContent(e.reasoningContent)
+              resolve({ result: e.result, reasoningContent: e.reasoningContent })
             }
           })
 
@@ -86,5 +91,5 @@ export function useModelGeneration(nodeId: string, onProgress?: (percentage: num
     setProgress(0)
   }, [])
 
-  return { isGenerating, progress, lastError, setProgress, run, cancel, taskIdRef }
+  return { isGenerating, progress, lastError, lastReasoningContent, setProgress, run, cancel, taskIdRef }
 }

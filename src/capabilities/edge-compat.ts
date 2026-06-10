@@ -18,6 +18,37 @@ const DEFAULT_CONFIG_ID_BY_KIND: Partial<Record<ModelKind, string>> = {
   video: 'seedance-1-0-pro-fast',
 }
 
+const profileResolveCache = new Map<string, ModelCapabilityProfile>()
+
+function cacheKeyForProfile(
+  targetModelId: string | undefined,
+  targetApiModel: string | undefined,
+  targetKind: ModelKind,
+): string {
+  return `${targetModelId ?? ''}|${targetApiModel ?? ''}|${targetKind}`
+}
+
+function resolveTargetProfile(
+  targetModelId: string | undefined,
+  targetApiModel: string | undefined,
+  targetKind: ModelKind,
+): ModelCapabilityProfile {
+  const key = cacheKeyForProfile(targetModelId, targetApiModel, targetKind)
+  const cached = profileResolveCache.get(key)
+  if (cached) return cached
+  const profile = resolveProfile({
+    configId: targetModelId || DEFAULT_CONFIG_ID_BY_KIND[targetKind],
+    model: targetApiModel,
+    kind: targetKind,
+  })
+  profileResolveCache.set(key, profile)
+  return profile
+}
+
+export function clearEdgeCompatProfileCache(): void {
+  profileResolveCache.clear()
+}
+
 export interface EvaluateEdgeCompatInput {
   sourceType?: string
   sourceHandle?: string | null
@@ -93,11 +124,7 @@ export function evaluateEdgeCompat(input: EvaluateEdgeCompatInput): EdgeCompatRe
     return { status: 'reject', reason: '无法识别上游数据类型' }
   }
 
-  const profile = resolveProfile({
-    configId: targetModelId || DEFAULT_CONFIG_ID_BY_KIND[targetKind],
-    model: targetApiModel,
-    kind: targetKind,
-  })
+  const profile = resolveTargetProfile(targetModelId, targetApiModel, targetKind)
 
   const slotId = targetHandleToSlotId(targetType, targetHandle)
   const match = findSlotForModality(profile, modality, slotId)

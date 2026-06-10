@@ -2,6 +2,7 @@ import { NodePanel } from '../sidebar/NodePanel'
 import { ToolPanel } from '../sidebar/ToolPanel'
 import { AssetPanel } from '../sidebar/AssetPanel'
 import { HistoryPanel } from '../sidebar/HistoryPanel'
+import { ConnectionHealthPanel } from '../sidebar/ConnectionHealthPanel'
 import { useEditorShellStore, type DockDrawer } from '../../stores/editorShellStore'
 import { useT } from '../../i18n'
 
@@ -10,6 +11,7 @@ const dockItems: { id: Exclude<DockDrawer, null>; icon: string; labelKey: string
   { id: 'tools', icon: '🔧', labelKey: 'sidebar.tools' },
   { id: 'assets', icon: '📁', labelKey: 'sidebar.assets' },
   { id: 'history', icon: '🕐', labelKey: 'sidebar.history' },
+  { id: 'health', icon: '⚠', labelKey: 'sidebar.health' },
 ]
 
 export function Dock() {
@@ -54,7 +56,7 @@ export function Dock() {
 
       {openDrawer && (
         <aside
-          className="relative flex flex-col bg-bg-secondary border-r border-border overflow-hidden shrink-0"
+          className="relative flex flex-col bg-bg-secondary border-r border-border overflow-hidden shrink-0 dock-expand-enter"
           style={{ width: 320 }}
         >
           <div className="px-3 py-2 border-b border-border text-xs font-medium text-text-primary shrink-0">
@@ -65,6 +67,7 @@ export function Dock() {
             {openDrawer === 'tools' && <ToolPanel />}
             {openDrawer === 'assets' && <AssetPanel />}
             {openDrawer === 'history' && <HistoryPanel />}
+            {openDrawer === 'health' && <ConnectionHealthPanel />}
           </div>
         </aside>
       )}

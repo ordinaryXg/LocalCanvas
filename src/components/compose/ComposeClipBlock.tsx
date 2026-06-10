@@ -86,7 +86,7 @@ export function ComposeClipBlock({
       style={{
         left,
         width: Math.max(width, 24),
-        backgroundColor: 'var(--color-accent)',
+        backgroundColor: 'var(--token-accent)',
       }}
       onClick={(e) => {
         e.stopPropagation()

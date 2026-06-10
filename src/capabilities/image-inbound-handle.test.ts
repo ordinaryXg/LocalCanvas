@@ -10,12 +10,15 @@ describe('resolveImageInboundHandle', () => {
   })
 
   it('maps image to reference when supported', () => {
-    expect(resolveImageInboundHandle('image', 'image', 'i1', 'seedream-4-5', [])).toBe('reference')
+    expect(resolveImageInboundHandle('image', 'image', 'i1', 'seedream-4-5', [])).toBe('reference1')
   })
 
-  it('rejects image when reference slot taken', () => {
+  it('rejects image when all reference slots taken', () => {
     const edges = [
-      { id: 'e1', source: 'i0', target: 'i1', targetHandle: 'reference' },
+      { id: 'e1', source: 'i0', target: 'i1', targetHandle: 'reference1' },
+      { id: 'e2', source: 'i2', target: 'i1', targetHandle: 'reference2' },
+      { id: 'e3', source: 'i3', target: 'i1', targetHandle: 'reference3' },
+      { id: 'e4', source: 'i4', target: 'i1', targetHandle: 'reference4' },
     ]
     expect(
       resolveImageInboundHandle('image', 'image', 'i1', 'seedream-4-5', edges as never),

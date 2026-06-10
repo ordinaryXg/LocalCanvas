@@ -40,6 +40,8 @@ export async function runCompose(
   subtitlePath?: string,
   burnSubtitles?: boolean,
   audioVolume?: number,
+  audioFadeIn?: number,
+  audioFadeOut?: number,
 ): Promise<string> {
   const resolvedClips: ComposeClip[] = []
 
@@ -71,6 +73,8 @@ export async function runCompose(
     clips: resolvedClips,
     audioPath,
     audioVolume,
+    audioFadeIn,
+    audioFadeOut,
     outputName,
     reencode,
     subtitlePath,

@@ -272,7 +272,7 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
         )
       ).filter((url): url is string => !!url)
 
-      const resultPath = await run(() =>
+      const { result: resultPath } = await run(() =>
         window.api.model.beginGenerateVideo({
           modelId,
           nodeId,

@@ -1,5 +1,6 @@
 @import './theme.css';
 @import './theme-light.css';
+@import './tokens.css';
 @import './scrollbars.css';
 @import './nodes.css';
 @import 'tailwindcss';
@@ -213,7 +214,23 @@ textarea.resize-y {
 
 @media (prefers-reduced-motion: reduce) {
   .editor-shell-mode-enter,
-  .generator-drawer-enter {
+  .generator-drawer-enter,
+  .dock-expand-enter {
     animation: none;
+  }
+}
+
+.dock-expand-enter {
+  animation: dock-expand 180ms ease-out;
+}
+
+@keyframes dock-expand {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }

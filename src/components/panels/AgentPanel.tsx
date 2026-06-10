@@ -6,6 +6,7 @@ import { useDagRun } from '../../hooks/useDagRun'
 import { applyWorkflowPlan } from '../../utils/applyWorkflowPlan'
 import { WorkflowPlanPreview } from './WorkflowPlanPreview'
 import { handleError } from '../../utils/ErrorHandler'
+import { isValidWorkflowPlan } from '../../utils/parseWorkflowPlan'
 import { useT } from '../../i18n'
 import type { AgentSessionSummary, WorkflowPlan } from '../../types/agent'
 
@@ -86,16 +87,21 @@ export function AgentPanel() {
         return
       }
 
+      const reply = typeof result.reply === 'string' ? result.reply : String(result.reply ?? '')
       if (result.sessionId) setSessionId(result.sessionId)
 
       appendMessage({
         role: 'assistant',
-        content: result.reply,
-        plan: result.plan,
+        content: reply,
+        plan: isValidWorkflowPlan(result.plan) ? result.plan : undefined,
         timestamp: new Date().toISOString(),
       })
 
-      if (result.plan) setPendingPlan(result.plan)
+      if (isValidWorkflowPlan(result.plan)) {
+        setPendingPlan(result.plan)
+      } else if (result.plan) {
+        handleError(new Error('Agent 返回的工作流计划格式无效'), 'agentChat')
+      }
     } catch (err) {
       handleError(err, 'agentChat')
     } finally {
@@ -190,7 +196,12 @@ export function AgentPanel() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && void sendMessage()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void sendMessage()
+              }
+            }}
             placeholder={t('agent.inputPlaceholder')}
             className="flex-1 bg-bg-tertiary border border-border rounded px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
             disabled={sending}

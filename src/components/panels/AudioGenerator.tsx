@@ -74,7 +74,7 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
 
     try {
-      const resultPath = await run(() =>
+      const { result: resultPath } = await run(() =>
         window.api.model.beginGenerateAudio({
           modelId,
           nodeId,
@@ -167,7 +167,11 @@ export function AudioGenerator({ nodeId }: AudioGeneratorProps) {
       })
 
       showToast(
-        result.mode === 'demucs' ? t('audio.separateDoneDemucs') : t('audio.separateDoneFfmpeg'),
+        result.mode === 'demucs'
+          ? t('audio.separateDoneDemucs')
+          : result.mode === 'http_api'
+            ? t('audio.separateDoneHttp')
+            : t('audio.separateDoneFfmpeg'),
         'info',
       )
     } catch (err) {

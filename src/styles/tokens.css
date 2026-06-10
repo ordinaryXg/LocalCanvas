@@ -1,0 +1,18 @@
+/**
+ * 语义 token 层：组件引用 --token-*，底层映射 --color-*（画布/Tailwind）与 --studio-*（壳层）。
+ * 新代码优先使用 --token-*，避免在业务组件中混用两套命名。
+ */
+:root {
+  --token-surface-primary: var(--color-bg-primary);
+  --token-surface-secondary: var(--color-bg-secondary);
+  --token-surface-tertiary: var(--color-bg-tertiary);
+  --token-text-primary: var(--color-text-primary);
+  --token-text-muted: var(--color-text-muted);
+  --token-border: var(--color-border);
+  --token-accent: var(--studio-accent);
+  --token-accent-muted: var(--studio-accent-muted);
+  --token-canvas-accent: var(--color-accent);
+  --token-danger: var(--color-danger);
+  --token-success: var(--color-success);
+  --token-warning: var(--color-warning);
+}

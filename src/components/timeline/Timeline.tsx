@@ -184,7 +184,7 @@ export function Timeline({
                     style={{
                       left: clip.startTime * pixelsPerSecond,
                       width: Math.max(clip.duration * pixelsPerSecond - 2, 20),
-                      backgroundColor: track.type === 'video' ? 'var(--color-accent)' : 'var(--color-success)',
+                      backgroundColor: track.type === 'video' ? 'var(--token-canvas-accent)' : 'var(--token-success)',
                       opacity: 0.85,
                     }}
                     onClick={() => onClipSelect?.(clip.id)}

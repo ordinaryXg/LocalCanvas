@@ -47,16 +47,10 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
   const isGenerating = data.isGenerating === true
   const errorMessage = typeof data.error === 'string' ? data.error : undefined
 
-  const { src: mediaSrc, loading: mediaLoading } = useLazyAssetBlob(
-    projectId,
-    videoAssetPath,
-    inlineVideoSrc,
-  )
-  const { src: posterSrc, loading: posterLoading } = useLazyAssetBlob(
-    projectId,
-    firstFrameAssetPath,
-    firstFrameSrc,
-  )
+  const { src: mediaSrc, loading: mediaLoading, load: loadMedia, revoke: revokeMedia } =
+    useLazyAssetBlob(projectId, videoAssetPath, inlineVideoSrc)
+  const { src: posterSrc, loading: posterLoading, load: loadPoster, revoke: revokePoster } =
+    useLazyAssetBlob(projectId, firstFrameAssetPath, firstFrameSrc)
 
   const videoSrc = mediaSrc ?? inlineVideoSrc
   const posterImageSrc = posterSrc ?? firstFrameSrc
@@ -161,6 +155,38 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
       observer.disconnect()
     }
   }, [displaySize, id, posterImageSrc, updateNodeSize, videoSrc])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some((e) => e.isIntersecting)
+        if (!visible) {
+          videoRef.current?.pause()
+          setPlaying(false)
+          revokeMedia()
+          revokePoster()
+          return
+        }
+        if (videoAssetPath && !inlineVideoSrc) void loadMedia()
+        if (firstFrameAssetPath && !firstFrameSrc) void loadPoster()
+      },
+      { root: null, rootMargin: '120px', threshold: 0 },
+    )
+    observer.observe(shell)
+    return () => observer.disconnect()
+  }, [
+    firstFrameAssetPath,
+    firstFrameSrc,
+    inlineVideoSrc,
+    loadMedia,
+    loadPoster,
+    revokeMedia,
+    revokePoster,
+    videoAssetPath,
+  ])
 
   const openEditor = () => {
     openDrawer()

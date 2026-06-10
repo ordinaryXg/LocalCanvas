@@ -1,7 +1,8 @@
 import { spawn, exec } from 'child_process'
 import { join } from 'path'
-import { existsSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync, readFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
+import axios from 'axios'
 import { getFFmpegPath } from '../ffmpeg'
 
 export interface VocalSeparationOptions {
@@ -13,7 +14,7 @@ export interface VocalSeparationOptions {
 export interface VocalSeparationResult {
   vocalsPath: string
   instrumentalPath: string
-  mode: 'demucs' | 'ffmpeg'
+  mode: 'demucs' | 'ffmpeg' | 'http_api'
 }
 
 function runCommand(cmd: string, args: string[], cwd?: string): Promise<void> {
@@ -119,6 +120,44 @@ async function separateWithFfmpeg(
   return { vocalsPath, instrumentalPath, mode: 'ffmpeg' }
 }
 
+async function downloadSeparatedFile(url: string, dest: string, apiKey?: string): Promise<void> {
+  const res = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 300000,
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+  })
+  writeFileSync(dest, Buffer.from(res.data))
+}
+
+async function separateWithHttpApi(
+  inputPath: string,
+  outputDir: string,
+  endpoint: string,
+  apiKey?: string,
+): Promise<VocalSeparationResult> {
+  mkdirSync(outputDir, { recursive: true })
+  const fileBuffer = readFileSync(inputPath)
+  const res = await axios.post(endpoint, fileBuffer, {
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      ...(apiKey?.trim() ? { Authorization: `Bearer ${apiKey.trim()}` } : {}),
+    },
+    maxBodyLength: Infinity,
+    timeout: 300000,
+  })
+  const body = res.data as Record<string, unknown>
+  const vocalsUrl = body.vocals_url ?? body.vocalsUrl
+  const instUrl = body.instrumental_url ?? body.instrumentalUrl
+  if (typeof vocalsUrl !== 'string' || typeof instUrl !== 'string') {
+    throw new Error('HTTP separation API must return vocals_url and instrumental_url')
+  }
+  const vocalsPath = join(outputDir, `vocals-${uuid()}.wav`)
+  const instrumentalPath = join(outputDir, `instrumental-${uuid()}.wav`)
+  await downloadSeparatedFile(vocalsUrl, vocalsPath, apiKey)
+  await downloadSeparatedFile(instUrl, instrumentalPath, apiKey)
+  return { vocalsPath, instrumentalPath, mode: 'http_api' }
+}
+
 export async function separateVocals(
   inputPath: string,
   userDataPath: string,
@@ -128,6 +167,11 @@ export async function separateVocals(
 
   const outputDir = join(userDataPath, 'LocalCanvas', 'outputs', 'vocal-separation')
   mkdirSync(outputDir, { recursive: true })
+
+  const apiEndpoint = options.apiEndpoint?.trim()
+  if (apiEndpoint) {
+    return separateWithHttpApi(inputPath, outputDir, apiEndpoint, options.apiKey)
+  }
 
   const demucsPath = options.demucsPath?.trim() || 'demucs'
   const hasDemucs = await detectDemucs(demucsPath)

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { TextGenerateResult } from '../../../../src/utils/textGenerateResult'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import {
@@ -161,7 +162,7 @@ export class RemoteApiAdapter extends ModelAdapter {
     }
   }
 
-  async generateText(params: GenerateTextParams): Promise<string> {
+  async generateText(params: GenerateTextParams): Promise<TextGenerateResult> {
     try {
       const profile = resolveProfile({ model: this.model, kind: 'llm' })
       const preset = params.thinkingPreset ?? 'balanced'
@@ -188,7 +189,14 @@ export class RemoteApiAdapter extends ModelAdapter {
         timeout: 120000,
       })
 
-      return (res.data.choices?.[0]?.message?.content as string) || ''
+      const message = res.data.choices?.[0]?.message as Record<string, unknown> | undefined
+      const content = (message?.content as string) || ''
+      const outputField = profile.reasoning?.output_field ?? 'reasoning_content'
+      const reasoningRaw = message?.[outputField]
+      const reasoningContent =
+        typeof reasoningRaw === 'string' && reasoningRaw.trim() ? reasoningRaw : undefined
+      if (reasoningContent) return { content, reasoningContent }
+      return content
     } catch (err) {
       throw this.wrapError(err)
     }
@@ -427,12 +435,16 @@ export class RemoteApiAdapter extends ModelAdapter {
     }
 
     if (status === 401 || status === 403) {
+      const userMessage =
+        detail.includes('API key format') || detail.includes('api key format')
+          ? 'API Key 格式不正确，请在设置中填写火山方舟 API Key（console.volcengine.com），不要使用 OpenAI 的 sk- 密钥'
+          : detail || ADAPTER_USER_MESSAGES[AdapterErrorCode.AUTH_FAILED]
       return new AdapterError(
         detail,
         'openai',
         AdapterErrorCode.AUTH_FAILED,
         false,
-        detail || ADAPTER_USER_MESSAGES[AdapterErrorCode.AUTH_FAILED],
+        userMessage,
         err instanceof Error ? err : undefined,
       )
     }

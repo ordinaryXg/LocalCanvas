@@ -15,6 +15,7 @@ const AgentCompanion = lazy(() =>
 import { useEditorShellStore } from '../stores/editorShellStore'
 import { useEditorShellShortcuts } from '../hooks/useEditorShellShortcuts'
 import { useWorkbenchTarget } from '../hooks/useWorkbenchTarget'
+import { useNarrowLayout } from '../hooks/useNarrowLayout'
 import { isEditorCoachEnabled } from '../constants/editorFeatures'
 
 interface EditorShellProps {
@@ -31,6 +32,7 @@ function EditorLoading() {
 export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
   useEditorShellShortcuts()
   const mode = useEditorShellStore((s) => s.mode)
+  const narrowLayout = useNarrowLayout(1280)
   const workbenchTarget = useWorkbenchTarget()
   const hideInspector = mode === 'workbench' && workbenchTarget?.kind === 'compose'
   const hideDock = hideInspector
@@ -50,7 +52,7 @@ export function EditorShell({ onBack, onOpenSettings }: EditorShellProps) {
             </Suspense>
           )}
         </div>
-        {!hideInspector && <Inspector />}
+        {!hideInspector && <Inspector overlay={narrowLayout} />}
         <Suspense fallback={null}>
           <AgentCompanion />
         </Suspense>

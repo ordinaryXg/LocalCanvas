@@ -6,6 +6,7 @@ import type {
   TTSModelConfig,
 } from '../../../../src/types/config'
 import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-errors'
+import { sanitizeApiKey } from '../../../../src/utils/apiKey'
 import { ModelAdapter } from './base'
 import { RemoteApiAdapter } from './remote-api'
 import { SeedanceAdapter } from './seedance'
@@ -102,7 +103,7 @@ export class AdapterRegistry {
     } else {
       adapter = new RemoteApiAdapter({
         endpoint: config.endpoint,
-        apiKey: config.api_key || '',
+        apiKey: sanitizeApiKey(config.api_key),
         model: config.model,
         outputDir: this.options.outputDir,
       })
@@ -142,7 +143,7 @@ export class AdapterRegistry {
     } else {
       adapter = new RemoteApiAdapter({
         endpoint: config.endpoint,
-        apiKey: config.api_key || '',
+        apiKey: sanitizeApiKey(config.api_key),
         model: config.model,
         outputDir: this.options.outputDir,
         pollEndpoint: config.poll_endpoint,

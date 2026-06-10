@@ -8,7 +8,7 @@ import { StoryboardGenerator } from './StoryboardGenerator'
 interface Props {
   nodeId: string
   nodeType: string
-  /** GenerateMode / 旧版 GeneratorPanel 内嵌模式 */
+  /** 工作台内嵌模式（无独立预览列时使用紧凑布局） */
   embedded?: boolean
   /** 工作台左侧已有独立预览区时隐藏面板内预览列 */
   hidePreview?: boolean

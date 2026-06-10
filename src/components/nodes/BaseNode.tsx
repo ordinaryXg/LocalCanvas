@@ -107,7 +107,7 @@ export function BaseNode({
         ref={cardRef}
         className="rounded-lg border-2 bg-bg-secondary shadow-lg transition-shadow duration-200 relative flex flex-col box-border"
         style={{
-          borderColor: selected ? color : 'var(--color-border)',
+          borderColor: selected ? color : 'var(--token-border)',
           width: boxWidth,
           height: autoSize ? undefined : boxHeight,
           minWidth,

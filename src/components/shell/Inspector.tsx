@@ -6,7 +6,11 @@ import { MultiSelectSummary } from '../inspector/MultiSelectSummary'
 import { NodeInspector } from '../inspector/NodeInspector'
 import { ProjectSummary } from '../inspector/ProjectSummary'
 
-export function Inspector() {
+interface InspectorProps {
+  overlay?: boolean
+}
+
+export function Inspector({ overlay = false }: InspectorProps) {
   const nodes = useCanvasStore((s) => s.nodes)
   const edges = useCanvasStore((s) => s.edges)
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
@@ -37,7 +41,9 @@ export function Inspector() {
       <button
         type="button"
         onClick={() => setInspectorCollapsed(false)}
-        className="shrink-0 w-8 border-l border-[var(--studio-border)] bg-bg-secondary text-text-muted hover:text-white text-xs"
+        className={`shrink-0 w-8 border-l border-[var(--studio-border)] bg-bg-secondary text-text-muted hover:text-white text-xs ${
+          overlay ? 'fixed right-0 top-[var(--space-topbar)] bottom-0 z-40' : ''
+        }`}
         title="展开检查器"
       >
         ◀
@@ -45,9 +51,11 @@ export function Inspector() {
     )
   }
 
-  return (
+  const panel = (
     <aside
-      className="shrink-0 flex flex-col border-l border-[var(--studio-border)] bg-bg-secondary overflow-hidden"
+      className={`shrink-0 flex flex-col border-l border-[var(--studio-border)] bg-bg-secondary overflow-hidden ${
+        overlay ? 'fixed right-0 top-[var(--space-topbar)] bottom-0 z-50 shadow-2xl dock-expand-enter' : ''
+      }`}
       style={{ width: inspectorWidth }}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
@@ -63,5 +71,19 @@ export function Inspector() {
         {selection.kind === 'none' && <ProjectSummary nodes={nodes} edges={edges} />}
       </div>
     </aside>
+  )
+
+  if (!overlay) return panel
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="关闭检查器"
+        className="fixed inset-0 top-[var(--space-topbar)] z-40 bg-black/40"
+        onClick={() => setInspectorCollapsed(true)}
+      />
+      {panel}
+    </>
   )
 }

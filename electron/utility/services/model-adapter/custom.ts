@@ -103,7 +103,11 @@ export class CustomAdapter extends ModelAdapter {
       system_prompt: params.systemPrompt,
       max_tokens: params.maxTokens,
       temperature: params.temperature,
+      images: params.images?.length ? params.images : undefined,
     })
+    if (params.images?.length && requestBody.images === undefined) {
+      requestBody.images = params.images
+    }
     const response = await this.sendRequest(requestBody)
     const text = extractJsonPath(response, this.config.response_mapping.text)
     return String(text || '')
@@ -148,7 +152,9 @@ export class CustomAdapter extends ModelAdapter {
     const replaceVars = (obj: unknown): unknown => {
       if (typeof obj === 'string') {
         return obj.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
-          return params[key] !== undefined ? String(params[key]) : `{{${key}}}`
+          if (params[key] === undefined) return `{{${key}}}`
+          const val = params[key]
+          return typeof val === 'object' ? val : String(val)
         })
       }
       if (Array.isArray(obj)) return obj.map(replaceVars)

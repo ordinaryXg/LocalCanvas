@@ -6,6 +6,10 @@ import { listVideoReferenceHandles } from './videoReferenceSlots'
 const LEGACY_IMAGE_OUTPUT_HANDLES = new Set(['reference', 'firstFrame', 'lastFrame'])
 
 const VIDEO_REFERENCE_TARGETS = listVideoReferenceHandles(9).map((h) => `video:${h}`)
+const IMAGE_REFERENCE_TARGETS = [
+  'image:reference',
+  ...listVideoReferenceHandles(9).map((h) => `image:${h}`),
+]
 const TEXT_VISION_TARGETS = [
   'text:image',
   ...listLlmVisionImageHandles(20).map((h) => `text:${h}`),
@@ -14,7 +18,7 @@ const TEXT_VISION_TARGETS = [
 const COMPAT_MAP: Record<string, string[]> = {
   'text:prompt': ['image:prompt', 'video:prompt'],
   'image:image': [
-    'image:reference',
+    ...IMAGE_REFERENCE_TARGETS,
     'video:firstFrame',
     'video:lastFrame',
     ...VIDEO_REFERENCE_TARGETS,

@@ -46,16 +46,21 @@ export function useAutoSave(): void {
   }, [currentProjectId, projectName, viewport, nodes, edges, startSave, finishSave, failSave])
 
   useEffect(() => {
-    if (!currentProjectId || !isDirty) return
+    if (!currentProjectId || !isDirty) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
 
-    if (timerRef.current) clearTimeout(timerRef.current)
+    if (timerRef.current) return
+
     timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      console.info('[autoSave] coalesced save after %dms window', AUTO_SAVE_DELAY_MS)
       void save()
     }, AUTO_SAVE_DELAY_MS)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
   }, [nodes, edges, viewport, currentProjectId, isDirty, save])
 
   useEffect(() => {

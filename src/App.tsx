@@ -1,13 +1,23 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import { StartPage } from './components/project/StartPage'
 import { OnboardingGuide } from './components/panels/OnboardingGuide'
 import { ConfirmDialog } from './components/common/ConfirmDialog'
+import { useCanvasStore } from './stores/canvasStore'
+import { useProjectStore } from './stores/projectStore'
+import { useThemeStore } from './stores/themeStore'
+import { useDirtySync } from './hooks/useDirtySync'
+import { useManualSave } from './hooks/useAutoSave'
+import { useT, useI18nStore } from './i18n'
+import { AuthGate } from './components/auth/AuthGate'
+import { useUserStore } from './stores/userStore'
+import { handleError, setToastHandler, showToast } from './utils/ErrorHandler'
+import { hydrateProbedProfileCache } from './capabilities/load-probed-profiles'
+import { getCatalogVersion } from './capabilities/profile-display'
+import { hydrateProjectNodes } from './utils/assetStorage'
+import type { Node, Edge } from '@xyflow/react'
 
 const EditorShell = lazy(() =>
   import('./layouts/EditorShell').then((m) => ({ default: m.EditorShell })),
-)
-const LegacyAppLayout = lazy(() =>
-  import('./layouts/LegacyAppLayout').then((m) => ({ default: m.LegacyAppLayout })),
 )
 const SettingsPanel = lazy(() =>
   import('./components/panels/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
@@ -20,21 +30,26 @@ function EditorLoading() {
     </div>
   )
 }
-import { isEditorShell } from './constants/editorFeatures'
-import { useCanvasStore } from './stores/canvasStore'
-import { useProjectStore } from './stores/projectStore'
-import { useThemeStore } from './stores/themeStore'
-import { useDirtySync } from './hooks/useDirtySync'
-import { useManualSave } from './hooks/useAutoSave'
-import { useT, useI18nStore } from './i18n'
-import { AuthGate } from './components/auth/AuthGate'
-import { useUserStore } from './stores/userStore'
-import { handleError, setToastHandler } from './utils/ErrorHandler'
-import { hydrateProbedProfileCache } from './capabilities/load-probed-profiles'
-import { hydrateProjectNodes } from './utils/assetStorage'
-import type { Node, Edge } from '@xyflow/react'
 
 type AppView = 'start' | 'editor'
+
+const EDITOR_SESSION_KEY = 'lc-editor-session'
+
+function persistEditorSession(projectId: string, projectName: string): void {
+  try {
+    sessionStorage.setItem(EDITOR_SESSION_KEY, JSON.stringify({ projectId, projectName }))
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function clearEditorSession(): void {
+  try {
+    sessionStorage.removeItem(EDITOR_SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+}
 
 function Toast({ message, type }: { message: string; type: 'error' | 'info' }) {
   return (
@@ -55,12 +70,16 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [recoveredRuns, setRecoveredRuns] = useState<Array<{ id: string; projectId: string }> | null>(
+    null,
+  )
 
   const loadProject = useCanvasStore((s) => s.loadProject)
   const { setCurrentProject, clearProject, isDirty } = useProjectStore()
-  const { theme, toggleTheme } = useThemeStore()
+  const { theme } = useThemeStore()
   const locale = useI18nStore((s) => s.locale)
   const manualSave = useManualSave()
+  const sessionRestoredRef = useRef(false)
 
   useDirtySync()
 
@@ -97,7 +116,9 @@ export default function App() {
       setAuth(result.user, result.isGuest)
       setAuthReady(true)
     })
-    void window.api.dag.recover()
+    void window.api.dag.recover().then((runs) => {
+      if (runs.length > 0) setRecoveredRuns(runs)
+    })
   }, [setAuth, setAuthReady])
 
   useEffect(() => {
@@ -122,13 +143,37 @@ export default function App() {
         const nodes = await hydrateProjectNodes(id, data.nodes as Node[])
         loadProject(nodes, data.edges as Edge[], data.viewport)
         setCurrentProject(id, name)
+        persistEditorSession(id, name)
         setView('editor')
+
+        const pinnedVersion = (data as { capabilityCatalogVersion?: number }).capabilityCatalogVersion
+        const currentCatalog = getCatalogVersion()
+        if (pinnedVersion != null && pinnedVersion < currentCatalog) {
+          showToast(
+            `能力目录已从 v${pinnedVersion} 升级到 v${currentCatalog}，建议在设置中对已接入模型重新「验证能力」。`,
+            'info',
+          )
+        }
       } catch (error) {
         handleError(error, 'openProject')
       }
     },
     [loadProject, setCurrentProject],
   )
+
+  useEffect(() => {
+    if (sessionRestoredRef.current) return
+    sessionRestoredRef.current = true
+    try {
+      const raw = sessionStorage.getItem(EDITOR_SESSION_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { projectId?: string; projectName?: string }
+      if (!parsed.projectId) return
+      void openProject(parsed.projectId, parsed.projectName || '未命名项目')
+    } catch {
+      clearEditorSession()
+    }
+  }, [openProject])
 
   const backToStart = () => {
     if (isDirty) {
@@ -137,14 +182,27 @@ export default function App() {
     }
     clearProject()
     useCanvasStore.getState().loadProject([], [])
+    clearEditorSession()
     setView('start')
   }
 
   const confirmLeave = () => {
     clearProject()
     useCanvasStore.getState().loadProject([], [])
+    clearEditorSession()
     setView('start')
     setShowLeaveConfirm(false)
+  }
+
+  const dismissRecoveredRuns = () => setRecoveredRuns(null)
+
+  const abandonRecoveredRuns = () => {
+    if (!recoveredRuns) return
+    void Promise.all(
+      recoveredRuns.map((run) =>
+        window.api.dag.updateRun({ dagRunId: run.id, status: 'cancelled' }),
+      ),
+    ).finally(dismissRecoveredRuns)
   }
 
   if (view === 'start') {
@@ -161,6 +219,32 @@ export default function App() {
           </Suspense>
         )}
         {toast && <Toast {...toast} />}
+        {recoveredRuns && recoveredRuns.length > 0 && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">
+            <div className="bg-bg-secondary border border-border rounded-xl p-5 w-96 shadow-xl">
+              <h3 className="text-sm font-semibold text-text-primary mb-2">{t('dag.recoverTitle')}</h3>
+              <p className="text-xs text-text-muted mb-4">
+                {t('dag.recoverMessage').replace('{{count}}', String(recoveredRuns.length))}
+              </p>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={dismissRecoveredRuns}
+                  className="text-xs py-2 rounded bg-accent text-white"
+                >
+                  {t('dag.recoverContinue')}
+                </button>
+                <button
+                  type="button"
+                  onClick={abandonRecoveredRuns}
+                  className="text-xs py-2 rounded bg-bg-tertiary text-text-primary"
+                >
+                  {t('dag.recoverAbandon')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </AuthGate>
     )
   }
@@ -168,16 +252,7 @@ export default function App() {
   return (
     <AuthGate>
       <Suspense fallback={<EditorLoading />}>
-        {isEditorShell() ? (
-          <EditorShell onBack={backToStart} onOpenSettings={() => setShowSettings(true)} />
-        ) : (
-          <LegacyAppLayout
-            onBack={backToStart}
-            onOpenSettings={() => setShowSettings(true)}
-            onToggleTheme={toggleTheme}
-            theme={theme}
-          />
-        )}
+        <EditorShell onBack={backToStart} onOpenSettings={() => setShowSettings(true)} />
       </Suspense>
       {showOnboarding && <OnboardingGuide onComplete={() => setShowOnboarding(false)} />}
       {showSettings && (
@@ -197,6 +272,32 @@ export default function App() {
         />
       )}
       {toast && <Toast {...toast} />}
+      {recoveredRuns && recoveredRuns.length > 0 && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60">
+          <div className="bg-bg-secondary border border-border rounded-xl p-5 w-96 shadow-xl">
+            <h3 className="text-sm font-semibold text-text-primary mb-2">{t('dag.recoverTitle')}</h3>
+            <p className="text-xs text-text-muted mb-4">
+              {t('dag.recoverMessage').replace('{{count}}', String(recoveredRuns.length))}
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={dismissRecoveredRuns}
+                className="text-xs py-2 rounded bg-accent text-white"
+              >
+                {t('dag.recoverContinue')}
+              </button>
+              <button
+                type="button"
+                onClick={abandonRecoveredRuns}
+                className="text-xs py-2 rounded bg-bg-tertiary text-text-primary"
+              >
+                {t('dag.recoverAbandon')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthGate>
   )
 }

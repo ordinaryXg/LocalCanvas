@@ -164,48 +164,69 @@ export async function mergeAudioVideo(
   output: string,
   onProgress?: (percentage: number) => void,
   audioVolume = 1,
+  fadeInSec = 0,
+  fadeOutSec = 0,
 ): Promise<string> {
   mkdirSync(dirname(output), { recursive: true })
 
   const vol = Math.max(0, Math.min(2, audioVolume))
-  const args =
-    vol === 1
-      ? [
-          '-y',
-          '-i',
-          videoPath,
-          '-i',
-          audioPath,
-          '-c:v',
-          'copy',
-          '-c:a',
-          'aac',
-          '-map',
-          '0:v:0',
-          '-map',
-          '1:a:0',
-          '-shortest',
-          output,
-        ]
-      : [
-          '-y',
-          '-i',
-          videoPath,
-          '-i',
-          audioPath,
-          '-filter_complex',
-          `[1:a]volume=${vol}[aout]`,
-          '-map',
-          '0:v:0',
-          '-map',
-          '[aout]',
-          '-c:v',
-          'copy',
-          '-c:a',
-          'aac',
-          '-shortest',
-          output,
-        ]
+  const fadeIn = Math.max(0, fadeInSec)
+  const fadeOut = Math.max(0, fadeOutSec)
+  const needsAudioFilter = vol !== 1 || fadeIn > 0 || fadeOut > 0
+
+  let args: string[]
+  if (!needsAudioFilter) {
+    args = [
+      '-y',
+      '-i',
+      videoPath,
+      '-i',
+      audioPath,
+      '-c:v',
+      'copy',
+      '-c:a',
+      'aac',
+      '-map',
+      '0:v:0',
+      '-map',
+      '1:a:0',
+      '-shortest',
+      output,
+    ]
+  } else {
+    const filters: string[] = []
+    if (fadeIn > 0) filters.push(`afade=t=in:st=0:d=${fadeIn}`)
+    if (fadeOut > 0) {
+      try {
+        const info = await getVideoInfo(videoPath)
+        const fadeStart = Math.max(0, info.duration - fadeOut)
+        if (fadeStart > 0) filters.push(`afade=t=out:st=${fadeStart}:d=${fadeOut}`)
+      } catch {
+        /* skip fade-out if duration unknown */
+      }
+    }
+    if (vol !== 1) filters.push(`volume=${vol}`)
+    const af = filters.join(',')
+    args = [
+      '-y',
+      '-i',
+      videoPath,
+      '-i',
+      audioPath,
+      '-filter_complex',
+      `[1:a]${af}[aout]`,
+      '-map',
+      '0:v:0',
+      '-map',
+      '[aout]',
+      '-c:v',
+      'copy',
+      '-c:a',
+      'aac',
+      '-shortest',
+      output,
+    ]
+  }
 
   await runFFmpeg(args, (pct) => onProgress?.(pct))
   return output

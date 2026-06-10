@@ -22,8 +22,6 @@ export function textNodeOutput(data: Record<string, unknown>): string {
   return legacy
 }
 
-/** @deprecated 使用 textNodeOutput */
-
 export function inferOutputMode(
   draft: string,
   generated: string,

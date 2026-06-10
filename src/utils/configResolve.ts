@@ -41,3 +41,7 @@ export function getImageModelConfig(config: AppConfig, modelId: string) {
 export function getVideoModelConfig(config: AppConfig, modelId: string) {
   return config.video_models.find((m) => m.id === modelId)
 }
+
+export function getLlmModelConfig(config: AppConfig, modelId: string) {
+  return config.llm_models.find((m) => m.id === modelId)
+}

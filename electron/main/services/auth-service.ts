@@ -3,6 +3,10 @@ import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { createHash, randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
+import {
+  validateRegistrationInput,
+  normalizeLoginUsername,
+} from '../../../src/utils/authValidation'
 import { userRepository, type PublicUser } from '../repositories/user-repository'
 import { getDatabase } from '../database'
 import { logger } from './logger'
@@ -105,9 +109,8 @@ export async function registerUser(
   password: string,
   email?: string,
 ): Promise<AuthResult> {
-  const trimmed = username.trim()
-  if (trimmed.length < 2) throw new AuthError('USERNAME_TOO_SHORT', '用户名至少 2 个字符')
-  if (password.length < 8) throw new AuthError('PASSWORD_TOO_SHORT', '密码至少 8 位')
+  validateRegistrationInput(username, password)
+  const trimmed = normalizeLoginUsername(username)
   if (userRepository.findByUsername(trimmed)) {
     throw new AuthError('USERNAME_TAKEN', '用户名已存在')
   }
@@ -125,7 +128,7 @@ export async function registerUser(
 }
 
 export async function loginUser(username: string, password: string): Promise<AuthResult> {
-  const user = userRepository.findByUsername(username.trim())
+  const user = userRepository.findByUsername(normalizeLoginUsername(username))
   if (!user) throw new AuthError('INVALID_CREDENTIALS', '用户名或密码错误')
 
   const ok = await bcrypt.compare(password, user.passwordHash)

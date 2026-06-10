@@ -6,12 +6,12 @@ import type { EdgeCompatStatus } from '../types/capability'
 export const CANVAS_EDGE_TYPE = 'default' as const
 
 export const CANVAS_EDGE_STYLE = {
-  stroke: 'var(--color-accent)',
+  stroke: 'var(--token-canvas-accent)',
   strokeWidth: 2,
 } as const
 
 export const CANVAS_EDGE_STYLE_WARN = {
-  stroke: 'var(--color-warning, #d4a574)',
+  stroke: 'var(--token-warning, #d4a574)',
   strokeWidth: 2,
   strokeDasharray: '6 4',
 } as const

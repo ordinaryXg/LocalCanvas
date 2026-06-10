@@ -278,7 +278,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       position: { x: minX - 20, y: minY - 40 },
       style: {
         backgroundColor: 'rgba(99, 102, 241, 0.08)',
-        border: '1px dashed var(--color-accent, #6366f1)',
+        border: '1px dashed var(--token-accent, #6366f1)',
         borderRadius: 8,
         width: maxX - minX + 60,
         height: maxY - minY + 80,

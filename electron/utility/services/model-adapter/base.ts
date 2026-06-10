@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import type { TextGenerateResult } from '../../../src/utils/textGenerateResult'
 
 export interface GenerateImageParams {
   prompt: string
@@ -83,7 +84,7 @@ export interface ProgressEvent {
 export abstract class ModelAdapter extends EventEmitter {
   abstract generateImage(params: GenerateImageParams): Promise<string>
   abstract generateVideo(params: GenerateVideoParams): Promise<string>
-  abstract generateText(params: GenerateTextParams): Promise<string>
+  abstract generateText(params: GenerateTextParams): Promise<TextGenerateResult>
   abstract generateAudio(params: GenerateAudioParams): Promise<string>
   abstract getStatus(): Promise<AdapterStatus>
   abstract cancel(taskId: string): void

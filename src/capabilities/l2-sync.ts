@@ -48,6 +48,13 @@ export function buildModelsListUrl(provider: string, endpoint: string): string |
   if (provider === 'volcengine_seedance') {
     return SEEDANCE_ENDPOINTS.models
   }
+  if (endpoint.includes('api.anthropic.com')) {
+    return 'https://api.anthropic.com/v1/models'
+  }
+  if (endpoint.includes('generativelanguage.googleapis.com')) {
+    const base = endpoint.split('/v1')[0]
+    return `${base}/v1/models`
+  }
   if (endpoint.includes('/images/generations')) {
     return SEEDANCE_ENDPOINTS.models
   }

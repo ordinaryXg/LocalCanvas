@@ -1,6 +1,9 @@
+import { useMemo } from 'react'
 import { ModeSwitcher } from './ModeSwitcher'
 import { AccountMenu } from '../common/AccountMenu'
 import { useProjectStore } from '../../stores/projectStore'
+import { useCanvasStore } from '../../stores/canvasStore'
+import { useEditorShellStore } from '../../stores/editorShellStore'
 import { useManualSave } from '../../hooks/useAutoSave'
 import { useT } from '../../i18n'
 
@@ -14,9 +17,34 @@ export function TopBar({ onBack, onOpenSettings }: TopBarProps) {
   const projectName = useProjectStore((s) => s.projectName)
   const isDirty = useProjectStore((s) => s.isDirty)
   const isSaving = useProjectStore((s) => s.isSaving)
+  const saveError = useProjectStore((s) => s.saveError)
   const manualSave = useManualSave()
+  const generatorDrawerOpen = useEditorShellStore((s) => s.generatorDrawerOpen)
+  const generatingNodes = useCanvasStore((s) =>
+    s.nodes.filter((n) => Boolean(n.data?.isGenerating)),
+  )
 
-  const saveLabel = isSaving ? '保存中…' : isDirty ? '未保存' : '已保存'
+  const genBadge = useMemo(() => {
+    if (generatorDrawerOpen || generatingNodes.length === 0) return null
+    const avg =
+      generatingNodes.reduce((sum, n) => sum + ((n.data?.progress as number) ?? 0), 0) /
+      generatingNodes.length
+    const pct = Math.round(avg)
+    return { count: generatingNodes.length, pct }
+  }, [generatorDrawerOpen, generatingNodes])
+
+  let saveLabel = t('toolbar.saved')
+  let saveClass = 'text-[var(--studio-text-muted)]'
+  if (saveError) {
+    saveLabel = t('toolbar.saveFailed')
+    saveClass = 'text-[var(--status-error)]'
+  } else if (isSaving) {
+    saveLabel = t('toolbar.saving')
+    saveClass = 'text-[var(--studio-accent)]'
+  } else if (isDirty) {
+    saveLabel = t('toolbar.unsaved')
+    saveClass = 'text-[var(--status-warning)]'
+  }
 
   return (
     <header
@@ -39,11 +67,20 @@ export function TopBar({ onBack, onOpenSettings }: TopBarProps) {
       <button
         type="button"
         onClick={() => void manualSave()}
-        className={`text-xs shrink-0 ${isDirty ? 'text-amber-400' : 'text-text-muted'}`}
-        title="Ctrl+S 保存"
+        className={`text-xs shrink-0 ${saveClass}`}
+        title={saveError || 'Ctrl+S 保存'}
       >
         {saveLabel}
       </button>
+
+      {genBadge && (
+        <span
+          className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--studio-accent-muted)] text-white shrink-0"
+          title={`${genBadge.count} 个节点生成中`}
+        >
+          生成中 {genBadge.pct > 0 ? `${genBadge.pct}%` : '…'}
+        </span>
+      )}
 
       <div className="flex-1 min-w-0 flex justify-center">
         <ModeSwitcher />

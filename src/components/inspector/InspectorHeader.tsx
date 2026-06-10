@@ -23,7 +23,7 @@ export function InspectorHeader({ nodeId, type, title, fallback }: Props) {
       <div className="flex items-center gap-1">
         <span
           className="inline-block w-2 h-2 rounded-full shrink-0"
-          style={{ background: NODE_TYPE_COLORS[type] ?? 'var(--color-accent)' }}
+          style={{ background: NODE_TYPE_COLORS[type] ?? 'var(--token-canvas-accent)' }}
         />
         <input
           value={draft}

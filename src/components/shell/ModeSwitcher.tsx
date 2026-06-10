@@ -13,7 +13,7 @@ export function ModeSwitcher() {
     <div
       role="tablist"
       aria-label="编辑器模式"
-      className="inline-flex rounded-full bg-zinc-800/80 p-1 gap-0.5"
+      className="inline-flex rounded-full bg-[var(--studio-surface)] p-1 gap-0.5 border border-[var(--studio-border)]"
     >
       {MODES.map((m) => {
         const active = mode === m.id
@@ -29,7 +29,7 @@ export function ModeSwitcher() {
             className={`px-3 py-1 text-sm rounded-full transition ${
               active
                 ? `${activeClass} text-white font-medium shadow-sm`
-                : 'text-zinc-400 hover:text-zinc-200'
+                : 'text-[var(--studio-border)] hover:text-[var(--token-text-primary)]'
             }`}
           >
             {m.label}

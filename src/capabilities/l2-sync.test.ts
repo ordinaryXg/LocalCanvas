@@ -22,6 +22,21 @@ describe('buildModelsListUrl', () => {
     ).toBe('https://api.deepseek.com/v1/models')
   })
 
+  it('maps anthropic endpoint to models list', () => {
+    expect(buildModelsListUrl('openai_compatible', 'https://api.anthropic.com/v1/messages')).toBe(
+      'https://api.anthropic.com/v1/models',
+    )
+  })
+
+  it('maps google generative language endpoint', () => {
+    expect(
+      buildModelsListUrl(
+        'openai_compatible',
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+      ),
+    ).toBe('https://generativelanguage.googleapis.com/v1/models')
+  })
+
   it('uses ark models for seedance', () => {
     expect(buildModelsListUrl('volcengine_seedance', 'https://example.com/tasks')).toContain(
       '/models',

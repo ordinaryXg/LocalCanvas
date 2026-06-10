@@ -5,8 +5,12 @@ interface Props {
   clip: ComposeClipItem | null
   audioSelected: boolean
   audioVolume: number
+  audioFadeIn: number
+  audioFadeOut: number
   onClipUpdate: (clipId: string, patch: Partial<ComposeClipItem>) => void
   onAudioVolumeChange: (volume: number) => void
+  onAudioFadeInChange: (seconds: number) => void
+  onAudioFadeOutChange: (seconds: number) => void
   onOpenSourceNode: (nodeId: string) => void
   onClose: () => void
 }
@@ -15,8 +19,12 @@ export function ComposeInspector({
   clip,
   audioSelected,
   audioVolume,
+  audioFadeIn,
+  audioFadeOut,
   onClipUpdate,
   onAudioVolumeChange,
+  onAudioFadeInChange,
+  onAudioFadeOutChange,
   onOpenSourceNode,
   onClose,
 }: Props) {
@@ -104,17 +112,43 @@ export function ComposeInspector({
         )}
 
         {audioSelected && (
-          <div>
-            <div className="text-text-muted mb-2">背景音乐音量</div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(audioVolume * 100)}
-              onChange={(e) => onAudioVolumeChange(parseInt(e.target.value, 10) / 100)}
-              className="w-full accent-accent"
-            />
-            <div className="text-right text-text-muted mt-1">{Math.round(audioVolume * 100)}%</div>
+          <div className="space-y-3">
+            <div>
+              <div className="text-text-muted mb-2">背景音乐音量</div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(audioVolume * 100)}
+                onChange={(e) => onAudioVolumeChange(parseInt(e.target.value, 10) / 100)}
+                className="w-full accent-accent"
+              />
+              <div className="text-right text-text-muted mt-1">{Math.round(audioVolume * 100)}%</div>
+            </div>
+            <label className="text-text-muted block">
+              淡入 (秒)
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.1}
+                value={audioFadeIn}
+                onChange={(e) => onAudioFadeInChange(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="mt-1 w-full bg-bg-primary border border-border rounded px-2 py-1 text-text-primary"
+              />
+            </label>
+            <label className="text-text-muted block">
+              淡出 (秒)
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.1}
+                value={audioFadeOut}
+                onChange={(e) => onAudioFadeOutChange(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="mt-1 w-full bg-bg-primary border border-border rounded px-2 py-1 text-text-primary"
+              />
+            </label>
           </div>
         )}
       </div>

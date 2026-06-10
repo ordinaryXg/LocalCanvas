@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react'
 import type {
   AppConfig,
   ImageModelConfig,
@@ -15,66 +14,29 @@ import {
   resolveProfileForConfig,
 } from '../../capabilities/profile-display'
 import { ModelCapabilityBadges } from './ModelCapabilityBadges'
+import { ConnectedModelCard } from './ConnectedModelCard'
+import {
+  FILTER_OPTIONS,
+  defaultKeyForKind,
+  isDefaultModel,
+  listConnectedModels,
+  sortConnectedWithDefaultsFirst,
+  type ConnectedModel,
+  type KindFilter,
+  type ModelEntry,
+} from './modelSettingsHelpers'
+
+import { useEffect, useMemo, useState } from 'react'
 import type { DiscoveredModelEntry } from '../../types/capability-sync'
 import { hydrateProbedProfileCache } from '../../capabilities/load-probed-profiles'
 import { setProbedProfile } from '../../capabilities/probed-profile-cache'
 import { useCanvasStore } from '../../stores/canvasStore'
-
-type ModelEntry = ImageModelConfig | VideoModelConfig | LLMModelConfig | TTSModelConfig
-type KindFilter = 'all' | ModelKind
-
-interface ConnectedModel {
-  kind: ModelKind
-  model: ModelEntry
-}
 
 interface ModelSettingsSectionProps {
   config: AppConfig
   setConfig: (config: AppConfig) => void
   onStatus: (msg: { ok: boolean; text: string }) => void
 }
-
-function listConnectedModels(config: AppConfig, filter: KindFilter): ConnectedModel[] {
-  const items: ConnectedModel[] = []
-  const push = (kind: ModelKind, models: ModelEntry[]) => {
-    for (const model of models) items.push({ kind, model })
-  }
-  if (filter === 'all' || filter === 'llm') push('llm', config.llm_models)
-  if (filter === 'all' || filter === 'image') push('image', config.image_models)
-  if (filter === 'all' || filter === 'video') push('video', config.video_models)
-  if (filter === 'all' || filter === 'tts') push('tts', config.tts_models)
-  return items
-}
-
-function sortConnectedWithDefaultsFirst(
-  items: ConnectedModel[],
-  settings: AppConfig['settings'],
-): ConnectedModel[] {
-  const isDefaultForKind = (kind: ModelKind, id: string) =>
-    settings[defaultKeyForKind(kind)] === id
-
-  return [...items].sort((a, b) => {
-    const aDefault = isDefaultForKind(a.kind, a.model.id)
-    const bDefault = isDefaultForKind(b.kind, b.model.id)
-    if (aDefault === bDefault) return 0
-    return aDefault ? -1 : 1
-  })
-}
-
-function defaultKeyForKind(kind: ModelKind): keyof AppConfig['settings'] {
-  if (kind === 'image') return 'default_image_model'
-  if (kind === 'video') return 'default_video_model'
-  if (kind === 'tts') return 'default_tts'
-  return 'default_llm'
-}
-
-const FILTER_OPTIONS: { id: KindFilter; label: string }[] = [
-  { id: 'all', label: '全部' },
-  { id: 'llm', label: 'LLM' },
-  { id: 'image', label: '图像' },
-  { id: 'video', label: '视频' },
-  { id: 'tts', label: '语音' },
-]
 
 export function ModelSettingsSection({ config, setConfig, onStatus }: ModelSettingsSectionProps) {
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
@@ -350,10 +312,7 @@ export function ModelSettingsSection({ config, setConfig, onStatus }: ModelSetti
     onStatus({ ok: true, text: `已添加 ${preset.name}` })
   }
 
-  const isDefault = (kind: ModelKind, id: string) => {
-    const key = defaultKeyForKind(kind)
-    return config.settings[key] === id
-  }
+  const isDefault = (kind: ModelKind, id: string) => isDefaultModel(config, kind, id)
 
   return (
     <div className="flex gap-4 min-h-[360px]">
@@ -446,114 +405,24 @@ export function ModelSettingsSection({ config, setConfig, onStatus }: ModelSetti
             model.provider === 'custom' || profileNeedsProbe(profile)
 
           return (
-            <div key={`${kind}-${model.id}`} className="bg-bg-tertiary rounded-lg p-4 border border-border/60">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-text-primary">{model.name}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-secondary text-text-muted">
-                      {kind.toUpperCase()}
-                    </span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded ${
-                        configured ? 'bg-success/15 text-success' : 'bg-amber-500/15 text-amber-200'
-                      }`}
-                    >
-                      {configured ? '已配置 Key' : '未配置 Key'}
-                    </span>
-                    {isDefault(kind, model.id) && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent">默认</span>
-                    )}
-                  </div>
-                  <div className="mt-2">
-                    <ModelCapabilityBadges profile={profile} compact />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => void handleTest({ kind, model })}
-                    disabled={testing === model.id}
-                    className="text-[10px] px-2 py-1 bg-accent/20 text-accent rounded hover:bg-accent/40 disabled:opacity-50"
-                  >
-                    {testing === model.id ? '测试中' : '测试'}
-                  </button>
-                  {showProbe && (
-                    <button
-                      type="button"
-                      onClick={() => void handleProbe({ kind, model })}
-                      disabled={probing === model.id || !configured}
-                      className="text-[10px] px-2 py-1 bg-amber-500/15 text-amber-200 rounded hover:bg-amber-500/25 disabled:opacity-50"
-                      title="发送最小请求并缓存能力，虚线边可升级为实线"
-                    >
-                      {probing === model.id ? '验证中' : '验证能力'}
-                    </button>
-                  )}
-                  {!isDefault(kind, model.id) && (
-                    <button
-                      type="button"
-                      onClick={() => setDefault(kind, model.id)}
-                      className="text-[10px] px-2 py-1 text-text-muted hover:text-white"
-                    >
-                      设为默认
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(expanded ? null : `${kind}:${model.id}`)}
-                    className="text-[10px] px-2 py-1 text-text-muted hover:text-white"
-                  >
-                    {expanded ? '收起' : '详情'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeModel(kind, model.id)}
-                    className="text-[10px] px-2 py-1 text-danger/80 hover:text-danger"
-                  >
-                    删除
-                  </button>
-                </div>
-              </div>
-
-              {expanded && (
-                <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
-                  <ModelCapabilityBadges profile={profile} />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    <div className="text-text-muted truncate">
-                      Provider: <span className="text-text-primary">{model.provider}</span>
-                    </div>
-                    <div className="text-text-muted truncate">
-                      Endpoint: <span className="text-text-primary font-mono text-[10px]">{model.endpoint}</span>
-                    </div>
-                    {'model' in model && (
-                      <div className="sm:col-span-2">
-                        <label className="text-[10px] text-text-muted block mb-1">API Model ID</label>
-                        {kind === 'image' || kind === 'video' ? (
-                          <input
-                            type="text"
-                            value={model.model}
-                            onChange={(e) => updateModelId(kind, model.id, e.target.value)}
-                            className="w-full bg-bg-secondary text-text-primary px-2 py-1 rounded outline-none text-xs font-mono"
-                          />
-                        ) : (
-                          <span className="text-text-primary font-mono text-[10px]">{model.model}</span>
-                        )}
-                      </div>
-                    )}
-                    <div className="sm:col-span-2">
-                      <label className="text-[10px] text-text-muted block mb-1">API Key</label>
-                      <input
-                        type="password"
-                        value={model.api_key ?? ''}
-                        onChange={(e) => updateApiKey(kind, model.id, e.target.value)}
-                        placeholder="也可使用环境变量"
-                        className="w-full bg-bg-secondary text-text-primary px-2 py-1 rounded outline-none text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ConnectedModelCard
+              key={`${kind}-${model.id}`}
+              entry={{ kind, model }}
+              profile={profile}
+              configured={configured}
+              expanded={expanded}
+              isDefault={isDefault(kind, model.id)}
+              testing={testing === model.id}
+              probing={probing === model.id}
+              showProbe={showProbe}
+              onTest={() => void handleTest({ kind, model })}
+              onProbe={() => void handleProbe({ kind, model })}
+              onSetDefault={() => setDefault(kind, model.id)}
+              onToggleExpand={() => setExpandedId(expanded ? null : `${kind}:${model.id}`)}
+              onRemove={() => removeModel(kind, model.id)}
+              onUpdateModelId={(value) => updateModelId(kind, model.id, value)}
+              onUpdateApiKey={(value) => updateApiKey(kind, model.id, value)}
+            />
           )
         })}
 

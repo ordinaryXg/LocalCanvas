@@ -28,7 +28,6 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "uuid": "^10.0.0",
-    "ws": "^8.21.0",
     "yaml": "^2.9.0",
     "zustand": "^5.0.14"
   },
@@ -44,7 +43,6 @@
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.8",
     "electron": "^33.4.11",

@@ -12,7 +12,7 @@ function dataFlowSourceSignature(
       const d = n.data
       if (n.type === 'text') {
         const downstream = textNodeOutput(d)
-        return `${n.id}:${d.draft ?? d.inputContent ?? ''}:${downstream}:${d.outputMode ?? ''}:${d.outputEdited ? 1 : 0}`
+        return `${n.id}:${d.draft ?? ''}:${downstream}:${d.outputMode ?? ''}:${d.outputEdited ? 1 : 0}`
       }
       if (n.type === 'script') {
         const rows = (d.scriptRows as Array<{ prompt?: string }> | undefined) ?? []
