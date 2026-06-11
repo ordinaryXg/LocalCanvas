@@ -1,7 +1,7 @@
 # LocalCanvas Agent — 实现功能统计表
 
 > **用途**：按条目跟踪 v11 / v12 Agent 实现进度；你更新本表即可，设计规格仍以 [演进对照](./LocalCanvas_Agent-演进对照.md) 为准。  
-> **最后更新**：2026-06-10（v11.2 Slice C 代码落地）  
+> **最后更新**：2026-06-11（v12.2 Wave 3 长片与 DAG）  
 > **关联**：[v11 规划](./LocalCanvas_v11_Agent与设置增强.md) · [v12 规划](../v12/LocalCanvas_v12_Studio复杂片与Agent深化.md) · [演进对照](./LocalCanvas_Agent-演进对照.md)
 
 ---
@@ -46,11 +46,11 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | v11.0 Slice A | 12     | 12     | 0     | 0      | 0     |
 | v11.1 Slice B | 8      | 8      | 0     | 0      | 0     |
 | v11.2 Slice C | 6      | 6      | 0     | 0      | 0     |
-| v12.0 Wave 1  | 14     | 0      | 0     | 14     | 0     |
-| v12.1 Wave 2  | 5      | 0      | 0     | 5      | 0     |
-| v12.2 Wave 3  | 4      | 0      | 0     | 4      | 0     |
-| 验收 / QA       | 9      | 4      | 0     | 5      | 0     |
-| **合计**        | **65** | **37** | **0** | **28** | **0** |
+| v12.0 Wave 1  | 14     | 13     | 0     | 1      | 0     |
+| v12.1 Wave 2  | 5      | 5      | 0     | 0      | 0     |
+| v12.2 Wave 3  | 4      | 4      | 0     | 0      | 0     |
+| 验收 / QA       | 9      | 7      | 0     | 2      | 0     |
+| **合计**        | **65** | **61** | **1** | **3**  | **0** |
 
 
 > 基线 A01–A07 在 [演进对照 §一](./LocalCanvas_Agent-演进对照.md#一能力--版本--代码对照表) 已标 ✅；若回归失败请改回 ⬜ 并记入备注。
@@ -98,7 +98,7 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | 序号      | 能力  | 功能项                               | 主要代码路径       | 状态  | 完成日期 | 备注                |
 | ------- | --- | --------------------------------- | ------------ | --- | ---- | ----------------- |
 | IMP-013 | A11 | Plan/Build **模式切换 UI**（路由已开） | `AgentPanel` | ✅   | 2026-06-10 | v11.1 IMP-028 一并交付 |
-| IMP-014 | A16 | 片型 **标签只读** 展示（规则预判）              | `AgentPanel` | ⬜   |      | 完整分类见 v12 IMP-101 |
+| IMP-014 | A16 | 片型 **标签只读** 展示（规则预判）              | `AgentPanel` · `filmTypeClassifier.ts` | 🔶   |      | 轨道分类见 IMP-101；UI 标签展示待补 |
 
 
 ---
@@ -138,22 +138,22 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 ## 五、v12.0 — Wave 1（ProductionPlan 核心）
 
 
-| 序号      | 能力  | 功能项                                         | 主要代码路径                                          | 状态  | 完成日期 | 备注                                                            |
-| ------- | --- | ------------------------------------------- | ----------------------------------------------- | --- | ---- | ------------------------------------------------------------- |
-| IMP-101 | A16 | 片型分类 `track: lite | studio`（规则+LLM）         | `film-type-classifier.ts`                       | ⬜   |      | [演进对照 §七](./LocalCanvas_Agent-演进对照.md#七片型分类与升舱规则修订)           |
-| IMP-102 | A16 | Studio 轨道禁止 3 节点 auto 推荐                    | `workflow-planner` · 模板召回                       | ⬜   |      | 验收 ST-01                                                      |
-| IMP-103 | A17 | **ProductionBrief 卡** + CP0 HITL 确认         | `AgentBriefCard.tsx`                            | ⬜   |      | [UI §3.11](./LocalCanvas_Agent-UI设计.md#311-复杂片型-ui-studio-轨道) |
-| IMP-104 | A18 | **Shot List** 完整预览 + 时长预算校验                 | `AgentShotList.tsx` · `shotSpecToScriptRows.ts` | ⬜   |      | block/warn [§三](./LocalCanvas_Agent-演进对照.md#三shotspec-落盘契约)   |
-| IMP-105 | A19 | `buildProductionPlan`                       | `build-production-plan.ts`                      | ⬜   |      |                                                               |
-| IMP-106 | A19 | `applyProductionPlan` + skeleton 落盘         | `applyProductionPlan.ts`                        | ⬜   |      | 验收 ST-03                                                      |
-| IMP-107 | A20 | ShotSpec → `scriptRows` + `productionMeta`  | `shotSpecToScriptRows.ts`                       | ⬜   |      | 单测必填                                                          |
-| IMP-108 | A03 | 规划器注入 **ShotSpec schema** + 片型 few-shot     | `workflow-planner.ts`                           | ⬜   |      |                                                               |
-| IMP-109 | —   | 片型模板 `brand-spot-30s`                       | `WorkflowTemplateRegistry`                      | ⬜   |      |                                                               |
-| IMP-110 | —   | 片型模板 `narrative-short`                      | `WorkflowTemplateRegistry`                      | ⬜   |      |                                                               |
-| IMP-111 | A05 | `ProductionPlan` 类型                         | `src/types/agent.ts`                            | ⬜   |      |                                                               |
-| IMP-112 | —   | UI `ProductionPlanPreview`                  | `ProductionPlanPreview.tsx`                     | ⬜   |      |                                                               |
-| IMP-113 | A06 | Studio **禁用全片一条 auto DAG**                  | `useDagRun` · 计划解析                              | ⬜   |      |                                                               |
-| IMP-120 | A01 | 会话存 `productionPlan` / `lastProductionPlan` | `agent-session-repository`                      | ⬜   |      | P1，可晚于 IMP-105                                                |
+| 序号      | 能力  | 功能项                                         | 主要代码路径                                          | 状态  | 完成日期       | 备注                                                            |
+| ------- | --- | ------------------------------------------- | ----------------------------------------------- | --- | ---------- | ------------------------------------------------------------- |
+| IMP-101 | A16 | 片型分类 `track: lite \| studio`（规则+LLM）         | `src/utils/filmTypeClassifier.ts`               | ✅   | 2026-06-11 | 规则打分已实现；LLM 升舱见 Wave 2+                                      |
+| IMP-102 | A16 | Studio 轨道禁止 3 节点 auto 推荐                    | `agent-service.ts` · `skills/index.ts`          | ✅   | 2026-06-11 | studio 轨道过滤 `text-to-video`；验收 ST-01 待手工冒烟                    |
+| IMP-103 | A17 | **ProductionBrief 卡** + CP0 HITL 确认         | `AgentBriefCard.tsx` · `AgentPanel.tsx`         | ✅   | 2026-06-11 | v11.2 卡 + Studio 确认门控；落盘前须 `briefConfirmed`                      |
+| IMP-104 | A18 | **Shot List** 完整预览 + 时长预算校验                 | `AgentShotList.tsx` · `shotSpecToScriptRows.ts` · `ProductionPlanPreview.tsx` | ✅   | 2026-06-11 | block/warn 预览 + `applyProductionPlan` 拦截 block                  |
+| IMP-105 | A19 | `buildProductionPlan`                       | `src/utils/buildProductionPlan.ts`              | ✅   | 2026-06-11 | brand-spot / narrative 节拍表                                      |
+| IMP-106 | A19 | `applyProductionPlan` + skeleton 落盘         | `src/utils/applyProductionPlan.ts`              | ✅   | 2026-06-11 | 单测 ST-03；scriptRows + 空 storyboard                              |
+| IMP-107 | A20 | ShotSpec → `scriptRows` + `productionMeta`  | `src/utils/shotSpecToScriptRows.ts`             | ✅   | 2026-06-11 | 单测 `shotSpecToScriptRows.test.ts`                               |
+| IMP-108 | A03 | 规划器注入 **ShotSpec schema** + 片型 few-shot     | `workflow-planner.ts`                           | ⬜   |            | Wave 1 未做；当前为规则 `buildProductionPlan`                            |
+| IMP-109 | —   | 片型模板 `brand-spot-30s`                       | `skills/brand-spot-30s.ts`                      | ✅   | 2026-06-11 | Studio 模板召回 + `buildProductionPlan`                            |
+| IMP-110 | —   | 片型模板 `narrative-short`                      | `skills/narrative-short.ts`                     | ✅   | 2026-06-11 | 多场景节拍表                                                        |
+| IMP-111 | A05 | `ProductionPlan` 类型                         | `src/types/agent.ts`                            | ✅   | 2026-06-11 | `ProductionBrief` · `ShotSpec` · `DurationBudgetResult`         |
+| IMP-112 | —   | UI `ProductionPlanPreview`                  | `ProductionPlanPreview.tsx` · `AgentPanel.tsx`  | ✅   | 2026-06-11 | 钉住侧栏 Dock + 消息内预览                                            |
+| IMP-113 | A06 | Studio **禁用全片一条 auto DAG**                  | `agent-service.ts` · Studio 模板                  | ✅   | 2026-06-11 | 片型模板 `executionMode: checkpoint`；studio 禁 text-to-video 回退     |
+| IMP-120 | A01 | 会话存 `productionPlan` / `lastProductionPlan` | `agent-session-repository.ts`                   | ✅   | 2026-06-11 | DB 列 `last_production_plan` + IPC 往返                           |
 
 
 ---
@@ -161,13 +161,13 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 ## 六、v12.1 — Wave 2（展开与一致性）
 
 
-| 序号      | 能力  | 功能项                                  | 主要代码路径                       | 状态  | 完成日期 | 备注     |
-| ------- | --- | ------------------------------------ | ---------------------------- | --- | ---- | ------ |
-| IMP-121 | A25 | IPC `agent:expandShots`（≤6 镜）        | `electron/main/ipc/agent.ts` | ⬜   |      |        |
-| IMP-122 | A23 | `creativeBible` → `project.metadata` | `project` 元数据写入              | ⬜   |      | V12-R5 |
-| IMP-123 | —   | 片型模板 `product-demo`                  | `WorkflowTemplateRegistry`   | ⬜   |      |        |
-| IMP-124 | —   | 片型模板 `montage-broll`                 | `WorkflowTemplateRegistry`   | ⬜   |      |        |
-| IMP-125 | A24 | 多 Take + 分镜「**设为选用**」                | 分镜组 · 历史                     | ⬜   |      | P2     |
+| 序号      | 能力  | 功能项                                  | 主要代码路径                       | 状态  | 完成日期       | 备注     |
+| ------- | --- | ------------------------------------ | ---------------------------- | --- | ---------- | ------ |
+| IMP-121 | A25 | IPC `agent:expandShots`（≤6 镜）        | `expandProductionShots.ts` · IPC · `AgentHandoffBar` | ✅   | 2026-06-11 | 单测 + Handoff ③ 按钮 |
+| IMP-122 | A23 | `creativeBible` → `project.metadata` | `creativeBible.ts` · `projectStore` · DB 迁移 | ✅   | 2026-06-11 | 落盘时 merge；prompt 注入 |
+| IMP-123 | —   | 片型模板 `product-demo`                  | `skills/product-demo.ts` · `buildProductionPlan` | ✅   | 2026-06-11 | HERO ref-sheet |
+| IMP-124 | —   | 片型模板 `montage-broll`                 | `skills/montage-broll.ts` · `buildProductionPlan` | ✅   | 2026-06-11 | VO + t2v B-roll |
+| IMP-125 | A24 | 多 Take + 分镜「**设为选用**」                | `storyboardTakes.ts` · `StoryboardFrameBrowser` | ✅   | 2026-06-11 | `takes` / `selectedTakeId` |
 
 
 ---
@@ -175,12 +175,12 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 ## 七、v12.2 — Wave 3（长片与 DAG）
 
 
-| 序号      | 能力  | 功能项                         | 主要代码路径                 | 状态  | 完成日期 | 备注                     |
-| ------- | --- | --------------------------- | ---------------------- | --- | ---- | ---------------------- |
-| IMP-131 | A08 | 叙事片 **Scene 分组 checkpoint** | `useDagRun` · `stopAt` | ⬜   |      | 依赖 v11.1 最小 checkpoint |
-| IMP-132 | —   | 时长预算 **自动 rebalance** 建议    | Agent 对话 + Shot List   | ⬜   |      | P2                     |
-| IMP-133 | A24 | compose 默认引用 **选用版** 视频     | `compose` 节点           | ⬜   |      | P2                     |
-| IMP-134 | —   | ST 冒烟纳入 **CI / nightly**    | `e2e/` 或 vitest        | ⬜   |      | 可选                     |
+| 序号      | 能力  | 功能项                         | 主要代码路径                 | 状态  | 完成日期       | 备注                     |
+| ------- | --- | --------------------------- | ---------------------- | --- | ---------- | ---------------------- |
+| IMP-131 | A08 | 叙事片 **Scene 分组 checkpoint** | `sceneCheckpoints.ts` · `useDagRun` · `expandProductionShots` | ✅   | 2026-06-11 | 场景末自动 paused；DAG 继续 |
+| IMP-132 | —   | 时长预算 **自动 rebalance** 建议    | `durationRebalance.ts` · `ProductionPlanPreview` | ✅   | 2026-06-11 | warn/block 时一键应用 |
+| IMP-133 | A24 | compose 默认引用 **选用版** 视频     | `syncComposeFromStoryboard.ts` · Handoff · 分镜 Take | ✅   | 2026-06-11 | 切换 Take 同步 compose |
+| IMP-134 | —   | ST 冒烟纳入 **CI / nightly**    | `studioSmoke.test.ts`   | ✅   | 2026-06-11 | vitest ST-01～03 + 场景 checkpoint |
 
 
 ---
@@ -190,10 +190,10 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 
 | 序号      | 测试 ID | 场景                                             | 归属切片  | 状态  | 完成日期       | 备注                         |
 | ------- | ----- | ---------------------------------------------- | ----- | --- | ---------- | -------------------------- |
-| IMP-T01 | ST-01 | 30s 品牌意图 → studio，无 3 节点 auto                  | v12.0 | ⬜   |            |                            |
-| IMP-T02 | ST-02 | Shot 总时长超 target 15% → block                   | v12.0 | ⬜   |            |                            |
-| IMP-T03 | ST-03 | skeleton 落盘：N 行 scriptRows，storyboard 空 frames | v12.0 | ⬜   |            |                            |
-| IMP-T04 | ST-04 | 脚本→转分镜组：frames === scriptRows                  | v12.0 | ⬜   |            |                            |
+| IMP-T01 | ST-01 | 30s 品牌意图 → studio，无 3 节点 auto                  | v12.0 | ✅   | 2026-06-11 | `studioSmoke.test.ts` · `filmTypeClassifier.test.ts` |
+| IMP-T02 | ST-02 | Shot 总时长超 target 15% → block                   | v12.0 | ✅   | 2026-06-11 | `applyProductionPlan.test.ts` · `shotSpecToScriptRows.test.ts` |
+| IMP-T03 | ST-03 | skeleton 落盘：N 行 scriptRows，storyboard 空 frames | v12.0 | ✅   | 2026-06-11 | `applyProductionPlan.test.ts` |
+| IMP-T04 | ST-04 | 脚本→转分镜组：frames === scriptRows                  | v12.0 | ⬜   |            | 依赖现有 `scriptRowsToFrames`，未纳入 ST 自动化 |
 | IMP-T05 | ST-05 | Handoff ① → 选中 script + Dock                   | v11.1 | ✅   | 2026-06-10 | `AgentHandoffBar`          |
 | IMP-T06 | ST-06 | Build patch 加 video，锚定 image 仍在                | v11.1 | ✅   | 2026-06-10 | `applyGraphPatch.test.ts`  |
 | IMP-T07 | ST-07 | checkpoint 计划确认后不自动 startRun                   | v11.1 | ✅   | 2026-06-10 | script-to-film checkpoint  |
@@ -204,12 +204,12 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 ### 单测清单（v12 DoD）
 
 
-| 序号      | 项                                              | 状态  | 完成日期 | 备注  |
-| ------- | ---------------------------------------------- | --- | ---- | --- |
-| IMP-U01 | `shotSpecToScriptRows` 映射 + clamp + block/warn | ⬜   |      |     |
-| IMP-U02 | `film-type-classifier` studio/lite 打分          | ⬜   |      |     |
-| IMP-U03 | `applyProductionPlan` skeleton 节点数             | ⬜   |      |     |
-| IMP-U04 | `parseProductionPlan` / session 往返             | ⬜   |      |     |
+| 序号      | 项                                              | 状态  | 完成日期       | 备注  |
+| ------- | ---------------------------------------------- | --- | ---------- | --- |
+| IMP-U01 | `shotSpecToScriptRows` 映射 + clamp + block/warn | ✅   | 2026-06-11 | `shotSpecToScriptRows.test.ts` |
+| IMP-U02 | `film-type-classifier` studio/lite 打分          | ✅   | 2026-06-11 | `filmTypeClassifier.test.ts` |
+| IMP-U03 | `applyProductionPlan` skeleton 节点数             | ✅   | 2026-06-11 | `applyProductionPlan.test.ts` |
+| IMP-U04 | `parseProductionPlan` / session 往返             | ⬜   |            | 无 LLM 解析器；session 往返单测待补 |
 
 
 ---
@@ -223,7 +223,8 @@ v11.0 → v11.1 → v11.2 → v12.0 → v12.1 → v12.2
 | 2026-06-10 | v11.0 Slice A 代码：IMP-001～011、IMP-T08 ✅；IMP-012 跑表待手工 |
 | 2026-06-10 | v11.1 Slice B：GraphPatch、Plan/Build、Handoff、checkpoint；IMP-T05～07 ✅ |
 | 2026-06-10 | IMP-012 / IMP-T09 跑表完成（用户确认） |
-| 2026-06-10 | IMP-012 / IMP-T09 跑表完成（用户确认） |
+| 2026-06-11 | **v12.0 Wave 1**：IMP-101～107、109～113、120 ✅；IMP-108（LLM ShotSpec）⬜ |
+| 2026-06-11 | **v12.2 Wave 3**：IMP-131～134 ✅；Scene checkpoint + rebalance + compose 选用版 + ST 冒烟单测 |
 
 
 ---

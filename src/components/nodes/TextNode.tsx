@@ -27,6 +27,8 @@ function TextNodeComponent({ id, data: rawData, selected }: NodeProps) {
   const edges = useCanvasStore((s) => s.edges)
   const data = normalizeTextNodeData((rawData ?? {}) as Record<string, unknown>)
   const modelId = typeof data.modelId === 'string' ? data.modelId : undefined
+  const isGenerating = data.isGenerating === true
+  const progress = typeof data.progress === 'number' ? data.progress : 0
   const variant = useMemo(() => getNodeVisualVariant(id), [id])
 
   const inputPorts = useMemo(() => {
@@ -115,6 +117,15 @@ function TextNodeComponent({ id, data: rawData, selected }: NodeProps) {
           </div>
         ) : (
           <div className="text-note-node__blank" aria-hidden />
+        )}
+
+        {isGenerating && (
+          <div className="text-note-node__overlay" aria-hidden>
+            <div className="text-note-node__spinner" />
+            {progress > 0 && (
+              <span className="text-note-node__progress">{Math.round(progress)}%</span>
+            )}
+          </div>
         )}
 
         {inputPorts.map((port) => (

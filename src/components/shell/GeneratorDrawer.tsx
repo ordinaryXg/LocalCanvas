@@ -21,7 +21,6 @@ export function GeneratorDrawer({ containerRef }: GeneratorDrawerProps) {
 
   const resizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const drawerRef = useRef<HTMLDivElement>(null)
-  const prevSelectedIdRef = useRef<string | null>(null)
   const [containerHeight, setContainerHeight] = useState(800)
 
   useEffect(() => {
@@ -58,15 +57,10 @@ export function GeneratorDrawer({ containerRef }: GeneratorDrawerProps) {
 
   useEffect(() => {
     if (mode !== 'canvas') return
-    const id = selectedNode?.id ?? null
-    if (id && id !== prevSelectedIdRef.current) {
-      setOpen(true)
-    }
-    if (!id) {
+    if (!selectedNode) {
       setOpen(false)
     }
-    prevSelectedIdRef.current = id
-  }, [selectedNode?.id, mode, setOpen, selectedNode])
+  }, [mode, selectedNode, setOpen])
 
   const nodeGenerating =
     selectedNode?.data &&

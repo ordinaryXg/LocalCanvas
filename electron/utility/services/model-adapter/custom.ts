@@ -240,10 +240,14 @@ export class CustomAdapter extends ModelAdapter {
       pollCount++
 
       if (pollConfig.endpoint) {
-        const data = currentData as Record<string, unknown>
-        const pollUrl = pollConfig.endpoint.replace('{id}', String(data.id || ''))
-        const res = await axios.get(pollUrl, { headers: this.config.headers, timeout: 10000 })
-        currentData = res.data
+        try {
+          const data = currentData as Record<string, unknown>
+          const pollUrl = pollConfig.endpoint.replace('{id}', String(data.id || ''))
+          const res = await axios.get(pollUrl, { headers: this.config.headers, timeout: 30000 })
+          currentData = res.data
+        } catch (err) {
+          throw this.wrapError(err)
+        }
       }
     }
 
@@ -252,25 +256,54 @@ export class CustomAdapter extends ModelAdapter {
       'custom',
       AdapterErrorCode.CONNECTION_TIMEOUT,
       true,
-      '自定义端点轮询超时',
+      '自定义端点轮询超时，请检查 poll 地址与网络',
     )
   }
 
   private async downloadFile(url: string, type: 'image' | 'video' | 'audio'): Promise<string> {
-    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 120000 })
-    await mkdir(this.outputDir, { recursive: true })
-    const ext = type === 'image' ? 'png' : type === 'video' ? 'mp4' : 'mp3'
-    const outputPath = join(this.outputDir, `custom_${Date.now()}.${ext}`)
-    ensureDiskSpace(outputPath, res.data.byteLength)
-    await writeFile(outputPath, Buffer.from(res.data))
-    return outputPath
+    try {
+      const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 120000 })
+      await mkdir(this.outputDir, { recursive: true })
+      const ext = type === 'image' ? 'png' : type === 'video' ? 'mp4' : 'mp3'
+      const outputPath = join(this.outputDir, `custom_${Date.now()}.${ext}`)
+      ensureDiskSpace(outputPath, res.data.byteLength)
+      await writeFile(outputPath, Buffer.from(res.data))
+      return outputPath
+    } catch (err) {
+      throw this.wrapError(err)
+    }
   }
 
   private wrapError(err: unknown): AdapterError {
     if (err instanceof AdapterError) return err
     const status = axios.isAxiosError(err) ? err.response?.status : undefined
     const message = axios.isAxiosError(err) ? err.message : String(err)
+    const netCode = axios.isAxiosError(err) ? err.code : undefined
 
+    if (
+      netCode === 'ETIMEDOUT' ||
+      netCode === 'ECONNABORTED' ||
+      message.includes('ETIMEDOUT')
+    ) {
+      return new AdapterError(
+        message,
+        'custom',
+        AdapterErrorCode.CONNECTION_TIMEOUT,
+        true,
+        '连接自定义 API 超时，请检查 endpoint / poll 地址、网络或代理',
+        err instanceof Error ? err : undefined,
+      )
+    }
+    if (netCode === 'ECONNREFUSED' || netCode === 'ENOTFOUND' || netCode === 'EAI_AGAIN') {
+      return new AdapterError(
+        message,
+        'custom',
+        AdapterErrorCode.CONNECTION_REFUSED,
+        true,
+        '无法连接自定义 API，请检查 endpoint 地址是否正确',
+        err instanceof Error ? err : undefined,
+      )
+    }
     if (status === 401) {
       return new AdapterError(message, 'custom', AdapterErrorCode.AUTH_FAILED, false, '自定义端点认证失败')
     }

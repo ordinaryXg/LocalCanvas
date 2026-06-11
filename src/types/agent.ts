@@ -1,5 +1,79 @@
 export type WorkflowExecutionMode = 'manual' | 'auto' | 'checkpoint'
 
+export type ProductionTrack = 'lite' | 'studio'
+
+export type ShotProductionMode = 'i2v' | 't2v' | 'flf' | 'ref-sheet'
+
+export type StudioTemplateId =
+  | 'brand-spot-30s'
+  | 'narrative-short'
+  | 'product-demo'
+  | 'montage-broll'
+
+export type ProductionExpansion = 'skeleton' | 'per-shot' | 'full'
+
+export interface ProductionBrief {
+  title: string
+  filmType: string
+  targetDurationSec: number
+  aspectRatio: string
+  tone: string
+  mustInclude: string
+  track?: ProductionTrack
+}
+
+export interface ShotSpec {
+  sequence: number
+  id?: string
+  beat?: string
+  sceneId?: string
+  description: string
+  prompt: string
+  durationSec: number
+  camera: string
+  productionMode?: ShotProductionMode
+  dialogue?: string
+  vo?: string
+}
+
+export interface ScriptProductionMeta {
+  brief?: ProductionBrief
+  shots?: Array<{
+    sequence: number
+    beat?: string
+    sceneId?: string
+    mode?: ShotProductionMode
+  }>
+  appliedFrom?: { productionPlanId?: string; templateId?: string; at: string }
+}
+
+export interface DurationBudgetResult {
+  ok: boolean
+  targetSec: number
+  sumSec: number
+  deltaSec: number
+  level: 'ok' | 'warn' | 'block'
+}
+
+export interface ProductionPlan {
+  version: 1
+  intent: string
+  summary: string
+  templateId: StudioTemplateId | string
+  track: 'studio'
+  brief: ProductionBrief
+  shots: ShotSpec[]
+  workflow: WorkflowPlan
+  executionMode: 'checkpoint'
+  checkpointAfter?: Array<'script' | 'storyboard'>
+  estimatedSteps: number
+  durationBudget: DurationBudgetResult
+  expansion?: ProductionExpansion
+  takesPerShot?: number
+  /** 叙事片：展开子图 DAG 在每个 scene 末暂停 */
+  sceneCheckpoints?: boolean
+}
+
 export interface WorkflowPlan {
   version: 1
   intent: string
@@ -72,6 +146,10 @@ export interface AgentMessage {
   role: 'user' | 'assistant'
   content: string
   plan?: WorkflowPlan
+  planWarnings?: string[]
+  productionPlan?: ProductionPlan
+  patch?: GraphPatch
+  patchWarnings?: string[]
   timestamp: string
 }
 
@@ -85,6 +163,7 @@ export interface SuggestedTemplate {
 export interface AgentChatResult {
   reply: string
   plan?: WorkflowPlan
+  productionPlan?: ProductionPlan
   patch?: GraphPatch
   sessionId: string
   skillId?: string
@@ -100,6 +179,7 @@ export interface AgentSessionDetail {
   projectId?: string
   messages: AgentMessage[]
   lastPlan?: WorkflowPlan
+  lastProductionPlan?: ProductionPlan
   updatedAt: string
 }
 
@@ -118,5 +198,6 @@ export interface AgentSessionSummary {
   title?: string
   projectId?: string
   lastPlan?: WorkflowPlan
+  lastProductionPlan?: ProductionPlan
   updatedAt: string
 }

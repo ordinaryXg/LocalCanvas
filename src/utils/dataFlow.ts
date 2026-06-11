@@ -7,6 +7,7 @@ import {
   normalizeClip,
 } from './composeSequence'
 import { textNodeOutput } from './textNodeOutput'
+import { isImageReferenceHandle, listImageReferenceEdges } from './videoReferenceSlots'
 
 export interface DataFlowPatch {
   nodeId: string
@@ -44,7 +45,7 @@ function isDataFlowEdge(source: Node, target: Node, targetHandle: string | null 
   if (source.type === 'script' && targetHandle === 'prompt') {
     return target.type === 'image' || target.type === 'video'
   }
-  if (source.type === 'image' && target.type === 'image' && targetHandle === 'reference') {
+  if (source.type === 'image' && target.type === 'image' && isImageReferenceHandle(targetHandle)) {
     return true
   }
   if (source.type === 'image' && target.type === 'video') {
@@ -122,7 +123,11 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
       }
     }
 
-    if (sourceNode.type === 'image' && targetNode.type === 'image' && targetHandle === 'reference') {
+    if (
+      sourceNode.type === 'image' &&
+      targetNode.type === 'image' &&
+      isImageReferenceHandle(targetHandle)
+    ) {
       const out = imageNodeOutput(sourceNode)
       if (out.src && !valuesEqual(targetData.referenceSrc, out.src)) {
         mergePatch(targetNode.id, {
@@ -283,7 +288,7 @@ export function computeDataFlowPatches(nodes: Node[], edges: Edge[]): DataFlowPa
       }
     }
 
-    if (node.type === 'image' && !hasIncoming(node.id, 'reference')) {
+    if (node.type === 'image' && listImageReferenceEdges(activeEdges, node.id).length === 0) {
       if (data.referenceSrc || data.referenceAssetPath) {
         mergePatch(node.id, { referenceSrc: undefined, referenceAssetPath: undefined })
       }

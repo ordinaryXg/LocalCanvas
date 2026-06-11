@@ -273,12 +273,23 @@ export interface LocalCanvasAPI {
       sessionId?: string
       disabledSkills?: string[]
       freePlan?: boolean
+      defaultTrack?: 'auto' | 'lite' | 'studio'
     }) => Promise<import('./agent').AgentChatResult>
     buildFromTemplate: (payload: {
       skillId: string
       intent: string
       sessionId?: string
       disabledSkills?: string[]
+      defaultTrack?: 'auto' | 'lite' | 'studio'
+      brief?: Partial<import('./agent').ProductionBrief>
+      creativeBible?: import('./project').CreativeBibleEntry[]
+      takesPerShot?: number
+    }) => Promise<import('./agent').AgentChatResult>
+    expandShots: (payload: {
+      productionPlan: import('./agent').ProductionPlan
+      anchorNodeIds: string[]
+      maxShots?: number
+      referenceImageNodeId?: string
     }) => Promise<import('./agent').AgentChatResult>
     buildPatch: (payload: {
       message: string

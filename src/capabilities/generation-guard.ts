@@ -13,7 +13,7 @@ export type GenerationGuardKind = 'text_llm' | 'image' | 'video' | 'audio'
  */
 export const GENERATION_CONSUMED_HANDLES: Record<GenerationGuardKind, readonly string[]> = {
   text_llm: ['image', ...listLlmVisionImageHandles(20)],
-  image: ['prompt', 'reference'],
+  image: ['prompt', 'reference', ...listVideoReferenceHandles(14)],
   video: [
     'prompt',
     'firstFrame',

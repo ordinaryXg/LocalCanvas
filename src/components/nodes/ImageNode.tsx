@@ -54,6 +54,7 @@ function ImageNodeComponent({ id, data, selected }: NodeProps) {
   const inlineImageSrc = typeof data.imageSrc === 'string' ? data.imageSrc : undefined
   const hasImage = !!(inlineImageSrc || imageAssetPath)
   const isGenerating = data.isGenerating === true
+  const progress = typeof data.progress === 'number' ? data.progress : 0
   const errorMessage = typeof data.error === 'string' ? data.error : undefined
 
   const { src: mediaSrc, loading: mediaLoading } = useLazyAssetBlob(
@@ -197,6 +198,16 @@ function ImageNodeComponent({ id, data, selected }: NodeProps) {
           {(mediaLoading || isGenerating) && (
             <div className="image-node__overlay" aria-hidden>
               <div className="image-node__spinner" />
+              {isGenerating && (
+                <div className="absolute inset-x-2 bottom-2">
+                  <div className="w-full bg-black/50 rounded-full h-1">
+                    <div
+                      className="bg-[var(--node-image)] h-1 rounded-full transition-all"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -21,6 +21,7 @@ export function describeConnectionReject(
     targetType,
     targetNode?.data?.modelId as string | undefined,
     edges,
+    targetNode?.data as Record<string, unknown> | undefined,
   )
   if (isUnifiedInboundUnresolved(targetType, connection.targetHandle, normalized.targetHandle)) {
     return '请选择目标输入端口'

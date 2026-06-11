@@ -27,3 +27,22 @@ export function countVideoReferenceEdges(
     (e) => e.target === targetNodeId && isVideoReferenceImageHandle(e.targetHandle),
   ).length
 }
+
+/** 图像节点参考图：单槽 `reference` 或多槽 `reference1…referenceN` */
+export function isImageReferenceHandle(handle: string | null | undefined): boolean {
+  return !!handle && (handle === 'reference' || isVideoReferenceImageHandle(handle))
+}
+
+export function listImageReferenceEdges<
+  T extends { id: string; source: string; target: string; targetHandle?: string | null },
+>(edges: T[], targetNodeId: string): T[] {
+  return edges
+    .filter((e) => e.target === targetNodeId && isImageReferenceHandle(e.targetHandle))
+    .sort((a, b) => {
+      const indexA =
+        a.targetHandle === 'reference' ? 0 : referenceIndexFromHandle(a.targetHandle ?? '')
+      const indexB =
+        b.targetHandle === 'reference' ? 0 : referenceIndexFromHandle(b.targetHandle ?? '')
+      return indexA - indexB
+    })
+}

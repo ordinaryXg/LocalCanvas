@@ -21,6 +21,7 @@ const COMPAT_MAP: Record<string, string[]> = {
     ...IMAGE_REFERENCE_TARGETS,
     'video:firstFrame',
     'video:lastFrame',
+    'video:imageInbox',
     ...VIDEO_REFERENCE_TARGETS,
     ...TEXT_VISION_TARGETS,
   ],

@@ -54,23 +54,26 @@ export function WorkflowPlanPreview({
           </li>
         ))}
       </ol>
-      <div className="flex gap-2">
-        {blocking ? (
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onConfirm()
+          }}
+          disabled={confirmDisabled}
+          className="flex-1 min-w-[120px] py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {confirmDisabled ? t('agent.briefConfirmFirst') : t('agent.applyPlan')}
+        </button>
+        {blocking && (
           <button
             type="button"
             onClick={() => openSettings({ tab: 'agent', focus: 'readiness' })}
-            className="flex-1 py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-hover"
+            className="px-3 py-1.5 text-xs rounded border border-accent/40 text-accent hover:bg-accent/10"
           >
             {t('agent.goToSettings')}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={confirmDisabled}
-            className="flex-1 py-1.5 text-xs rounded bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {confirmDisabled ? t('agent.briefConfirmFirst') : t('agent.applyPlan')}
           </button>
         )}
         <button

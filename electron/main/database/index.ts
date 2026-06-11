@@ -53,6 +53,20 @@ function migrateSchema(database: Database.Database): void {
   migrateV5Schema(database)
   migrateV6CapabilityCache(database)
   migrateV7CapabilityProbe(database)
+  migrateV12AgentProductionPlan(database)
+  migrateV121ProjectMetadata(database)
+}
+
+function migrateV12AgentProductionPlan(database: Database.Database): void {
+  if (!columnExists(database, 'agent_sessions', 'last_production_plan')) {
+    database.exec('ALTER TABLE agent_sessions ADD COLUMN last_production_plan TEXT')
+  }
+}
+
+function migrateV121ProjectMetadata(database: Database.Database): void {
+  if (!columnExists(database, 'projects', 'metadata')) {
+    database.exec("ALTER TABLE projects ADD COLUMN metadata TEXT DEFAULT '{}'")
+  }
 }
 
 function migrateV5Schema(database: Database.Database): void {

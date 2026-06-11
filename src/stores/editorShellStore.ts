@@ -104,11 +104,13 @@ interface EditorShellState {
   pendingSettingsFocus: SettingsFocus
   focusStyleChips: boolean
   scrollToGeneratorWarnings: boolean
+  nodeCanvasDragging: boolean
 
   setMode: (mode: EditorMode) => void
   toggleDrawer: (drawer: Exclude<DockDrawer, null>) => void
   closeDrawer: () => void
   setGeneratorDrawerOpen: (open: boolean) => void
+  setNodeCanvasDragging: (dragging: boolean) => void
   setGeneratorDrawerHeightRatio: (ratio: number) => void
   setInspectorCollapsed: (collapsed: boolean) => void
   setInspectorWidth: (width: number) => void
@@ -146,6 +148,7 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
   pendingSettingsFocus: null,
   focusStyleChips: false,
   scrollToGeneratorWarnings: false,
+  nodeCanvasDragging: false,
 
   setMode: (mode) => {
     persistMode(mode)
@@ -177,6 +180,8 @@ export const useEditorShellStore = create<EditorShellState>((set, get) => ({
   closeDrawer: () => set({ openDrawer: null }),
 
   setGeneratorDrawerOpen: (open) => set({ generatorDrawerOpen: open }),
+
+  setNodeCanvasDragging: (dragging) => set({ nodeCanvasDragging: dragging }),
 
   setGeneratorDrawerHeightRatio: (ratio) => {
     const clamped = Math.min(0.7, Math.max(0.25, ratio))

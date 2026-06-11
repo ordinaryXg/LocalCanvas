@@ -94,6 +94,8 @@ export function storyboardOverflowCount(
 
 export function storyboardStatusClass(status: StoryboardFrameStatus): string {
   switch (status) {
+    case 'generating':
+      return 'storyboard-node-strip__status--generating'
     case 'image':
       return 'storyboard-node-strip__status--image'
     case 'video':

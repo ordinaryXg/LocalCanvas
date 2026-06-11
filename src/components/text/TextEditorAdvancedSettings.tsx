@@ -67,11 +67,11 @@ export function TextEditorAdvancedSettings({
             </div>
           )}
           <div>
-            <label className="text-[10px] text-text-muted">系统提示（可选）</label>
+            <label className="text-[10px] text-text-muted">系统提示（可选，留空则用默认提示词工程约束）</label>
             <input
               value={systemPrompt}
               onChange={(e) => onSystemPromptChange(e.target.value)}
-              placeholder="设定 AI 角色或风格…"
+              placeholder="留空：只输出单条英文生图/生视频提示词"
               className="w-full mt-1 bg-bg-tertiary text-text-primary text-xs p-2 rounded outline-none border border-transparent focus:border-border"
             />
           </div>

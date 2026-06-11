@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import type { VideoModelConfig } from '../../types/config'
+import type { ImageModelConfig, VideoModelConfig } from '../../types/config'
 import { useCanvasStore } from '../../stores/canvasStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useNodeMediaUpload } from '../../hooks/useNodeMedia'
@@ -19,15 +19,14 @@ import { importGeneratedMedia } from '../../utils/generatedMedia'
 import { resolveImageRefFromNodeId } from '../../utils/resolveImageRefForApi'
 import { resolveMediaRefFromNodeId } from '../../utils/resolveMediaRefForApi'
 import { resolveVideoFrameRefForApi } from '../../utils/resolveVideoFrameRef'
-import { NodeImageThumb } from '../common/NodeImageThumb'
 import { useModelGeneration } from '../../hooks/useModelGeneration'
 import { ResizableTextarea } from '../common/ResizableTextarea'
 import { STYLE_PRESETS, applyStyleToPrompt, getStylePreset } from '../../constants/stylePresets'
 import { StylePresetChips } from './StylePresetChips'
+import { resolveDefaultVideoModelId, resolveEffectiveArkApiKey } from '../../utils/configResolve'
 import {
   SEEDANCE_T2V_RATIOS,
   SEEDANCE_CAMERA_PROMPTS,
-  DEFAULT_SEEDANCE_VIDEO_MODEL,
 } from '../../constants/seedance'
 import {
   isVideoReferenceImageHandle,
@@ -44,6 +43,8 @@ import {
 import { nodeDisplayTitle } from '../../utils/nodeNaming'
 import { CurrentVideoPreview } from './CurrentVideoPreview'
 import { ResizablePreviewPane, PreviewWidthSplitter } from './ResizablePreviewPane'
+import { VideoInputMaterialPanel, useVideoInputModes } from './VideoInputMaterialPanel'
+import { countUnassignedVideoImages } from '../../utils/videoInputLayout'
 import { trimVideoAsset, resolveAssetAbsolutePath } from '../../hooks/useCompose'
 import { generateNodeId } from '../../utils/id'
 
@@ -109,17 +110,36 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
   )
 
   const [prompt, setPrompt] = useState((data.prompt as string) || '')
-  const [modelId, setModelId] = useState((data.modelId as string) || DEFAULT_SEEDANCE_VIDEO_MODEL.id)
+  const [modelId, setModelId] = useState((data.modelId as string) || '')
   const [duration, setDuration] = useState((data.duration as number) || 5)
   const [ratio, setRatio] = useState((data.ratio as string) || '16:9')
-  const [resolution, setResolution] = useState(
-    (data.resolution as string) || DEFAULT_SEEDANCE_VIDEO_MODEL.default_params.resolution,
-  )
+  const [resolution, setResolution] = useState((data.resolution as string) || '720p')
   const [generateAudio, setGenerateAudio] = useState(data.generateAudio !== false)
   const [camera, setCamera] = useState((data.camera as string) || '静止')
   const [styleId, setStyleId] = useState((data.styleId as string) || '')
   const [negativePrompt, setNegativePrompt] = useState((data.negativePrompt as string) || '')
   const [videoModels, setVideoModels] = useState<VideoModelConfig[]>([])
+  const [imageModels, setImageModels] = useState<ImageModelConfig[]>([])
+
+  useEffect(() => {
+    setRatio((data.ratio as string) || '16:9')
+  }, [nodeId, data.ratio])
+
+  useEffect(() => {
+    setResolution((data.resolution as string) || '720p')
+  }, [nodeId, data.resolution])
+
+  useEffect(() => {
+    setDuration(typeof data.duration === 'number' ? data.duration : 5)
+  }, [nodeId, data.duration])
+
+  useEffect(() => {
+    setCamera((data.camera as string) || '静止')
+  }, [nodeId, data.camera])
+
+  useEffect(() => {
+    setGenerateAudio(data.generateAudio !== false)
+  }, [nodeId, data.generateAudio])
 
   const { isGenerating, progress, lastError, run, cancel } = useModelGeneration(nodeId, (pct) => {
     updateNodeData(nodeId, { progress: pct })
@@ -154,15 +174,27 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
   useEffect(() => {
     void window.api.config.read().then((config) => {
       setVideoModels(config.video_models)
-      if (!modelId && config.settings.default_video_model) {
-        setModelId(config.settings.default_video_model)
+      setImageModels(config.image_models)
+      const stored = (data.modelId as string) || ''
+      if (stored) {
+        setModelId(stored)
+        return
+      }
+      const resolved = resolveDefaultVideoModelId(config)
+      if (resolved) {
+        setModelId(resolved)
+        updateNodeData(nodeId, { modelId: resolved })
       }
     })
-  }, [modelId])
+  }, [nodeId, data.modelId, updateNodeData])
 
   const selectedModel = videoModels.find((m) => m.id === modelId)
+  const effectiveArkApiKey = selectedModel
+    ? resolveEffectiveArkApiKey(selectedModel, videoModels, imageModels)
+    : ''
   const isSeedance = selectedModel?.provider === 'volcengine_seedance'
   const ui = getVideoGeneratorUi(modelId, selectedModel?.model)
+  const inputModes = useVideoInputModes(nodeId, data, ui)
   const resolutionOptions = ui.resolutions
   const durationOptions = ui.durations
   const connectedHandles = edges
@@ -185,16 +217,23 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
 
   useEffect(() => {
     if (hasFrameInput) {
-      setRatio('adaptive')
+      if (ratio !== 'adaptive') {
+        setRatio('adaptive')
+        updateNodeData(nodeId, { ratio: 'adaptive' })
+      }
       return
     }
     if (
       ratio === 'adaptive' ||
       !SEEDANCE_T2V_RATIOS.includes(ratio as (typeof SEEDANCE_T2V_RATIOS)[number])
     ) {
-      setRatio('16:9')
+      const next = '16:9'
+      if (ratio !== next) {
+        setRatio(next)
+        updateNodeData(nodeId, { ratio: next })
+      }
     }
-  }, [hasFrameInput, ratio])
+  }, [hasFrameInput, nodeId, ratio, updateNodeData])
 
   useEffect(() => {
     if (!selectedModel) return
@@ -203,8 +242,9 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
       (ui.versionLabel === '1.0' ? '720p' : '1080p')
     if (!resolutionOptions.includes(resolution as (typeof resolutionOptions)[number])) {
       setResolution(modelDefaultRes)
+      updateNodeData(nodeId, { resolution: modelDefaultRes })
     }
-  }, [selectedModel, ui.versionLabel, resolution, resolutionOptions])
+  }, [selectedModel, ui.versionLabel, resolution, resolutionOptions, nodeId, updateNodeData])
 
   const handleTrim = useCallback(
     async (start: number, end: number) => {
@@ -245,6 +285,10 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
 
   const handleGenerate = async () => {
     if (!modelId || !prompt || !currentProjectId) return
+    const unassigned = countUnassignedVideoImages(nodeId, edges)
+    if (unassigned > 0) {
+      showToast(`${unassigned} 张图片未分配角色，不会参与本次生成`, 'warning')
+    }
     updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
 
     try {
@@ -426,7 +470,7 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               {selectedModel?.name ?? 'Seedance 视频'}
             </span>
             <span className="text-[10px] text-text-muted">v{ui.versionLabel}</span>
-            {isSeedance && !selectedModel?.api_key && (
+            {isSeedance && selectedModel && !effectiveArkApiKey && (
               <span className="text-[10px] text-danger">未配置 API Key</span>
             )}
           </div>
@@ -442,7 +486,7 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
             >
               {videoModels.length === 0 && (
-                <option value={DEFAULT_SEEDANCE_VIDEO_MODEL.id}>Doubao Seedance 2.0（待配置）</option>
+                <option value="">请先在设置中配置视频模型</option>
               )}
               {videoModels.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -482,7 +526,11 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               <label className="text-[10px] text-text-muted">比例</label>
               <select
                 value={ratio}
-                onChange={(e) => setRatio(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setRatio(next)
+                  updateNodeData(nodeId, { ratio: next })
+                }}
                 disabled={hasFrameInput}
                 className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none disabled:opacity-50"
               >
@@ -497,7 +545,11 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               <label className="text-[10px] text-text-muted">分辨率</label>
               <select
                 value={resolution}
-                onChange={(e) => setResolution(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setResolution(next)
+                  updateNodeData(nodeId, { resolution: next })
+                }}
                 className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
               >
                 {resolutionOptions.map((r) => (
@@ -514,7 +566,11 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               <label className="text-[10px] text-text-muted">时长</label>
               <select
                 value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value, 10))}
+                onChange={(e) => {
+                  const next = parseInt(e.target.value, 10)
+                  setDuration(next)
+                  updateNodeData(nodeId, { duration: next })
+                }}
                 className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
               >
                 {durationOptions.map((d) => (
@@ -528,7 +584,11 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               <label className="text-[10px] text-text-muted">运镜</label>
               <select
                 value={camera}
-                onChange={(e) => setCamera(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setCamera(next)
+                  updateNodeData(nodeId, { camera: next })
+                }}
                 className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
               >
                 {cameraPresets.map((c) => (
@@ -545,7 +605,11 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
               <input
                 type="checkbox"
                 checked={generateAudio}
-                onChange={(e) => setGenerateAudio(e.target.checked)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  setGenerateAudio(next)
+                  updateNodeData(nodeId, { generateAudio: next })
+                }}
                 className="rounded"
               />
               生成同步音频
@@ -554,52 +618,16 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
 
           <div>
             <label className="text-[10px] text-text-muted">输入素材</label>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {(firstFrameEdge || hasSyncedFirstFrame) && (
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-14 h-10 rounded overflow-hidden border border-border">
-                    <NodeImageThumb
-                      projectId={currentProjectId}
-                      nodeId={firstFrameEdge?.source}
-                      src={data.firstFrameSrc as string | undefined}
-                      assetPath={data.firstFrameAssetPath as string | undefined}
-                      alt="首帧"
-                    />
-                  </div>
-                  <span className="text-[9px] text-text-muted">首帧</span>
-                </div>
-              )}
-              {(lastFrameEdge || hasSyncedLastFrame) && (
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-14 h-10 rounded overflow-hidden border border-border">
-                    <NodeImageThumb
-                      projectId={currentProjectId}
-                      nodeId={lastFrameEdge?.source}
-                      src={data.lastFrameSrc as string | undefined}
-                      assetPath={data.lastFrameAssetPath as string | undefined}
-                      alt="尾帧"
-                    />
-                  </div>
-                  <span className="text-[9px] text-text-muted">尾帧</span>
-                </div>
-              )}
-              {referenceEdges.map((edge) => (
-                <div key={edge.id} className="flex flex-col items-center gap-0.5">
-                  <div className="w-10 h-10 rounded overflow-hidden border border-border">
-                    <NodeImageThumb projectId={currentProjectId} nodeId={edge.source} alt="参考" />
-                  </div>
-                  <span className="text-[9px] text-text-muted">
-                    参考{referenceIndexFromHandle(edge.targetHandle!) + 1}
-                  </span>
-                </div>
-              ))}
-              {!firstFrameEdge &&
-                !hasSyncedFirstFrame &&
-                !lastFrameEdge &&
-                !hasSyncedLastFrame &&
-                referenceEdges.length === 0 && (
-                  <p className="text-[10px] text-text-muted italic">连接图片/视频/音频到输入口</p>
-                )}
+            <div className="mt-1">
+              <VideoInputMaterialPanel
+                nodeId={nodeId}
+                projectId={currentProjectId}
+                ui={ui}
+                inputModes={inputModes}
+                onInputModesChange={(modes) =>
+                  updateNodeData(nodeId, { inputModes: modes })
+                }
+              />
             </div>
             {hasFrameInput && (
               <p className="text-[10px] text-text-muted mt-1">已接入分镜图，比例 adaptive</p>

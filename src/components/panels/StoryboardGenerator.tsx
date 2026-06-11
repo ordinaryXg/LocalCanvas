@@ -28,6 +28,7 @@ export function StoryboardGenerator({ nodeId }: StoryboardGeneratorProps) {
     regenerateFrameImage,
     regenerateFrameVideo,
     retryAllFailedFrames,
+    selectFrameTake,
     generating,
     progress,
   } = useStoryboardGroup(nodeId)
@@ -171,6 +172,7 @@ export function StoryboardGenerator({ nodeId }: StoryboardGeneratorProps) {
           onToggleSelect={toggleFrameSelection}
           onRetryImage={(frameId) => void regenerateFrameImage(frameId)}
           onRetryVideo={(frameId) => void regenerateFrameVideo(frameId)}
+          onSelectTake={selectFrameTake}
           fillHeight
         />
       </div>

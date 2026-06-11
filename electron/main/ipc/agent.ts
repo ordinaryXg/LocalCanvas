@@ -15,6 +15,7 @@ export function registerAgentIpc(): void {
         sessionId?: string
         disabledSkills?: string[]
         freePlan?: boolean
+        defaultTrack?: 'auto' | 'lite' | 'studio'
       },
     ) => {
       try {
@@ -34,15 +35,23 @@ export function registerAgentIpc(): void {
           message: payload.message,
           disabledSkills: payload.disabledSkills,
           freePlan: payload.freePlan,
+          defaultTrack: payload.defaultTrack,
         })
 
         const assistantMsg: AgentMessage = {
           role: 'assistant',
           content: result.reply,
           plan: result.plan,
+          productionPlan: result.productionPlan,
+          planWarnings: result.planWarnings,
           timestamp: new Date().toISOString(),
         }
-        agentSessionRepository.appendMessage(sessionId, assistantMsg, result.plan)
+        agentSessionRepository.appendMessage(
+          sessionId,
+          assistantMsg,
+          result.plan,
+          result.productionPlan,
+        )
 
         return { ...result, sessionId }
       } catch (error) {
@@ -59,6 +68,7 @@ export function registerAgentIpc(): void {
       title: s.title,
       projectId: s.projectId,
       lastPlan: s.lastPlan,
+      lastProductionPlan: s.lastProductionPlan,
       updatedAt: s.updatedAt,
     }))
   })
@@ -72,6 +82,7 @@ export function registerAgentIpc(): void {
       projectId: session.projectId,
       messages: session.messages,
       lastPlan: session.lastPlan,
+      lastProductionPlan: session.lastProductionPlan,
       updatedAt: session.updatedAt,
     }
   })
@@ -150,6 +161,22 @@ export function registerAgentIpc(): void {
         intent: string
         sessionId?: string
         disabledSkills?: string[]
+        defaultTrack?: 'auto' | 'lite' | 'studio'
+        brief?: {
+          title?: string
+          filmType?: string
+          targetDurationSec?: number
+          aspectRatio?: string
+          tone?: string
+          mustInclude?: string
+        }
+        creativeBible?: Array<{
+          id: string
+          kind: string
+          name: string
+          visualDescription: string
+        }>
+        takesPerShot?: number
       },
     ) => {
       try {
@@ -171,21 +198,53 @@ export function registerAgentIpc(): void {
           skillId: payload.skillId,
           intent: payload.intent,
           disabledSkills: payload.disabledSkills,
+          defaultTrack: payload.defaultTrack,
+          brief: payload.brief,
+          creativeBible: payload.creativeBible,
+          takesPerShot: payload.takesPerShot,
         })
 
         const assistantMsg: AgentMessage = {
           role: 'assistant',
           content: result.reply,
           plan: result.plan as AgentMessage['plan'],
+          productionPlan: result.productionPlan,
+          planWarnings: result.planWarnings,
           timestamp: new Date().toISOString(),
         }
-        agentSessionRepository.appendMessage(sessionId, assistantMsg, result.plan as AgentMessage['plan'])
+        agentSessionRepository.appendMessage(
+          sessionId,
+          assistantMsg,
+          result.plan as AgentMessage['plan'],
+          result.productionPlan,
+        )
 
         return { ...result, sessionId }
       } catch (error) {
         logger.error('agent:buildFromTemplate failed', error)
         const message = error instanceof Error ? error.message : String(error)
         return { reply: '', sessionId: payload.sessionId ?? '', error: 'AGENT_FAILED', message }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    'agent:expandShots',
+    async (
+      _e,
+      payload: {
+        productionPlan: import('../../../src/types/agent').ProductionPlan
+        anchorNodeIds: string[]
+        maxShots?: number
+        referenceImageNodeId?: string
+      },
+    ) => {
+      try {
+        return await getUtilityClient().agentExpandShots(payload)
+      } catch (error) {
+        logger.error('agent:expandShots failed', error)
+        const message = error instanceof Error ? error.message : String(error)
+        return { reply: '', sessionId: '', error: 'AGENT_FAILED', message }
       }
     },
   )

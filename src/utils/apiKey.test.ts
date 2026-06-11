@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasUsableApiKey, isAuthRelatedMessage, sanitizeApiKey } from './apiKey'
+import { hasUsableApiKey, isAuthRelatedMessage, resolveFirstUsableApiKey, sanitizeApiKey } from './apiKey'
 
 describe('sanitizeApiKey', () => {
   it('trims and strips quotes', () => {
@@ -15,6 +15,14 @@ describe('hasUsableApiKey', () => {
 
   it('accepts normal keys', () => {
     expect(hasUsableApiKey('02178108439607279be1521b480472bd1aa7097703cfa203a5efd')).toBe(true)
+  })
+})
+
+describe('resolveFirstUsableApiKey', () => {
+  it('returns first valid key and skips duplicates', () => {
+    expect(resolveFirstUsableApiKey('', 'sk-xxx', 'ark-valid-key-12345678', 'ark-valid-key-12345678')).toBe(
+      'ark-valid-key-12345678',
+    )
   })
 })
 

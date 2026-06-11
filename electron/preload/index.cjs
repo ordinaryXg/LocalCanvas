@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
     listSkills: () => ipcRenderer.invoke('agent:listSkills'),
     buildFromTemplate: (payload) => ipcRenderer.invoke('agent:buildFromTemplate', payload),
     buildPatch: (payload) => ipcRenderer.invoke('agent:buildPatch', payload),
+    expandShots: (payload) => ipcRenderer.invoke('agent:expandShots', payload),
   },
   dag: {
     createRun: (payload) => ipcRenderer.invoke('dag:createRun', payload),

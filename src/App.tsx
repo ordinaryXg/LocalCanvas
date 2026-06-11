@@ -142,7 +142,7 @@ export default function App() {
         const data = await window.api.project.load(id)
         const nodes = await hydrateProjectNodes(id, data.nodes as Node[])
         loadProject(nodes, data.edges as Edge[], data.viewport)
-        setCurrentProject(id, name)
+        setCurrentProject(id, name, data.metadata)
         persistEditorSession(id, name)
         setView('editor')
 

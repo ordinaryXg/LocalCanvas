@@ -14,12 +14,14 @@ async function saveProjectToDisk(
   viewport: ReturnType<typeof useCanvasStore.getState>['viewport'],
 ): Promise<void> {
   const nodesWithAssets = await ensureNodeAssetsOnDisk(projectId, nodes)
+  const metadata = useProjectStore.getState().metadata
   const payload = buildProjectSavePayload({
     id: projectId,
     name: projectName,
     viewport,
     nodes: nodesWithAssets,
     edges,
+    metadata,
   })
   await window.api.project.save(JSON.stringify(payload))
 }

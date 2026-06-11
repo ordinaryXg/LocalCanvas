@@ -1,4 +1,5 @@
-import type { AppConfig } from '../types/config'
+import type { AppConfig, ImageModelConfig, VideoModelConfig } from '../types/config'
+import { resolveFirstUsableApiKey } from './apiKey'
 
 /** 解析可用的默认图像模型 config id */
 export function resolveDefaultImageModelId(config: AppConfig): string | null {
@@ -40,6 +41,35 @@ export function getImageModelConfig(config: AppConfig, modelId: string) {
 
 export function getVideoModelConfig(config: AppConfig, modelId: string) {
   return config.video_models.find((m) => m.id === modelId)
+}
+
+/** Seedance 模型可复用同账号 ARK Key（视频/图像模型间回退） */
+export function resolveEffectiveArkApiKey(
+  model: VideoModelConfig,
+  videoModels: VideoModelConfig[],
+  imageModels: ImageModelConfig[] = [],
+): string {
+  if (model.provider !== 'volcengine_seedance') {
+    return resolveFirstUsableApiKey(model.api_key)
+  }
+  return resolveFirstUsableApiKey(
+    model.api_key,
+    ...videoModels
+      .filter((m) => m.provider === 'volcengine_seedance')
+      .map((m) => m.api_key),
+    ...imageModels
+      .filter((m) => /volces|ark\.cn-beijing/i.test(m.endpoint ?? ''))
+      .map((m) => m.api_key),
+  )
+}
+
+export function resolveEffectiveArkApiKeyFromConfig(
+  config: AppConfig,
+  modelId: string,
+): string {
+  const model = getVideoModelConfig(config, modelId)
+  if (!model) return ''
+  return resolveEffectiveArkApiKey(model, config.video_models, config.image_models)
 }
 
 export function getLlmModelConfig(config: AppConfig, modelId: string) {

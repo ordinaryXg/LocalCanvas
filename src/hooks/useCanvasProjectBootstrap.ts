@@ -60,6 +60,9 @@ export function useCanvasProjectBootstrap({
           if (rawNodes.length === 0) return
           const hydrated = await hydrateProjectNodes(currentProjectId, rawNodes)
           loadProject(hydrated, data.edges as Edge[], data.viewport)
+          if (data.metadata) {
+            useProjectStore.getState().setMetadata(data.metadata)
+          }
         } catch {
           /* 由 openProject 负责主流程，此处仅兜底 */
         }

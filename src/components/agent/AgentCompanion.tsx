@@ -1,24 +1,21 @@
-import { useEffect } from 'react'
 import { AgentPanel } from '../panels/AgentPanel'
 import { useEditorShellStore } from '../../stores/editorShellStore'
 import { useAgentStore } from '../../stores/agentStore'
 
+/** 浮岛宽度：原 480px 再横向放大 60% → 768px */
+const FLOAT_WIDTH_CLASS = 'w-[768px] max-w-[calc(100%-2rem)]'
+/** 高度占画布区域比例，避免 bottom 定位时被挤出视口 */
+const FLOAT_HEIGHT_CLASS = 'h-[min(520px,calc(100%-2rem))] max-h-[min(520px,calc(100%-2rem))]'
+
 export function AgentCompanion() {
   const agentExpanded = useEditorShellStore((s) => s.agentExpanded)
   const agentPinned = useEditorShellStore((s) => s.agentPinned)
-  const generatorDrawerOpen = useEditorShellStore((s) => s.generatorDrawerOpen)
   const setAgentExpanded = useEditorShellStore((s) => s.setAgentExpanded)
   const setAgentPinned = useEditorShellStore((s) => s.setAgentPinned)
   const messages = useAgentStore((s) => s.messages)
   const pendingPlan = useAgentStore((s) => s.pendingPlan)
   const pendingPatch = useAgentStore((s) => s.pendingPatch)
   const hasUnread = messages.length > 0 || pendingPlan !== null || pendingPatch !== null
-
-  useEffect(() => {
-    if (generatorDrawerOpen && agentExpanded && !agentPinned) {
-      setAgentExpanded(false)
-    }
-  }, [generatorDrawerOpen, agentExpanded, agentPinned, setAgentExpanded])
 
   if (agentPinned) {
     return (
@@ -46,7 +43,7 @@ export function AgentCompanion() {
     <>
       {agentExpanded && (
         <div
-          className="fixed z-[70] bottom-4 right-4 w-80 max-h-[min(480px,70vh)] rounded-xl border border-[var(--studio-border)] bg-bg-secondary/95 backdrop-blur shadow-xl flex flex-col overflow-hidden"
+          className={`absolute z-[70] bottom-4 left-1/2 -translate-x-1/2 ${FLOAT_WIDTH_CLASS} ${FLOAT_HEIGHT_CLASS} rounded-xl border border-[var(--studio-border)] bg-bg-secondary/95 backdrop-blur shadow-xl flex flex-col overflow-hidden pointer-events-auto`}
           role="dialog"
           aria-label="Agent 对话"
         >
@@ -78,7 +75,7 @@ export function AgentCompanion() {
         <button
           type="button"
           onClick={() => setAgentExpanded(true)}
-          className={`fixed z-[70] bottom-4 right-4 w-14 h-14 rounded-full shadow-lg border border-[var(--studio-border)] bg-[var(--studio-surface)] flex items-center justify-center text-xl hover:bg-[var(--studio-surface-hover)] transition ${
+          className={`absolute z-[70] bottom-4 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full shadow-lg border border-[var(--studio-border)] bg-[var(--studio-surface)] flex items-center justify-center text-xl hover:bg-[var(--studio-surface-hover)] transition pointer-events-auto ${
             hasUnread ? 'ring-2 ring-[var(--studio-accent)]' : ''
           }`}
           title="Agent"

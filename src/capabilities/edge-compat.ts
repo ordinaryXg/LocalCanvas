@@ -8,6 +8,7 @@ import {
   countVideoReferenceEdges,
   isVideoReferenceImageHandle,
 } from '../utils/videoReferenceSlots'
+import { VIDEO_IMAGE_INBOX_HANDLE } from '../utils/videoInputLayout'
 import { resolveProfile } from './registry'
 import { sourceHandleToModality, targetHandleToSlotId } from './handle-slots'
 import type { EdgeCompatResult, ModelCapabilityProfile, ModelKind } from '../types/capability'
@@ -125,6 +126,23 @@ export function evaluateEdgeCompat(input: EvaluateEdgeCompatInput): EdgeCompatRe
   }
 
   const profile = resolveTargetProfile(targetModelId, targetApiModel, targetKind)
+
+  if (
+    targetType === 'video' &&
+    targetHandle === VIDEO_IMAGE_INBOX_HANDLE &&
+    modality === 'image'
+  ) {
+    const acceptsImage = profile.inputs.some(
+      (s) =>
+        s.modality === 'image' &&
+        (s.id === 'first_frame' || s.id === 'last_frame' || s.id === 'reference_image'),
+    )
+    if (acceptsImage) return { status: 'solid' }
+    return {
+      status: 'dashed_warn',
+      reason: `${profile.display_name} 不接受图片输入`,
+    }
+  }
 
   const slotId = targetHandleToSlotId(targetType, targetHandle)
   const match = findSlotForModality(profile, modality, slotId)

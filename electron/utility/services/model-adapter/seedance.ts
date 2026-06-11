@@ -263,7 +263,7 @@ export class SeedanceAdapter extends ModelAdapter {
       const status = (res.data.status as string) || ''
 
       this.emit('progress', {
-        taskId,
+        taskId: clientTaskId ?? taskId,
         nodeId,
         value: i + 1,
         max: maxAttempts,
@@ -297,12 +297,13 @@ export class SeedanceAdapter extends ModelAdapter {
           (res.data.error?.message as string) ||
           (res.data.message as string) ||
           `任务状态: ${status}`
+        const compliance = this.isSeedanceComplianceError(errMsg)
         throw new AdapterError(
           errMsg,
           'openai',
-          AdapterErrorCode.MODEL_ERROR,
-          status !== 'cancelled',
-          `Seedance 生成失败：${errMsg}`,
+          compliance ? AdapterErrorCode.INVALID_PARAMS : AdapterErrorCode.MODEL_ERROR,
+          !compliance && status !== 'cancelled',
+          this.mapSeedanceUserMessage(errMsg, 'Seedance 生成失败：'),
         )
       }
 
@@ -361,6 +362,27 @@ export class SeedanceAdapter extends ModelAdapter {
     }
 
     return {}
+  }
+
+  private isSeedanceComplianceError(detail: string): boolean {
+    const lower = detail.toLowerCase()
+    return lower.includes('real person') || detail.includes('真人')
+  }
+
+  private mapSeedanceUserMessage(detail: string, prefix?: string): string {
+    const lower = detail.toLowerCase()
+    if (lower.includes('real person') || detail.includes('真人')) {
+      return (
+        '输入图片可能包含真人照片，Seedance 默认拒绝此类素材。' +
+        '请改用 AI 生成图/插画、移除首帧/参考图中的真人照片，' +
+        '或在火山方舟开通「真人过白」并使用可公网访问的 URL 素材'
+      )
+    }
+    if (lower.includes('only url inputs are supported') || lower.includes('only url')) {
+      return '该能力仅支持 http(s) 公网 URL 素材，不支持 Base64。请换用 URL 或去掉相关参考图/视频'
+    }
+    const trimmed = detail.length > 120 ? `${detail.slice(0, 120)}…` : detail
+    return prefix ? `${prefix}${trimmed}` : trimmed
   }
 
   private wrapError(err: unknown): AdapterError {
@@ -437,12 +459,23 @@ export class SeedanceAdapter extends ModelAdapter {
       )
     }
 
+    if (this.isSeedanceComplianceError(detail)) {
+      return new AdapterError(
+        detail,
+        'openai',
+        AdapterErrorCode.INVALID_PARAMS,
+        false,
+        this.mapSeedanceUserMessage(detail),
+        err instanceof Error ? err : undefined,
+      )
+    }
+
     return new AdapterError(
       detail,
       'openai',
       AdapterErrorCode.MODEL_ERROR,
       true,
-      detail.length > 120 ? `${detail.slice(0, 120)}…` : detail,
+      this.mapSeedanceUserMessage(detail),
       err instanceof Error ? err : undefined,
     )
   }

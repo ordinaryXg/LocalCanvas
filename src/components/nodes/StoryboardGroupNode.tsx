@@ -39,7 +39,7 @@ function StoryboardStripCell({ frame, showOverflow, onClick }: CellProps) {
       type="button"
       className={`storyboard-node-strip__cell storyboard-node-strip__cell--interactive ${
         frame.status === 'failed' ? 'storyboard-node-strip__cell--failed' : ''
-      }`}
+      } ${frame.status === 'generating' ? 'storyboard-node-strip__cell--generating' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
         onClick?.(frame.id)
@@ -86,7 +86,7 @@ function StoryboardStripListRow({ frame, onClick }: { frame: StoryboardFrame; on
       type="button"
       className={`storyboard-node-strip__list-row storyboard-node-strip__cell--interactive ${
         frame.status === 'failed' ? 'storyboard-node-strip__list-row--failed' : ''
-      }`}
+      } ${frame.status === 'generating' ? 'storyboard-node-strip__cell--generating' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
         onClick?.(frame.id)
@@ -121,7 +121,7 @@ function StoryboardGroupNodeComponent({ id, data, selected }: NodeProps) {
   const updateNodeSize = useCanvasStore((s) => s.updateNodeSize)
   const { openDrawer } = useOpenGeneratorDrawer(id)
   const requestFrameFocus = useStoryboardEditorStore((s) => s.requestFrameFocus)
-  const { frames, layout, generating, selectSingleFrame } = useStoryboardGroup(id)
+  const { frames, layout, generating, progress, selectSingleFrame } = useStoryboardGroup(id)
   const variant = useMemo(() => getNodeVisualVariant(id), [id])
   const layoutSpec = useMemo(() => storyboardCanvasLayoutSpec(layout), [layout])
 
@@ -234,7 +234,9 @@ function StoryboardGroupNodeComponent({ id, data, selected }: NodeProps) {
                 ))}
               </div>
             )}
-            <p className="storyboard-node-strip__footer">{isBusy ? '生成中…' : footer}</p>
+            <p className="storyboard-node-strip__footer">
+              {isBusy ? `生成中… ${progress > 0 ? `${Math.round(progress)}%` : ''}` : footer}
+            </p>
           </>
         )}
 

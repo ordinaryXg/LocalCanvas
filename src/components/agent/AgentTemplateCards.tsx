@@ -43,58 +43,45 @@ export function AgentTemplateCards({
     templates.length > 0 ? t('agent.templatesRecommend') : t('agent.templatesQuick')
 
   return (
-    <div className="mt-2 space-y-2">
-      <div className="text-[10px] text-text-muted">{title}</div>
-      {items.map((tpl) => {
-        const unavailable = config ? getTemplateUnavailableReason(tpl.id, config) : undefined
-        const blocked = !!unavailable
-        return (
-          <div
-            key={tpl.id}
-            className={`p-2.5 rounded-lg border border-border hover:border-accent/50 transition ${
-              blocked ? 'opacity-50' : ''
-            }`}
+    <div className="mt-1.5 space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-text-muted">{title}</span>
+        {templates.length > 0 && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onSkip}
+            className="text-[10px] text-text-muted hover:text-accent underline disabled:opacity-50 shrink-0"
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-text-primary">{tpl.name}</div>
-                <div className="text-[10px] text-text-muted">{tpl.description}</div>
-                {tpl.score > 0 && (
-                  <div className="mt-1 h-1 rounded bg-bg-tertiary overflow-hidden">
-                    <div
-                      className="h-full bg-accent/70"
-                      style={{ width: `${tpl.score}%` }}
-                    />
-                  </div>
-                )}
-                {blocked && (
-                  <div className="text-[10px] text-warning mt-1">
-                    {t(`settings.agent.unavailable.${unavailable}`)}
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                disabled={disabled || blocked}
-                onClick={() => onAdopt(tpl.id)}
-                className="shrink-0 text-[10px] px-2 py-1 rounded bg-accent text-white disabled:opacity-50"
-              >
-                {t('agent.templateAdopt')}
-              </button>
-            </div>
-          </div>
-        )
-      })}
-      {templates.length > 0 && (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onSkip}
-          className="text-[10px] text-text-muted hover:text-accent underline disabled:opacity-50"
-        >
-          {t('agent.templateSkip')}
-        </button>
-      )}
+            {t('agent.templateSkip')}
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {items.map((tpl) => {
+          const unavailable = config ? getTemplateUnavailableReason(tpl.id, config) : undefined
+          const blocked = !!unavailable
+          return (
+            <button
+              key={tpl.id}
+              type="button"
+              disabled={disabled || blocked}
+              onClick={() => onAdopt(tpl.id)}
+              title={blocked ? t(`settings.agent.unavailable.${unavailable}`) : tpl.description}
+              className={`inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-md border text-[10px] transition ${
+                blocked
+                  ? 'border-border/50 text-text-muted opacity-50 cursor-not-allowed'
+                  : 'border-border text-text-primary hover:border-accent/60 hover:bg-accent/10'
+              }`}
+            >
+              <span className="font-medium truncate">{tpl.name}</span>
+              {tpl.score > 0 && (
+                <span className="text-[9px] text-accent shrink-0">{tpl.score}%</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

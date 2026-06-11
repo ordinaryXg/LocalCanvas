@@ -3,6 +3,7 @@ import { useLazyAssetBlob } from '../../hooks/useLazyAssetBlob'
 import { useStoryboardGenGridMetrics } from '../../hooks/useStoryboardGenGridMetrics'
 import { useProjectStore } from '../../stores/projectStore'
 import { useStoryboardEditorStore } from '../../stores/storyboardEditorStore'
+import { useT } from '../../i18n'
 import type { StoryboardFrame, StoryboardLayout } from '../../types/storyboard'
 import {
   frameHasVisual,
@@ -21,6 +22,7 @@ interface FrameCellProps {
   onToggleSelect: (frameId: string) => void
   onRetryImage?: (frameId: string) => void
   onRetryVideo?: (frameId: string) => void
+  onSelectTake?: (frameId: string, takeId: string) => void
 }
 
 const StoryboardFrameCell = memo(function StoryboardFrameCell({
@@ -97,6 +99,7 @@ interface ListRowProps {
   onToggleSelect: (frameId: string) => void
   onRetryImage?: (frameId: string) => void
   onRetryVideo?: (frameId: string) => void
+  onSelectTake?: (frameId: string, takeId: string) => void
 }
 
 function StoryboardListRow({
@@ -107,8 +110,11 @@ function StoryboardListRow({
   onToggleSelect,
   onRetryImage,
   onRetryVideo,
+  onSelectTake,
 }: ListRowProps) {
+  const t = useT()
   const isFailed = frame.status === 'failed'
+  const hasTakes = (frame.takes?.length ?? 0) > 1
   return (
     <div
       data-storyboard-frame={frame.id}
@@ -130,6 +136,25 @@ function StoryboardListRow({
           <span className="storyboard-gen-list-row__meta">{frame.status}</span>
         </div>
       </label>
+      {hasTakes && (
+        <div className="storyboard-gen-list-row__takes nodrag flex flex-wrap gap-1 px-2 pb-1">
+          {frame.takes!.map((take) => (
+            <button
+              key={take.id}
+              type="button"
+              disabled={generating}
+              onClick={() => onSelectTake?.(frame.id, take.id)}
+              className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                frame.selectedTakeId === take.id
+                  ? 'border-accent text-accent bg-accent/10'
+                  : 'border-border text-text-muted hover:text-white'
+              }`}
+            >
+              {take.label ?? t('storyboard.takeLabel').replace('{{n}}', take.id.slice(-4))}
+            </button>
+          ))}
+        </div>
+      )}
       {isFailed && (
         <button
           type="button"
@@ -161,6 +186,7 @@ interface VirtualGridProps {
   onToggleSelect: (frameId: string) => void
   onRetryImage?: (frameId: string) => void
   onRetryVideo?: (frameId: string) => void
+  onSelectTake?: (frameId: string, takeId: string) => void
 }
 
 function VirtualStoryboardGrid({
@@ -251,6 +277,7 @@ interface BrowserProps {
   onToggleSelect: (frameId: string) => void
   onRetryImage: (frameId: string) => void
   onRetryVideo: (frameId: string) => void
+  onSelectTake?: (frameId: string, takeId: string) => void
   fillHeight?: boolean
 }
 
@@ -263,6 +290,7 @@ export function StoryboardFrameBrowser({
   onToggleSelect,
   onRetryImage,
   onRetryVideo,
+  onSelectTake,
   fillHeight = false,
 }: BrowserProps) {
   const focusNodeId = useStoryboardEditorStore((s) => s.focusNodeId)
@@ -328,6 +356,7 @@ export function StoryboardFrameBrowser({
             onToggleSelect={onToggleSelect}
             onRetryImage={onRetryImage}
             onRetryVideo={onRetryVideo}
+            onSelectTake={onSelectTake}
           />
         ))}
       </div>

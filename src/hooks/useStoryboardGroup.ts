@@ -1,7 +1,10 @@
 import { useCallback, useState, useEffect } from 'react'
 import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useAgentStore } from '../stores/agentStore'
 import type { StoryboardFrame, StoryboardLayout } from '../types/storyboard'
+import { selectStoryboardTake } from '../utils/storyboardTakes'
+import { wireComposeToStoryboardSelectedTakes } from '../utils/syncComposeFromStoryboard'
 import { handleError, showToast } from '../utils/ErrorHandler'
 import { importGeneratedMedia } from '../utils/generatedMedia'
 import {
@@ -11,6 +14,13 @@ import {
   resolveDefaultVideoModelId,
 } from '../utils/configResolve'
 import type { BatchItemCompleteEvent } from '../types/ipc'
+
+function markFramesGenerating(
+  frames: StoryboardFrame[],
+  frameIds: Set<string>,
+): StoryboardFrame[] {
+  return frames.map((f) => (frameIds.has(f.id) ? { ...f, status: 'generating' as const } : f))
+}
 
 function markFramesFailed(
   frames: StoryboardFrame[],
@@ -80,6 +90,10 @@ async function resolveVideoModelId(preferredId?: string): Promise<string | null>
 
 export function useStoryboardGroup(nodeId: string) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
+  const addConnection = useCanvasStore((s) => s.addConnection)
+  const removeEdges = useCanvasStore((s) => s.removeEdges)
+  const nodes = useCanvasStore((s) => s.nodes)
+  const edges = useCanvasStore((s) => s.edges)
   const node = useCanvasStore((s) => s.nodes.find((n) => n.id === nodeId))
   const data = (node?.data ?? {}) as Record<string, unknown>
   const frames = (data.frames as StoryboardFrame[]) ?? []
@@ -143,7 +157,8 @@ export function useStoryboardGroup(nodeId: string) {
       setGenerating('image')
       setProgress(0)
       const targetIds = new Set(targets.map((f) => f.id))
-      let latestFrames = getLatestFrames()
+      let latestFrames = markFramesGenerating(getLatestFrames(), targetIds)
+      updateFrames(latestFrames)
 
       const unsub = window.api.on('model:batchItemComplete', (...args: unknown[]) => {
         const ev = args[0] as BatchItemCompleteEvent
@@ -195,11 +210,17 @@ export function useStoryboardGroup(nodeId: string) {
       setGenerating('video')
       setProgress(0)
 
-      let nextFrames = getLatestFrames()
+      const targetIds = new Set(targets.map((f) => f.id))
+      let nextFrames = markFramesGenerating(getLatestFrames(), targetIds)
+      updateFrames(nextFrames)
       try {
         for (let i = 0; i < targets.length; i++) {
           const frame = targets[i]!
           setProgress(Math.round((i / targets.length) * 100))
+          nextFrames = nextFrames.map((f) =>
+            f.id === frame.id ? { ...f, status: 'generating' as const } : f,
+          )
+          updateFrames(nextFrames)
           try {
             const { taskId } = await window.api.model.beginGenerateVideo({
               modelId,
@@ -312,6 +333,32 @@ export function useStoryboardGroup(nodeId: string) {
     }
   }, [frames, regenerateFrameImage, regenerateFrameVideo])
 
+  const syncComposeForSelectedTakes = useCallback(
+    (nextFrames: StoryboardFrame[]) => {
+      const composeNodeId = useAgentStore.getState().handoff?.composeNodeId
+      if (!composeNodeId) return
+      const result = wireComposeToStoryboardSelectedTakes(
+        nextFrames,
+        composeNodeId,
+        nodes,
+        edges,
+      )
+      if (result.edgeIdsToRemove.length > 0) removeEdges(result.edgeIdsToRemove)
+      for (const edge of result.edgesToAdd) addConnection(edge)
+      updateNodeData(composeNodeId, { clips: result.composeClips })
+    },
+    [addConnection, edges, nodes, removeEdges, updateNodeData],
+  )
+
+  const selectFrameTake = useCallback(
+    (frameId: string, takeId: string) => {
+      const next = frames.map((f) => (f.id === frameId ? selectStoryboardTake(f, takeId) : f))
+      updateNodeData(nodeId, { frames: next })
+      syncComposeForSelectedTakes(next)
+    },
+    [frames, nodeId, syncComposeForSelectedTakes, updateNodeData],
+  )
+
   return {
     frames,
     layout,
@@ -328,5 +375,6 @@ export function useStoryboardGroup(nodeId: string) {
     regenerateFrameImage,
     regenerateFrameVideo,
     retryAllFailedFrames,
+    selectFrameTake,
   }
 }

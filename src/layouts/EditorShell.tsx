@@ -38,6 +38,7 @@ export function EditorShell({ onBack }: EditorShellProps) {
   const setSettingsOpen = useEditorShellStore((s) => s.setSettingsOpen)
   const narrowLayout = useNarrowLayout(1280)
   const workbenchTarget = useWorkbenchTarget()
+  const agentPinned = useEditorShellStore((s) => s.agentPinned)
   const hideInspector = mode === 'workbench' && workbenchTarget?.kind === 'compose'
   const hideDock = hideInspector
 
@@ -63,11 +64,16 @@ export function EditorShell({ onBack }: EditorShellProps) {
               )}
             </>
           )}
+          <Suspense fallback={null}>
+            {!agentPinned && <AgentCompanion />}
+          </Suspense>
         </div>
         {!hideInspector && <Inspector overlay={narrowLayout} />}
-        <Suspense fallback={null}>
-          <AgentCompanion />
-        </Suspense>
+        {agentPinned && (
+          <Suspense fallback={null}>
+            <AgentCompanion />
+          </Suspense>
+        )}
       </div>
       {isEditorCoachEnabled() && !settingsOpen && <EditorCoachMark />}
       <ShortcutsOverlay />

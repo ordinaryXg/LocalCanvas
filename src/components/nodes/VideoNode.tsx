@@ -45,6 +45,7 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
   const hasPoster = !!(firstFrameSrc || firstFrameAssetPath)
   const isEmpty = !hasVideo && !hasPoster
   const isGenerating = data.isGenerating === true
+  const progress = typeof data.progress === 'number' ? data.progress : 0
   const errorMessage = typeof data.error === 'string' ? data.error : undefined
 
   const { src: mediaSrc, loading: mediaLoading, load: loadMedia, revoke: revokeMedia } =
@@ -284,6 +285,16 @@ function VideoNodeComponent({ id, data, selected }: NodeProps) {
           {busy && (
             <div className="video-node__overlay" aria-hidden>
               <div className="video-node__spinner" />
+              {isGenerating && (
+                <div className="absolute inset-x-2 bottom-2">
+                  <div className="w-full bg-black/50 rounded-full h-1">
+                    <div
+                      className="bg-[var(--node-video)] h-1 rounded-full transition-all"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

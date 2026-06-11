@@ -65,6 +65,24 @@ export function isSeedanceV15Model(apiModelId: string): boolean {
   return /seedance-1-5|1-5-pro/i.test(apiModelId)
 }
 
+/** 根据配置 id 解析应调用的 Seedance API model（config.id 优先于可能过期的 model 字段） */
+export function canonicalSeedanceApiModel(configId: string, storedModel?: string): string {
+  if (configId.includes('1-5') || configId === SEEDANCE_1_5_PRO_VIDEO_MODEL.id) {
+    return SEEDANCE_MODEL_1_5_PRO
+  }
+  if (configId.includes('1-0') || configId === SEEDANCE_1_0_PRO_FAST_VIDEO_MODEL.id) {
+    return SEEDANCE_MODEL_1_0_PRO_FAST
+  }
+  if (configId.includes('2-0-fast') || configId === SEEDANCE_2_0_FAST_VIDEO_MODEL.id) {
+    return SEEDANCE_MODEL_FAST
+  }
+  if (configId.includes('2-0') || configId === SEEDANCE_2_0_VIDEO_MODEL.id) {
+    return SEEDANCE_MODEL_STANDARD
+  }
+  const trimmed = storedModel?.trim()
+  return trimmed || SEEDANCE_MODEL_1_0_PRO_FAST
+}
+
 export function getSeedanceCapabilities(apiModelId: string): SeedanceCapabilities {
   if (isSeedanceV2Model(apiModelId)) {
     return {

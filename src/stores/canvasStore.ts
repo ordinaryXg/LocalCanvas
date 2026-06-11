@@ -24,6 +24,7 @@ import type { ModelKind } from '../types/capability'
 import { migrateImageOutputEdges, getNodeTypeFromId } from '../utils/portCompat'
 import { refreshEdgeCompatStyles } from '../capabilities/refresh-edge-compat'
 import { normalizeTextNodeData } from '../utils/textNodeOutput'
+import { sortCanvasNodes } from '../utils/reactFlowNodes'
 import { withDefaultNodeTitle } from '../utils/nodeNaming'
 
 interface CanvasState {
@@ -75,7 +76,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectedNodeIds: [],
   focusNodeRequestId: null,
 
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => set({ nodes: sortCanvasNodes(nodes) }),
   setEdges: (edges) => set({ edges }),
 
   onNodesChange: (changes: NodeChange[]) => {
@@ -299,7 +300,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     })
 
-    set({ nodes: [...updatedNodes, groupNode] })
+    set({ nodes: sortCanvasNodes([groupNode, ...updatedNodes]) })
   },
 
   setSelectedNodes: (ids) => {
@@ -344,7 +345,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       normalizeCanvasEdges(migrateImageOutputEdges(normalizedNodes, edges)),
     )
     set({
-      nodes: normalizedNodes,
+      nodes: sortCanvasNodes(normalizedNodes),
       edges: migratedEdges,
       viewport: viewport ?? { x: 0, y: 0, zoom: 1 },
       selectedNodeIds: [],

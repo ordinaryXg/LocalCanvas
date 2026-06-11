@@ -7,7 +7,9 @@ import { useCanvasStore } from '../stores/canvasStore'
 import { useProjectStore } from '../stores/projectStore'
 import { handleError, showToast } from '../utils/ErrorHandler'
 import type { DagRunNodeState, DagRunState, DagNodeStatus } from '../types/dag'
+import { formatErrorMessage } from '../types/adapter-errors'
 import { executeDagNode } from './dagNodeExecutor'
+import { getGeneratingNodeIds, nodeHasActiveGeneration } from '../utils/canvasGenerationState'
 
 const GENERATABLE = new Set(['image', 'video', 'text'])
 
@@ -52,6 +54,8 @@ type RunContext = {
   stopOnFail: boolean
   aborted: boolean
   paused: boolean
+  pauseAtSceneBoundaries: boolean
+  stopAtNodeIds: Set<string>
 }
 
 export function useDagRun() {
@@ -129,6 +133,13 @@ export function useDagRun() {
             continue
           }
 
+          if (nodeHasActiveGeneration(node)) {
+            ctx.status.set(nodeId, 'skipped')
+            syncRunState(ctx)
+            void window.api.dag.updateNode({ dagRunId: ctx.dagRunId, nodeId, status: 'skipped' })
+            continue
+          }
+
           const task = (async () => {
             try {
               await executeDagNode(node, ctx.nodes, ctx.edges)
@@ -143,10 +154,33 @@ export function useDagRun() {
                 dagRunId: ctx.dagRunId,
                 completedNodes: completed,
               })
+
+              const nodeData = node.data as Record<string, unknown>
+              const shouldPauseAtScene =
+                ctx.stopAtNodeIds.has(nodeId) ||
+                (ctx.pauseAtSceneBoundaries && nodeData.sceneBoundaryEnd === true)
+              const stillPending = ctx.executable.some((id) => ctx.status.get(id) === 'pending')
+              if (shouldPauseAtScene && stillPending) {
+                ctx.paused = true
+                ctx.aborted = true
+                await window.api.dag.updateRun({ dagRunId: ctx.dagRunId, status: 'paused' })
+                const sceneId = nodeData.sceneId
+                showToast(
+                  typeof sceneId === 'string' && sceneId.length > 0
+                    ? `场景 ${sceneId} 已完成，审阅后可在 DAG 面板继续`
+                    : '场景检查点：当前场景已完成，审阅后可继续',
+                  'info',
+                )
+              }
             } catch (err) {
-              const message = err instanceof Error ? err.message : '执行失败'
+              const message = formatErrorMessage(err)
               ctx.status.set(nodeId, 'failed')
               ctx.errors.set(nodeId, message)
+              useCanvasStore.getState().updateNodeData(nodeId, {
+                isGenerating: false,
+                progress: 0,
+                error: message,
+              })
               syncRunState(ctx)
               await window.api.dag.updateNode({
                 dagRunId: ctx.dagRunId,
@@ -229,11 +263,26 @@ export function useDagRun() {
   )
 
   const startRun = useCallback(
-    async (nodeIds: string[], options?: { untilNodeId?: string }) => {
+    async (
+      nodeIds: string[],
+      options?: { untilNodeId?: string; stopAtNodeIds?: string[]; pauseAtSceneBoundaries?: boolean },
+    ) => {
       const projectId = useProjectStore.getState().currentProjectId
       if (!projectId || nodeIds.length === 0) return
 
+      if (useDagRunStore.getState().isRunning) {
+        showToast('已有工作流在执行，请等待完成或暂停后再试', 'info')
+        return
+      }
+
       const { nodes: allNodes, edges: allEdges, setNodes } = useCanvasStore.getState()
+
+      const busyIds = getGeneratingNodeIds(allNodes)
+      if (busyIds.length > 0) {
+        showToast('画布上有节点正在生成，请等待完成后再启动工作流', 'info')
+        return
+      }
+
       let { nodes, edges } = collectSubgraph(nodeIds, allNodes, allEdges)
 
       let order: string[]
@@ -264,6 +313,14 @@ export function useDagRun() {
         handleError(new Error('选区内没有可自动生成的节点'), 'dagEmpty')
         return
       }
+
+      const pauseAtSceneBoundaries =
+        options?.pauseAtSceneBoundaries ??
+        executable.some((id) => {
+          const n = nodes.find((x) => x.id === id)
+          return (n?.data as Record<string, unknown> | undefined)?.sceneBoundaryEnd === true
+        })
+      const stopAtNodeIds = new Set(options?.stopAtNodeIds ?? [])
 
       const patches = computeDataFlowPatches(allNodes, allEdges)
       if (patches.length > 0) {
@@ -302,6 +359,8 @@ export function useDagRun() {
         stopOnFail: true,
         aborted: false,
         paused: false,
+        pauseAtSceneBoundaries,
+        stopAtNodeIds,
       }
       ctxRef.current = ctx
 

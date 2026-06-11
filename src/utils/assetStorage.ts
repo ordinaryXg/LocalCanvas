@@ -1,4 +1,5 @@
 import type { Node } from '@xyflow/react'
+import { clearTransientGenerationFields } from './canvasGenerationState'
 import { generateId } from './id'
 
 export type MediaKind = 'image' | 'video' | 'audio'
@@ -53,7 +54,7 @@ export function stripTransientMediaFields(
     })
   }
 
-  return out
+  return clearTransientGenerationFields(out)
 }
 
 export async function assetPathToBlobUrl(
@@ -288,6 +289,7 @@ export async function hydrateProjectNodes(
       data.frames = await hydrateStoryboardFrames(projectId, data.frames)
     }
 
+    data = clearTransientGenerationFields(data)
     hydrated.push({ ...node, data })
   }
 

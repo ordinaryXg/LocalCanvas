@@ -127,6 +127,11 @@ export class UtilityClient {
       }
       case 'model:error': {
         const payload = data as { taskId?: string; nodeId?: string; error: string }
+        logger.error('Model generation failed', {
+          taskId: payload.taskId,
+          nodeId: payload.nodeId,
+          error: payload.error,
+        })
         if (payload.taskId) {
           trackGenerationError(payload.taskId, payload.error)
           const resolver = this.taskResolvers.get(payload.taskId)
@@ -327,9 +332,11 @@ export class UtilityClient {
     message: string
     disabledSkills?: string[]
     freePlan?: boolean
+    defaultTrack?: 'auto' | 'lite' | 'studio'
   }): Promise<{
     reply: string
     plan?: unknown
+    productionPlan?: unknown
     skillId?: string
     suggestedTemplates?: Array<{ id: string; name: string; description: string; score: number }>
     planWarnings?: string[]
@@ -337,6 +344,7 @@ export class UtilityClient {
     return (await this.send('agent:chat', payload, 120000)) as {
       reply: string
       plan?: unknown
+      productionPlan?: unknown
       skillId?: string
       suggestedTemplates?: Array<{ id: string; name: string; description: string; score: number }>
       planWarnings?: string[]
@@ -371,12 +379,45 @@ export class UtilityClient {
     skillId: string
     intent: string
     disabledSkills?: string[]
-  }): Promise<{ reply: string; plan?: unknown; skillId?: string; planWarnings?: string[] }> {
+    defaultTrack?: 'auto' | 'lite' | 'studio'
+    brief?: {
+      title?: string
+      filmType?: string
+      targetDurationSec?: number
+      aspectRatio?: string
+      tone?: string
+      mustInclude?: string
+    }
+    creativeBible?: unknown[]
+    takesPerShot?: number
+  }): Promise<{
+    reply: string
+    plan?: unknown
+    productionPlan?: unknown
+    skillId?: string
+    planWarnings?: string[]
+  }> {
     return (await this.send('agent:buildFromTemplate', payload, 60000)) as {
       reply: string
       plan?: unknown
+      productionPlan?: unknown
       skillId?: string
       planWarnings?: string[]
+    }
+  }
+
+  async agentExpandShots(payload: {
+    productionPlan: unknown
+    anchorNodeIds: string[]
+    maxShots?: number
+    referenceImageNodeId?: string
+  }): Promise<{ reply: string; patch?: unknown; planWarnings?: string[]; error?: string; message?: string }> {
+    return (await this.send('agent:expandShots', payload, 60000)) as {
+      reply: string
+      patch?: unknown
+      planWarnings?: string[]
+      error?: string
+      message?: string
     }
   }
 

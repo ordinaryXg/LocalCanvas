@@ -25,7 +25,7 @@ interface ImageEditorFormControlsProps {
   onStyleChange: (id: string) => void
   recommendedModelId?: string
   onApplyRecommendedModel: (id: string) => void
-  referenceEdge?: { source: string }
+  referenceEdges?: Array<{ id: string; source: string }>
   currentProjectId: string | null
   warnings: string[]
   updateNodeData: (nodeId: string, data: Record<string, unknown>) => void
@@ -51,7 +51,7 @@ export function ImageEditorFormControls({
   onStyleChange,
   recommendedModelId,
   onApplyRecommendedModel,
-  referenceEdge,
+  referenceEdges,
   currentProjectId,
   warnings,
   updateNodeData,
@@ -90,7 +90,11 @@ export function ImageEditorFormControls({
           <label className="text-[10px] text-text-muted">比例</label>
           <select
             value={ratio}
-            onChange={(e) => setRatio(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value
+              setRatio(next)
+              updateNodeData(nodeId, { ratio: next })
+            }}
             className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
           >
             {['1:1', '16:9', '9:16', '3:4', '4:3'].map((r) => (
@@ -104,7 +108,11 @@ export function ImageEditorFormControls({
           <label className="text-[10px] text-text-muted">数量</label>
           <select
             value={batchSize}
-            onChange={(e) => setBatchSize(parseInt(e.target.value, 10))}
+            onChange={(e) => {
+              const next = parseInt(e.target.value, 10)
+              setBatchSize(next)
+              updateNodeData(nodeId, { batchSize: next })
+            }}
             className="w-full bg-bg-tertiary text-text-primary text-xs p-1.5 rounded outline-none"
           >
             {[1, 2, 4].map((n) => (
@@ -134,18 +142,25 @@ export function ImageEditorFormControls({
 
       <div>
         <label className="text-[10px] text-text-muted">参考图</label>
-        {referenceEdge ? (
-          <div className="flex gap-2 items-center mt-1">
-            <div className="w-14 h-14 rounded overflow-hidden border border-border shrink-0">
-              <NodeImageThumb
-                projectId={currentProjectId}
-                nodeId={referenceEdge.source}
-                alt="参考图"
-              />
+        {referenceEdges && referenceEdges.length > 0 ? (
+          <div className="mt-1 space-y-1">
+            <div className="flex flex-wrap gap-2">
+              {referenceEdges.map((edge) => (
+                <div
+                  key={edge.id}
+                  className="w-14 h-14 rounded overflow-hidden border border-border shrink-0"
+                >
+                  <NodeImageThumb
+                    projectId={currentProjectId}
+                    nodeId={edge.source}
+                    alt="参考图"
+                  />
+                </div>
+              ))}
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] text-text-secondary truncate">
-                来自节点 {referenceEdge.source.slice(0, 8)}…
+              <p className="text-[10px] text-text-secondary">
+                已连接 {referenceEdges.length} 张参考图
               </p>
               {ui.supportsReferenceImage ? (
                 <span className="text-[10px] text-text-muted">
@@ -157,7 +172,7 @@ export function ImageEditorFormControls({
             </div>
           </div>
         ) : (
-          <p className="text-[10px] text-text-muted mt-1 italic">连接图片节点到 reference 口</p>
+          <p className="text-[10px] text-text-muted mt-1 italic">从画布连接图片节点作为参考图</p>
         )}
       </div>
 

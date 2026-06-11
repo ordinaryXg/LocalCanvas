@@ -49,6 +49,8 @@ import { useCanvasStore as getCanvasStore } from '../../stores/canvasStore'
 import { showToast } from '../../utils/ErrorHandler'
 import { fitViewAndSyncViewport } from '../../utils/canvasViewport'
 import { minimapNodeColor } from '../../utils/canvasMinimap'
+import { GENERATABLE_NODE_TYPES } from '../../constants/editorFeatures'
+import { useEditorShellStore } from '../../stores/editorShellStore'
 
 const nodeTypes = {
   text: TextNode,
@@ -83,6 +85,10 @@ function CanvasInner() {
   const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds)
   const focusNodeRequestId = useCanvasStore((s) => s.focusNodeRequestId)
   const clearFocusNodeRequest = useCanvasStore((s) => s.clearFocusNodeRequest)
+  const setSelectedNodes = useCanvasStore((s) => s.setSelectedNodes)
+  const setGeneratorDrawerOpen = useEditorShellStore((s) => s.setGeneratorDrawerOpen)
+  const setNodeCanvasDragging = useEditorShellStore((s) => s.setNodeCanvasDragging)
+  const nodeCanvasDragging = useEditorShellStore((s) => s.nodeCanvasDragging)
   const { runState, startRun, skipNode, retryNode, continueRun, dismiss } = useDagRun()
   const { slashOpen, slashQuery, slashPos, setSlashOpen, handleSlashSelect } = useCanvasSlash(
     selectedNodeIds,
@@ -180,6 +186,7 @@ function CanvasInner() {
         targetType,
         targetNode?.data?.modelId as string | undefined,
         edges,
+        targetNode?.data as Record<string, unknown> | undefined,
       )
       if (isUnifiedInboundUnresolved(targetType, connection.targetHandle, normalized.targetHandle)) {
         return
@@ -265,6 +272,24 @@ function CanvasInner() {
     [],
   )
 
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      if (nodeCanvasDragging) return
+      if (!GENERATABLE_NODE_TYPES.has(node.type ?? '')) return
+      setSelectedNodes([node.id])
+      setGeneratorDrawerOpen(true)
+    },
+    [nodeCanvasDragging, setGeneratorDrawerOpen, setSelectedNodes],
+  )
+
+  const handleNodeDragStart = useCallback(() => {
+    setNodeCanvasDragging(true)
+  }, [setNodeCanvasDragging])
+
+  const handleNodeDragStop = useCallback(() => {
+    setNodeCanvasDragging(false)
+  }, [setNodeCanvasDragging])
+
   const canvasEditable = isInteractive && !spacePanHeld
 
   return (
@@ -297,6 +322,9 @@ function CanvasInner() {
         connectionLineType={ConnectionLineType.Bezier}
         deleteKeyCode={['Delete', 'Backspace']}
         onEdgeClick={handleEdgeClick}
+        onNodeClick={handleNodeClick}
+        onNodeDragStart={handleNodeDragStart}
+        onNodeDragStop={handleNodeDragStop}
         onMove={handleMove}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}

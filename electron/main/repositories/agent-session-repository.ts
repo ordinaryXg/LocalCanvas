@@ -1,7 +1,7 @@
 import { getDatabase } from '../database'
 import { v4 as uuid } from 'uuid'
 import { getCurrentUserId } from '../services/auth-service'
-import type { AgentMessage, WorkflowPlan } from '../../../src/types/agent'
+import type { AgentMessage, ProductionPlan, WorkflowPlan } from '../../../src/types/agent'
 
 export interface AgentSession {
   id: string
@@ -10,6 +10,7 @@ export interface AgentSession {
   title?: string
   messages: AgentMessage[]
   lastPlan?: WorkflowPlan
+  lastProductionPlan?: ProductionPlan
   createdAt: string
   updatedAt: string
 }
@@ -20,8 +21,8 @@ export class AgentSessionRepository {
     const id = uuid()
     const now = new Date().toISOString()
     db.prepare(`
-      INSERT INTO agent_sessions (id, user_id, project_id, title, messages, last_plan, created_at, updated_at)
-      VALUES (?, ?, ?, ?, '[]', NULL, ?, ?)
+      INSERT INTO agent_sessions (id, user_id, project_id, title, messages, last_plan, last_production_plan, created_at, updated_at)
+      VALUES (?, ?, ?, ?, '[]', NULL, NULL, ?, ?)
     `).run(id, getCurrentUserId(), projectId ?? null, title ?? null, now, now)
     return id
   }
@@ -47,16 +48,28 @@ export class AgentSessionRepository {
     return rows.map((r) => this.rowToEntity(r))
   }
 
-  appendMessage(id: string, message: AgentMessage, plan?: WorkflowPlan): void {
+  appendMessage(
+    id: string,
+    message: AgentMessage,
+    plan?: WorkflowPlan,
+    productionPlan?: ProductionPlan,
+  ): void {
     const db = getDatabase()
     const session = this.findById(id)
     if (!session) return
     const messages = [...session.messages, message]
     db.prepare(`
-      UPDATE agent_sessions SET messages = ?, last_plan = ?, updated_at = datetime('now') WHERE id = ?
+      UPDATE agent_sessions
+      SET messages = ?, last_plan = ?, last_production_plan = ?, updated_at = datetime('now')
+      WHERE id = ?
     `).run(
       JSON.stringify(messages),
       plan ? JSON.stringify(plan) : session.lastPlan ? JSON.stringify(session.lastPlan) : null,
+      productionPlan
+        ? JSON.stringify(productionPlan)
+        : session.lastProductionPlan
+          ? JSON.stringify(session.lastProductionPlan)
+          : null,
       id,
     )
   }
@@ -69,6 +82,9 @@ export class AgentSessionRepository {
       title: (row.title as string) || undefined,
       messages: JSON.parse((row.messages as string) || '[]') as AgentMessage[],
       lastPlan: row.last_plan ? (JSON.parse(row.last_plan as string) as WorkflowPlan) : undefined,
+      lastProductionPlan: row.last_production_plan
+        ? (JSON.parse(row.last_production_plan as string) as ProductionPlan)
+        : undefined,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
     }

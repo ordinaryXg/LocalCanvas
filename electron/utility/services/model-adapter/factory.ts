@@ -5,7 +5,9 @@ import type {
   LLMModelConfig,
   TTSModelConfig,
 } from '../../../../src/types/config'
+import { canonicalSeedanceApiModel } from '../../../../src/constants/seedance'
 import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-errors'
+import { resolveEffectiveArkApiKey } from '../../../../src/utils/configResolve'
 import { sanitizeApiKey } from '../../../../src/utils/apiKey'
 import { ModelAdapter } from './base'
 import { RemoteApiAdapter } from './remote-api'
@@ -62,8 +64,33 @@ export class AdapterRegistry {
   }
 
   getVideoAdapter(modelId: string): ModelAdapter {
-    const modelConfig = this.getConfig().video_models.find((m) => m.id === modelId)
-    if (!modelConfig) throw new Error(`Video model not found: ${modelId}`)
+    const config = this.getConfig()
+    const modelConfig = config.video_models.find((m) => m.id === modelId)
+    if (!modelConfig) {
+      throw new AdapterError(
+        `Video model not found: ${modelId}`,
+        'openai',
+        AdapterErrorCode.MODEL_NOT_FOUND,
+        false,
+        `未找到视频模型「${modelId}」。请在 ⚙️ 设置 → 默认模型中选择「默认视频模型」`,
+      )
+    }
+    if (modelConfig.provider === 'volcengine_seedance') {
+      const apiKey = resolveEffectiveArkApiKey(
+        modelConfig,
+        config.video_models,
+        config.image_models,
+      )
+      if (!apiKey) {
+        throw new AdapterError(
+          'Seedance API key missing',
+          'openai',
+          AdapterErrorCode.AUTH_FAILED,
+          false,
+          `视频模型「${modelConfig.name}」未配置 ARK API Key，请在设置 → 已接入模型中填写`,
+        )
+      }
+    }
     return this.createVideoAdapter(modelConfig)
   }
 
@@ -119,9 +146,14 @@ export class AdapterRegistry {
 
     let adapter: ModelAdapter
     if (config.provider === 'volcengine_seedance') {
+      const appConfig = this.getConfig()
       adapter = new SeedanceAdapter({
-        apiKey: config.api_key || '',
-        model: config.model,
+        apiKey: resolveEffectiveArkApiKey(
+          config,
+          appConfig.video_models,
+          appConfig.image_models,
+        ),
+        model: canonicalSeedanceApiModel(config.id, config.model),
         outputDir: this.options.outputDir,
         createEndpoint: config.endpoint,
         pollEndpoint: config.poll_endpoint,

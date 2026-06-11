@@ -14,6 +14,7 @@ import { supportsThinkingUi } from '../../capabilities/reasoning-params'
 import { assertNoWarnEdgesForNode, GenerationBlockedError } from '../../capabilities/generation-guard'
 import type { ThinkingPreset } from '../../types/capability'
 import { collectLlmVisionImagesFromEdges } from '../../utils/collectLlmVisionImages'
+import { resolveTextNodeSystemPrompt, coerceSinglePromptOutput, buildTextNodeGeneratePrompt } from '../../utils/textPromptConstraints'
 import {
   isLlmVisionImageHandle,
   visionImageIndexFromHandle,
@@ -45,7 +46,10 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
   const edges = useCanvasStore((s) => s.edges)
   const currentProjectId = useProjectStore((s) => s.currentProjectId)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const { isGenerating, run, cancel, lastReasoningContent } = useModelGeneration(nodeId)
+  const { isGenerating, progress, run, cancel, lastReasoningContent } = useModelGeneration(
+    nodeId,
+    (pct) => updateNodeData(nodeId, { isGenerating: true, progress: pct }),
+  )
   const [reasoningOpen, setReasoningOpen] = useState(false)
 
   useEffect(() => {
@@ -150,27 +154,42 @@ export function TextEditorPanel({ nodeId }: TextEditorPanelProps) {
         edges,
         currentProjectId,
       )
+      const effectiveSystemPrompt = resolveTextNodeSystemPrompt(
+        nodeId,
+        edges.map((e) => ({
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle ?? undefined,
+          targetHandle: e.targetHandle ?? undefined,
+        })),
+        systemPrompt,
+        new Map(nodes.map((n) => [n.id, n.type ?? ''])),
+      )
+      updateNodeData(nodeId, { isGenerating: true, progress: 0, error: undefined })
       const { result, reasoningContent: generatedReasoning } = await run(() =>
         window.api.model.beginGenerateText({
           modelId,
           nodeId,
-          prompt: draft,
-          systemPrompt: systemPrompt || undefined,
+          prompt: buildTextNodeGeneratePrompt(draft),
+          systemPrompt: effectiveSystemPrompt,
           thinkingPreset,
           ...(images.length > 0 ? { images } : {}),
         }),
       )
       patch({
-        output: result,
+        output: coerceSinglePromptOutput(result),
         outputMode: 'generated',
         outputEdited: false,
         modelId,
-        systemPrompt,
+        systemPrompt: effectiveSystemPrompt ?? systemPrompt,
         thinkingPreset,
+        isGenerating: false,
+        progress: 100,
         ...(generatedReasoning ? { reasoningContent: generatedReasoning } : {}),
       })
       if (generatedReasoning) setReasoningOpen(true)
     } catch (err) {
+      updateNodeData(nodeId, { isGenerating: false, progress: 0 })
       if (err instanceof GenerationBlockedError) {
         showToast(err.message, 'error')
         return

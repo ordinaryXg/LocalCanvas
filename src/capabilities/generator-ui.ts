@@ -1,8 +1,7 @@
 import {
+  DEFAULT_SEEDANCE_VIDEO_MODEL,
+  canonicalSeedanceApiModel,
   getSeedanceCapabilities,
-  SEEDANCE_MODEL_1_0_PRO_FAST,
-  SEEDANCE_MODEL_1_5_PRO,
-  SEEDANCE_MODEL_STANDARD,
 } from '../constants/seedance'
 import type { ModelCapabilityProfile } from '../types/capability'
 import { isVideoReferenceImageHandle } from '../utils/videoReferenceSlots'
@@ -31,19 +30,16 @@ export interface VideoGeneratorUiConfig {
 }
 
 function resolveSeedanceApiModel(configId: string, apiModel?: string): string {
-  if (apiModel) return apiModel
-  if (configId.includes('1-5')) return SEEDANCE_MODEL_1_5_PRO
-  if (configId.includes('1-0')) return SEEDANCE_MODEL_1_0_PRO_FAST
-  if (configId.includes('2-0')) return SEEDANCE_MODEL_STANDARD
-  return ''
+  return canonicalSeedanceApiModel(configId, apiModel)
 }
 
-export function getVideoGeneratorUi(configId: string, apiModel?: string): VideoGeneratorUiConfig {
-  const profile = resolveProfileForConfig(configId, apiModel, 'video')
+export function getVideoGeneratorUi(configId?: string, apiModel?: string): VideoGeneratorUiConfig {
+  const resolvedId = configId?.trim() || DEFAULT_SEEDANCE_VIDEO_MODEL.id
+  const profile = resolveProfileForConfig(resolvedId, apiModel, 'video')
   const isSeedance =
-    profile.provider === 'volcengine_ark' || configId.startsWith('seedance')
+    profile.provider === 'volcengine_ark' || resolvedId.startsWith('seedance')
   const caps = getSeedanceCapabilities(
-    isSeedance ? resolveSeedanceApiModel(configId, apiModel) : (apiModel ?? ''),
+    isSeedance ? resolveSeedanceApiModel(resolvedId, apiModel) : (apiModel ?? ''),
   )
 
   return {

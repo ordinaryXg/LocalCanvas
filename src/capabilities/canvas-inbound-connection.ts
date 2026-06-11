@@ -19,6 +19,7 @@ export function normalizeInboundConnection(
   targetType: string | undefined,
   modelId: string | undefined,
   edges: Edge[],
+  targetNodeData?: Record<string, unknown>,
 ): typeof connection {
   let normalized = normalizeVideoConnection(
     connection,
@@ -26,6 +27,7 @@ export function normalizeInboundConnection(
     targetType,
     modelId,
     edges,
+    targetNodeData,
   )
   normalized = normalizeImageConnection(
     normalized,

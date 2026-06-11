@@ -36,6 +36,16 @@ export function useScriptNodeActions(nodeId: string) {
 
   const processedSequencesRef = useRef(new Set<number>())
 
+  const syncGeneratingState = useCallback(
+    (active: boolean, pct = 0) => {
+      updateNodeData(nodeId, {
+        isGenerating: active,
+        progress: active ? pct : undefined,
+      })
+    },
+    [nodeId, updateNodeData],
+  )
+
   useEffect(() => {
     void window.api.config.read().then((config) => {
       setDefaultLlm(config.settings.default_llm)
@@ -233,6 +243,7 @@ export function useScriptNodeActions(nodeId: string) {
 
     setGenerating('script')
     setProgress(0)
+    syncGeneratingState(true, 0)
     try {
       const result = await window.api.model.generateScript({
         modelId: llmId,
@@ -252,8 +263,9 @@ export function useScriptNodeActions(nodeId: string) {
     } finally {
       setGenerating(null)
       setProgress(0)
+      syncGeneratingState(false)
     }
-  }, [nodeId, storyInput, updateNodeData])
+  }, [nodeId, storyInput, syncGeneratingState, updateNodeData])
 
   const handleBatchImages = useCallback(async () => {
     if (rows.length === 0) {
@@ -277,11 +289,15 @@ export function useScriptNodeActions(nodeId: string) {
     setDefaultImageModel(imageModelId)
     setGenerating('images')
     setProgress(0)
+    syncGeneratingState(true, 0)
     processedSequencesRef.current = new Set()
 
     const unsubProgress = window.api.on('model:progress', (...args: unknown[]) => {
       const p = args[0] as ModelProgressEvent
-      if (p.nodeId === nodeId) setProgress(p.percentage)
+      if (p.nodeId === nodeId) {
+        setProgress(p.percentage)
+        syncGeneratingState(true, p.percentage)
+      }
     })
 
     const unsubItem = window.api.on('model:batchItemComplete', (...args: unknown[]) => {
@@ -308,8 +324,9 @@ export function useScriptNodeActions(nodeId: string) {
       unsubItem()
       setGenerating(null)
       setProgress(0)
+      syncGeneratingState(false)
     }
-  }, [attachImageNode, nodeId, rows])
+  }, [attachImageNode, nodeId, rows, syncGeneratingState])
 
   const handleBatchVideos = useCallback(async () => {
     if (rows.length === 0) {
@@ -332,11 +349,15 @@ export function useScriptNodeActions(nodeId: string) {
 
     setGenerating('videos')
     setProgress(0)
+    syncGeneratingState(true, 0)
     processedSequencesRef.current = new Set()
 
     const unsubProgress = window.api.on('model:progress', (...args: unknown[]) => {
       const p = args[0] as ModelProgressEvent
-      if (p.nodeId === nodeId) setProgress(p.percentage)
+      if (p.nodeId === nodeId) {
+        setProgress(p.percentage)
+        syncGeneratingState(true, p.percentage)
+      }
     })
 
     const unsubItem = window.api.on('model:batchItemComplete', (...args: unknown[]) => {
@@ -384,8 +405,9 @@ export function useScriptNodeActions(nodeId: string) {
       unsubItem()
       setGenerating(null)
       setProgress(0)
+      syncGeneratingState(false)
     }
-  }, [attachVideoNode, data.rowAssets, nodeId, rows])
+  }, [attachVideoNode, currentProjectId, data.rowAssets, nodeId, rows, syncGeneratingState])
 
   return {
     rows,

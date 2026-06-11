@@ -81,10 +81,7 @@ export function getCapabilityProbeHint(error: unknown): string | null {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof AdapterError) return resolveAdapterMessage(error)
-  if (error instanceof AppError) return error.userMessage
-  if (error instanceof Error) return error.message || t('error.UNKNOWN')
-  return t('error.UNKNOWN')
+  return formatErrorMessage(error)
 }
 
 /** Document alias: RATE_LIMITED maps to QUOTA_EXCEEDED messaging */

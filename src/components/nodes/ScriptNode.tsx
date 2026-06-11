@@ -34,6 +34,7 @@ function ScriptNodeComponent({ id, data, selected }: NodeProps) {
   const storyInput = typeof data.storyInput === 'string' ? data.storyInput : ''
   const scriptTitle = typeof data.scriptTitle === 'string' ? data.scriptTitle : ''
   const isGenerating = data.isGenerating === true
+  const progress = typeof data.progress === 'number' ? data.progress : 0
 
   const synopsis = storyInput.trim()
   const hasRows = rows.length > 0
@@ -133,6 +134,9 @@ function ScriptNodeComponent({ id, data, selected }: NodeProps) {
         {isGenerating && (
           <div className="script-node-strip__overlay" aria-hidden>
             <div className="script-node-strip__spinner" />
+            {progress > 0 && (
+              <span className="script-node-strip__progress">{Math.round(progress)}%</span>
+            )}
           </div>
         )}
 

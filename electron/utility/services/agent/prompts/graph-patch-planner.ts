@@ -22,5 +22,6 @@ JSON 结构：
 - 常见：在图像节点后接视频 → addNodes 一个 video，addEdges 从 image.image 到 video.firstFrame
 - 首尾帧：从两个 image 连到 video 的 firstFrame / lastFrame
 - executionMode：仅当新增可执行子图时用 auto；否则 none
+- 新增 text 且下游接 image/video prompt：draft 仅一两句意图，禁止多方案/分镜表/markdown；勿输出创意文案
 
 只返回合法 JSON。`

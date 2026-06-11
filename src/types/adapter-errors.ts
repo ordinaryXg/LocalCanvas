@@ -28,10 +28,29 @@ export class AdapterError extends Error {
   }
 }
 
-export function getAdapterErrorMessage(error: unknown): string {
+export function formatNetworkErrorText(text: string): string {
+  const trimmed = text.trim()
+  if (!trimmed) return ADAPTER_USER_MESSAGES[AdapterErrorCode.UNKNOWN]
+  if (/ETIMEDOUT|ECONNABORTED/i.test(trimmed)) {
+    return '连接模型服务超时，请检查网络、代理/VPN，或在设置 → 已接入模型中测试 API 连接'
+  }
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(trimmed)) {
+    return '无法连接模型服务，请检查设置中的 API 地址与网络'
+  }
+  if (/ECONNRESET/i.test(trimmed)) {
+    return ADAPTER_USER_MESSAGES[AdapterErrorCode.NETWORK_ERROR]
+  }
+  return trimmed
+}
+
+export function formatErrorMessage(error: unknown): string {
   if (error instanceof AdapterError) return error.userMessage
-  if (error instanceof Error) return error.message
-  return String(error)
+  if (error instanceof Error) return formatNetworkErrorText(error.message)
+  return formatNetworkErrorText(String(error))
+}
+
+export function getAdapterErrorMessage(error: unknown): string {
+  return formatErrorMessage(error)
 }
 
 export const ADAPTER_USER_MESSAGES: Record<AdapterErrorCode, string> = {

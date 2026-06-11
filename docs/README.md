@@ -40,6 +40,7 @@ docs/
 |------|------|
 | [LocalCanvas_Agent-实现进度统计表.md](./LocalCanvas_Agent-实现进度统计表.md) | 根索引 |
 | [v11/LocalCanvas_Agent-实现进度统计表.md](./v11/LocalCanvas_Agent-实现进度统计表.md) | **逐项更新进度**（IMP-* / ST-* / QA） |
+| [v11/LocalCanvas_v11_验收跑表.md](./v11/LocalCanvas_v11_验收跑表.md) | **v11 手工验收表格**（Slice A/B/C） |
 
 ## 用户指南（按版本目录）
 

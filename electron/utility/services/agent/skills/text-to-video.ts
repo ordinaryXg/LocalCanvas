@@ -18,7 +18,12 @@ export const textToVideoSkill: AgentSkill = {
           tempId: 'text-1',
           type: 'text',
           label: '画面描述',
-          data: { draft: intent, output: intent, outputMode: 'passthrough', modelId: defaultLlm ?? '' },
+          data: {
+            draft: intent,
+            output: intent,
+            outputMode: 'passthrough',
+            modelId: defaultLlm ?? '',
+          },
           modelHint: defaultLlm,
         },
         {

@@ -1,5 +1,5 @@
 import type { Node, Edge } from '@xyflow/react'
-import type { ProjectGroup } from '../types/project'
+import type { ProjectGroup, ProjectMetadata } from '../types/project'
 import { getCatalogVersion } from '../capabilities/profile-display'
 import { stripTransientMediaFields } from './assetStorage'
 import { ensureEdgeIds } from './canvasEdge'
@@ -44,6 +44,7 @@ export function buildProjectSavePayload(params: {
   viewport: { x: number; y: number; zoom: number }
   nodes: Node[]
   edges: Edge[]
+  metadata?: ProjectMetadata
 }): {
   id: string
   name: string
@@ -51,6 +52,7 @@ export function buildProjectSavePayload(params: {
   nodes: ReturnType<typeof serializeNodeForSave>[]
   edges: Edge[]
   groups: ProjectGroup[]
+  metadata: ProjectMetadata
   updatedAt: string
   capabilityCatalogVersion: number
 } {
@@ -61,6 +63,7 @@ export function buildProjectSavePayload(params: {
     nodes: params.nodes.map(serializeNodeForSave),
     edges: ensureEdgeIds(params.edges),
     groups: extractGroupsFromNodes(params.nodes),
+    metadata: params.metadata ?? { version: 1, creativeBible: [] },
     updatedAt: new Date().toISOString(),
     capabilityCatalogVersion: getCatalogVersion(),
   }

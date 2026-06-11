@@ -6,6 +6,8 @@ import { getDatabase } from '../database'
 import { getCurrentUserId, GUEST_USER_ID, isGuestMode } from './auth-service'
 import { listAssets } from './asset'
 import { getThumbnail } from './thumbnail'
+import type { ProjectMetadata } from '../../../src/types/project'
+import { normalizeProjectMetadata } from '../../../src/utils/creativeBible'
 import { logger } from './logger'
 
 export interface ProjectSummary {
@@ -25,6 +27,7 @@ export interface ProjectData {
   nodes: ProjectNode[]
   edges: ProjectEdge[]
   groups: ProjectGroup[]
+  metadata?: ProjectMetadata
 }
 
 export interface ProjectNode {
@@ -166,6 +169,9 @@ export function loadProject(projectId: string): ProjectData {
       width: g.width as number,
       height: g.height as number,
     })),
+    metadata: normalizeProjectMetadata(
+      row.metadata ? JSON.parse(row.metadata as string) : undefined,
+    ),
   }
 }
 
@@ -186,7 +192,7 @@ export function saveProject(data: ProjectData): void {
 
   const saveAll = db.transaction(() => {
     db.prepare(
-      `UPDATE projects SET name = ?, updated_at = ?, viewport_x = ?, viewport_y = ?, viewport_zoom = ?
+      `UPDATE projects SET name = ?, updated_at = ?, viewport_x = ?, viewport_y = ?, viewport_zoom = ?, metadata = ?
        WHERE id = ?`,
     ).run(
       data.name,
@@ -194,6 +200,7 @@ export function saveProject(data: ProjectData): void {
       data.viewport.x,
       data.viewport.y,
       data.viewport.zoom,
+      JSON.stringify(data.metadata ?? normalizeProjectMetadata(undefined)),
       data.id,
     )
 

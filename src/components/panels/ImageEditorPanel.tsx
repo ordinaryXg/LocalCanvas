@@ -81,7 +81,7 @@ export function ImageEditorPanel({ nodeId, hidePreview = false }: ImageEditorPan
             panel.setModelId(id)
             panel.updateNodeData(panel.nodeId, { modelId: id })
           }}
-          referenceEdge={panel.referenceEdge}
+          referenceEdges={panel.referenceEdges}
           currentProjectId={panel.currentProjectId}
           warnings={panel.warnings}
           updateNodeData={panel.updateNodeData}

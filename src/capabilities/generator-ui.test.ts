@@ -17,6 +17,13 @@ describe('getVideoGeneratorUi', () => {
     expect(ui.supportsGenerateAudio).toBe(true)
   })
 
+  it('falls back to default model when configId is missing', () => {
+    const fallback = getVideoGeneratorUi(undefined)
+    const explicit = getVideoGeneratorUi('seedance-1-0-pro-fast')
+    expect(fallback.supportsFirstFrame).toBe(explicit.supportsFirstFrame)
+    expect(fallback.supportsLastFrame).toBe(explicit.supportsLastFrame)
+  })
+
   it('seedance 1.5 pro has last frame and audio without reference images', () => {
     const ui = getVideoGeneratorUi('seedance-1-5-pro')
     expect(ui.supportsFirstFrame).toBe(true)

@@ -10,6 +10,7 @@ import {
   type VideoRequirement,
   selectModelForRequirement,
 } from './agent-model-select'
+import { injectTextNodePromptConstraints } from '../utils/textPromptConstraints'
 
 export interface EnrichPlanResult {
   plan: WorkflowPlan
@@ -71,7 +72,8 @@ export function enrichWorkflowPlanWithModels(
   const selections: EnrichPlanResult['selections'] = []
   const warnings: string[] = []
 
-  const nodes = plan.nodes.map((node) => {
+  const nodes = injectTextNodePromptConstraints(
+    plan.nodes.map((node) => {
     const kind = nodeKind(node.type)
     if (!kind) return node
 
@@ -105,7 +107,9 @@ export function enrichWorkflowPlanWithModels(
       modelHint: selected.configId,
       data: { ...node.data, modelId: selected.configId },
     }
-  })
+  }),
+    plan.edges,
+  )
 
   let summary = plan.summary
   if (selections.length > 0) {

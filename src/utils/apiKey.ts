@@ -12,6 +12,18 @@ export function hasUsableApiKey(raw?: string): boolean {
   return true
 }
 
+/** 从候选列表中返回第一个可用的 API Key（去重后按顺序优先） */
+export function resolveFirstUsableApiKey(...candidates: (string | undefined)[]): string {
+  const seen = new Set<string>()
+  for (const raw of candidates) {
+    const key = sanitizeApiKey(raw)
+    if (!hasUsableApiKey(key) || seen.has(key)) continue
+    seen.add(key)
+    return key
+  }
+  return ''
+}
+
 export function isAuthRelatedMessage(message: string): boolean {
   const lower = message.toLowerCase()
   return (

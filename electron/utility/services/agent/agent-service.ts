@@ -1,7 +1,7 @@
 import { normalizeTextGenerateResult } from '../../../../src/utils/textGenerateResult'
 import type { AdapterRegistry } from '../model-adapter/factory'
 import type { AppConfig } from '../../../../src/types/config'
-import type { GraphPatch, WorkflowPlan } from '../../../../src/types/agent'
+import type { GraphPatch, ProductionPlan, WorkflowPlan } from '../../../../src/types/agent'
 import { parseGraphPatch } from '../../../../src/utils/parseGraphPatch'
 import { enrichGraphPatchWithModels } from '../../../../src/capabilities/agent-patch-enrich'
 import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-errors'
@@ -10,15 +10,27 @@ import { getLlmModelConfig, resolveDefaultLlmModelId } from '../../../../src/uti
 import { parseWorkflowPlan } from '../../../../src/utils/parseWorkflowPlan'
 import { WORKFLOW_PLANNER_SYSTEM_PROMPT } from './prompts/workflow-planner'
 import { GRAPH_PATCH_PLANNER_SYSTEM_PROMPT } from './prompts/graph-patch-planner'
-import { buildSkillPlan, rankSkillsForIntent } from './skills/index'
+import { buildSkillPlan, isStudioProductionTemplate, rankSkillsForIntent } from './skills/index'
 import { buildModelCatalogSection } from '../../../../src/capabilities/agent-catalog'
 import { enrichWorkflowPlanWithModels } from '../../../../src/capabilities/agent-plan-enrich'
+import { tryBuildRuleBasedGraphPatch } from '../../../../src/utils/buildRuleBasedGraphPatch'
+import { classifyFilmTrack } from '../../../../src/utils/filmTypeClassifier'
+import {
+  buildProductionPlan,
+  type BuildProductionPlanParams,
+} from '../../../../src/utils/buildProductionPlan'
+import type { CreativeBibleEntry } from '../../../../src/types/project'
+import {
+  buildExpandProductionShotsPatch,
+  type ExpandProductionShotsParams,
+} from '../../../../src/utils/expandProductionShots'
 
 export interface AgentChatRequest {
   message: string
   disabledSkills?: string[]
   /** When true, skip template suggestion gate and use LLM / fallback directly */
   freePlan?: boolean
+  defaultTrack?: 'auto' | 'lite' | 'studio'
 }
 
 export interface SuggestedTemplate {
@@ -31,6 +43,7 @@ export interface SuggestedTemplate {
 export interface AgentChatResponse {
   reply: string
   plan?: WorkflowPlan
+  productionPlan?: ProductionPlan
   patch?: GraphPatch
   skillId?: string
   suggestedTemplates?: SuggestedTemplate[]
@@ -59,21 +72,32 @@ export interface AgentBuildTemplateRequest {
   skillId: string
   intent: string
   disabledSkills?: string[]
+  brief?: BuildProductionPlanParams['brief']
+  defaultTrack?: 'auto' | 'lite' | 'studio'
+  creativeBible?: CreativeBibleEntry[]
+  takesPerShot?: number
+}
+
+export interface AgentExpandShotsRequest {
+  productionPlan: ProductionPlan
+  anchorNodeIds: string[]
+  maxShots?: number
+  referenceImageNodeId?: string
 }
 
 function toSuggestedTemplates(
   intent: string,
   disabled: string[],
+  defaultTrack: 'auto' | 'lite' | 'studio' = 'auto',
 ): SuggestedTemplate[] {
-  const maxScore = Math.max(1, ...rankSkillsForIntent(intent, disabled).map((r) => r.score))
-  return rankSkillsForIntent(intent, disabled)
-    .slice(0, 3)
-    .map(({ skill, score }) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-      score: Math.round((score / maxScore) * 100),
-    }))
+  const ranked = rankSkillsForIntent(intent, disabled, defaultTrack)
+  const maxScore = Math.max(1, ...ranked.map((r) => r.score))
+  return ranked.slice(0, 3).map(({ skill, score }) => ({
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    score: Math.round((score / maxScore) * 100),
+  }))
 }
 
 function formatPlanReply(summary: string, enriched: ReturnType<typeof enrichWorkflowPlanWithModels>, prefix?: string): AgentChatResponse {
@@ -96,7 +120,9 @@ function tryTextToVideoFallback(
   config: AppConfig,
   disabled: string[],
   prefix?: string,
+  defaultTrack: 'auto' | 'lite' | 'studio' = 'auto',
 ): AgentChatResponse | null {
+  if (classifyFilmTrack(context.intent, defaultTrack).track === 'studio') return null
   if (disabled.includes('text-to-video')) return null
   const fallback = buildSkillPlan('text-to-video', context)
   if (!fallback) return null
@@ -104,6 +130,26 @@ function tryTextToVideoFallback(
   return {
     ...formatPlanReply(`已回退到「文生图生视频」模板：${enriched.plan.summary}`, enriched, prefix),
     skillId: 'text-to-video',
+  }
+}
+
+function formatProductionPlanReply(
+  plan: ProductionPlan,
+  enrichedWarnings: string[],
+  prefix?: string,
+): AgentChatResponse {
+  const warn =
+    enrichedWarnings.length > 0 ? `\n\n⚠ ${enrichedWarnings.join('\n')}` : ''
+  const budget =
+    plan.durationBudget.level === 'warn'
+      ? `\n\n⚠ 镜头总时长 ${plan.durationBudget.sumSec}s，与目标 ${plan.durationBudget.targetSec}s 略有偏差。`
+      : ''
+  return {
+    reply: `${prefix ?? ''}${plan.summary}\n\n${plan.shots.length} 镜 · Studio 骨架落盘。确认 Brief 与镜头表后添加到画布。${budget}${warn}`,
+    productionPlan: plan,
+    plan: plan.workflow,
+    planWarnings: enrichedWarnings,
+    skillId: plan.templateId,
   }
 }
 
@@ -122,6 +168,30 @@ export function agentBuildFromTemplate(
     defaultImageModel: config.settings.default_image_model,
     defaultVideoModel: config.settings.default_video_model,
   }
+
+  if (isStudioProductionTemplate(request.skillId)) {
+    const templateId = request.skillId as
+      | 'brand-spot-30s'
+      | 'narrative-short'
+      | 'product-demo'
+      | 'montage-broll'
+    const rawPlan = buildProductionPlan({
+      intent,
+      templateId,
+      brief: request.brief,
+      creativeBible: request.creativeBible,
+      takesPerShot: request.takesPerShot,
+    })
+    const enriched = enrichWorkflowPlanWithModels(rawPlan.workflow, config)
+    const plan: ProductionPlan = { ...rawPlan, workflow: enriched.plan }
+    const skill = rankSkillsForIntent(intent, disabled).find((r) => r.skill.id === request.skillId)?.skill
+    return formatProductionPlanReply(
+      plan,
+      enriched.warnings,
+      `已选用 Studio 模板「${skill?.name ?? request.skillId}」：`,
+    )
+  }
+
   const raw = buildSkillPlan(request.skillId, context)
   if (!raw) {
     return { reply: '未找到该工作流模板。' }
@@ -158,7 +228,8 @@ export async function agentChat(
   }
 
   const disabled = request.disabledSkills ?? []
-  const suggestions = toSuggestedTemplates(intent, disabled)
+  const defaultTrack = request.defaultTrack ?? 'auto'
+  const suggestions = toSuggestedTemplates(intent, disabled, defaultTrack)
 
   if (!request.freePlan && suggestions.length > 0) {
     return {
@@ -187,6 +258,7 @@ export async function agentChat(
       config,
       disabled,
       '未检测到有效的 LLM API Key。\n\n',
+      defaultTrack,
     )
     if (fallback) return fallback
     return {
@@ -198,7 +270,7 @@ export async function agentChat(
     const adapter = adapters.getLLMAdapter(llmId)
     const catalog = buildModelCatalogSection(config)
     const raw = await adapter.generateText({
-      prompt: `用户意图：\n${intent}\n\n请生成工作流计划 JSON。`,
+      prompt: `用户意图：\n${intent}\n\n请生成工作流计划 JSON。只规划一种风格的一条主链路；text.draft 最多两句话，禁止多方案/分镜表。`,
       systemPrompt: `${WORKFLOW_PLANNER_SYSTEM_PROMPT}\n\n${catalog}`,
       model: '',
       maxTokens: 4096,
@@ -224,6 +296,7 @@ export async function agentChat(
       config,
       disabled,
       authFailed ? `LLM API Key 无效或格式不正确。${llmKeyHint(config, llmId)}\n\n` : 'LLM 规划失败，',
+      defaultTrack,
     )
     if (fallback) return fallback
 
@@ -247,6 +320,23 @@ function formatCanvasContext(request: AgentBuildPatchRequest): string {
   return `选中节点 id：${request.focusedNodeIds.join(', ')}\n\n画布节点：\n${nodeLines.join('\n')}\n\n相关连线：\n${edgeLines.join('\n') || '（无）'}`
 }
 
+function buildGraphPatchResponse(
+  patch: GraphPatch,
+  config: AppConfig,
+  replyPrefix = '',
+): AgentChatResponse {
+  const enriched = enrichGraphPatchWithModels(patch, config)
+  const warn =
+    enriched.warnings.length > 0 ? `\n\n⚠ ${enriched.warnings.join('\n')}` : ''
+  const addCount = enriched.patch.addNodes?.length ?? 0
+  const edgeCount = enriched.patch.addEdges?.length ?? 0
+  return {
+    reply: `${replyPrefix}${enriched.patch.summary}\n\n将新增 ${addCount} 个节点、${edgeCount} 条连线。确认后应用到画布。${warn}`,
+    patch: enriched.patch,
+    planWarnings: enriched.warnings,
+  }
+}
+
 export async function agentBuildPatch(
   adapters: AdapterRegistry,
   config: AppConfig,
@@ -260,9 +350,18 @@ export async function agentBuildPatch(
     return { reply: 'Build 模式需要先选中至少一个画布节点。' }
   }
 
+  const rulePatch = tryBuildRuleBasedGraphPatch({
+    message: intent,
+    focusedNodeIds: request.focusedNodeIds,
+    canvasNodes: request.canvasNodes,
+  })
+  if (rulePatch) {
+    return buildGraphPatchResponse(rulePatch, config)
+  }
+
   const llmId = resolveDefaultLlmModelId(config)
   if (!llmId) {
-    return { reply: '未配置默认 LLM，无法生成图补丁。' }
+    return { reply: '未配置默认 LLM，无法生成图补丁。可尝试更明确的描述（如「图像后接 5 秒视频，首帧用该图」）。' }
   }
   const llmConfig = getLlmModelConfig(config, llmId)
   if (!hasUsableApiKey(llmConfig?.api_key)) {
@@ -283,19 +382,44 @@ export async function agentBuildPatch(
       nodeId: 'agent-build',
     })
     const { content: rawText } = normalizeTextGenerateResult(raw)
-    const parsed = parseGraphPatch(rawText, intent, request.focusedNodeIds)
-    const enriched = enrichGraphPatchWithModels(parsed, config)
-    const warn =
-      enriched.warnings.length > 0 ? `\n\n⚠ ${enriched.warnings.join('\n')}` : ''
-    const addCount = enriched.patch.addNodes?.length ?? 0
-    const edgeCount = enriched.patch.addEdges?.length ?? 0
-    return {
-      reply: `${enriched.patch.summary}\n\n将新增 ${addCount} 个节点、${edgeCount} 条连线。确认后应用到画布。${warn}`,
-      patch: enriched.patch,
-      planWarnings: enriched.warnings,
+    let parsed: GraphPatch
+    try {
+      parsed = parseGraphPatch(rawText, intent, request.focusedNodeIds)
+    } catch (parseErr) {
+      const detail = parseErr instanceof Error ? parseErr.message : String(parseErr)
+      return {
+        reply: `图补丁 JSON 解析失败：${detail}\n\n请重试，或改用更具体的描述（例如「在选中图像后添加 5 秒视频，首帧接 image 输出」）。`,
+      }
     }
+    return buildGraphPatchResponse(parsed, config)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return { reply: `图补丁生成失败：${message}` }
   }
+}
+
+export function agentExpandShots(
+  config: AppConfig,
+  request: AgentExpandShotsRequest,
+): AgentChatResponse {
+  if (!request.anchorNodeIds.length) {
+    return { reply: '请先选中脚本或分镜组节点作为展开锚点。' }
+  }
+  const { patch, warnings, expandedCount } = buildExpandProductionShotsPatch({
+    plan: request.productionPlan,
+    anchorNodeIds: request.anchorNodeIds,
+    maxShots: request.maxShots,
+    referenceImageNodeId: request.referenceImageNodeId,
+    defaultImageModel: config.settings.default_image_model,
+    defaultVideoModel: config.settings.default_video_model,
+  } satisfies ExpandProductionShotsParams)
+
+  const enriched = enrichGraphPatchWithModels(patch, config)
+  const allWarnings = [...warnings, ...enriched.warnings]
+  const response = buildGraphPatchResponse(
+    enriched.patch,
+    config,
+    `已生成前 ${expandedCount} 镜 per-shot 子图预览。`,
+  )
+  return { ...response, planWarnings: allWarnings }
 }

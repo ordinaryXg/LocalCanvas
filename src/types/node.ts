@@ -53,6 +53,7 @@ export interface ImageNodeData {
   negativePrompt?: string
   modelId?: string
   ratio?: string
+  batchSize?: number
   isGenerating?: boolean
   progress?: number
   [key: string]: unknown

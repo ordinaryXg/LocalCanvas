@@ -35,7 +35,10 @@ import {
   agentBuildFromTemplate,
   agentBuildPatch,
   agentChat,
+  agentExpandShots,
   type AgentBuildPatchRequest,
+  type AgentBuildTemplateRequest,
+  type AgentExpandShotsRequest,
 } from './services/agent/agent-service'
 import { listSkills } from './services/agent/skills/index'
 import {
@@ -377,6 +380,7 @@ function handleAgentRequest(req: UtilityRequest): void {
             message: req.data.message as string,
             disabledSkills: req.data.disabledSkills as string[] | undefined,
             freePlan: req.data.freePlan as boolean | undefined,
+            defaultTrack: req.data.defaultTrack as 'auto' | 'lite' | 'studio' | undefined,
           })
           post('agent:result', result, req.id)
         } catch (error) {
@@ -411,8 +415,26 @@ function handleAgentRequest(req: UtilityRequest): void {
           skillId: req.data.skillId as string,
           intent: req.data.intent as string,
           disabledSkills: req.data.disabledSkills as string[] | undefined,
+          defaultTrack: req.data.defaultTrack as 'auto' | 'lite' | 'studio' | undefined,
+          brief: req.data.brief as AgentBuildTemplateRequest['brief'],
+          creativeBible: req.data.creativeBible as AgentBuildTemplateRequest['creativeBible'],
+          takesPerShot: req.data.takesPerShot as number | undefined,
         })
         post('agent:buildResult', result, req.id)
+      } catch (error) {
+        post('agent:error', { error: getAdapterErrorMessage(error) }, req.id)
+      }
+      break
+    }
+    case 'agent:expandShots': {
+      try {
+        const result = agentExpandShots(currentConfig!, {
+          productionPlan: req.data.productionPlan as AgentExpandShotsRequest['productionPlan'],
+          anchorNodeIds: (req.data.anchorNodeIds as string[]) ?? [],
+          maxShots: req.data.maxShots as number | undefined,
+          referenceImageNodeId: req.data.referenceImageNodeId as string | undefined,
+        })
+        post('agent:expandShotsResult', result, req.id)
       } catch (error) {
         post('agent:error', { error: getAdapterErrorMessage(error) }, req.id)
       }

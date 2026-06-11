@@ -20,6 +20,22 @@ export interface ProjectGroup {
   height: number
 }
 
+export type CreativeBibleEntryKind = 'character' | 'product' | 'location'
+
+export interface CreativeBibleEntry {
+  id: string
+  kind: CreativeBibleEntryKind
+  name: string
+  visualDescription: string
+  referenceImageHint?: string
+  lockedPromptPrefix?: string
+}
+
+export interface ProjectMetadata {
+  version: 1
+  creativeBible?: CreativeBibleEntry[]
+}
+
 export interface ProjectData {
   id: string
   name: string
@@ -29,6 +45,7 @@ export interface ProjectData {
   nodes: unknown[]
   edges: unknown[]
   groups: unknown[]
+  metadata?: ProjectMetadata
 }
 
 export interface ProjectSavePayload {
@@ -40,4 +57,5 @@ export interface ProjectSavePayload {
   nodes: unknown[]
   edges: unknown[]
   groups: unknown[]
+  metadata?: ProjectMetadata
 }

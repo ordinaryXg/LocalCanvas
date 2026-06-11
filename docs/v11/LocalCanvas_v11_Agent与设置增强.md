@@ -136,6 +136,7 @@
 | [复杂片型生产模型](./LocalCanvas_Agent-复杂片型生产模型.md) | 片型、七阶段、场景 D–G |
 
 | [演进对照](./LocalCanvas_Agent-演进对照.md) | **实现真相表**、落盘契约、导航 |
+| [**v11 验收跑表**](./LocalCanvas_v11_验收跑表.md) | **手工验收用例（Slice A/B/C）** |
 | [v12 版本规划](../v12/LocalCanvas_v12_Studio复杂片与Agent深化.md) | Slice D 实现范围、Wave、ST DoD |
 | [**实现进度统计表**](./LocalCanvas_Agent-实现进度统计表.md) | **逐项更新实现状态** |
 

@@ -28,6 +28,7 @@ import { assetPathToBlobUrl } from '../utils/assetStorage'
 import { findScrollParent, scrollElementWithinContainer } from '../utils/scrollWithin'
 import { IMAGE_RATIO_MAP } from '../components/panels/imageEditorHelpers'
 import type { StylePresetChipsHandle } from '../components/panels/StylePresetChips'
+import { listImageReferenceEdges } from '../utils/videoReferenceSlots'
 
 export function useImageEditorPanel(nodeId: string) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData)
@@ -97,7 +98,9 @@ export function useImageEditorPanel(nodeId: string) {
   const [negativeOpen, setNegativeOpen] = useState(() => !!editorUi.negativeOpen)
   const [modelId, setModelId] = useState((data.modelId as string) || '')
   const [ratio, setRatio] = useState((data.ratio as string) || '16:9')
-  const [batchSize, setBatchSize] = useState(1)
+  const [batchSize, setBatchSize] = useState(() =>
+    typeof data.batchSize === 'number' ? data.batchSize : 1,
+  )
   const [styleId, setStyleId] = useState((data.styleId as string) || '')
   const [imageModels, setImageModels] = useState<ImageModelConfig[]>([])
 
@@ -116,6 +119,14 @@ export function useImageEditorPanel(nodeId: string) {
   useEffect(() => {
     setStyleId((data.styleId as string) || '')
   }, [data.styleId])
+
+  useEffect(() => {
+    setRatio((data.ratio as string) || '16:9')
+  }, [nodeId, data.ratio])
+
+  useEffect(() => {
+    setBatchSize(typeof data.batchSize === 'number' ? data.batchSize : 1)
+  }, [nodeId, data.batchSize])
 
   useEffect(() => {
     void window.api.config.read().then((config) => {
@@ -144,7 +155,10 @@ export function useImageEditorPanel(nodeId: string) {
 
   const selectedModel = imageModels.find((m) => m.id === modelId)
   const ui = getImageGeneratorUi(modelId, selectedModel?.model)
-  const referenceEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'reference')
+  const referenceEdges = useMemo(
+    () => listImageReferenceEdges(edges, nodeId),
+    [edges, nodeId],
+  )
   const promptEdge = edges.find((e) => e.target === nodeId && e.targetHandle === 'prompt')
   const promptSourceNode = promptEdge ? nodes.find((n) => n.id === promptEdge.source) : undefined
   const isPromptSynced =
@@ -171,9 +185,13 @@ export function useImageEditorPanel(nodeId: string) {
 
     try {
       assertNoWarnEdgesForNode(nodeId, nodes, edges, 'image')
-      const referenceImage = referenceEdge
-        ? await resolveImageRefFromNodeId(referenceEdge.source, nodes, currentProjectId)
-        : undefined
+      const referenceImages = (
+        await Promise.all(
+          referenceEdges.map((edge) =>
+            resolveImageRefFromNodeId(edge.source, nodes, currentProjectId),
+          ),
+        )
+      ).filter((url): url is string => !!url)
       const { result: resultPath } = await run(() =>
         window.api.model.beginGenerateImage({
           modelId,
@@ -183,7 +201,11 @@ export function useImageEditorPanel(nodeId: string) {
           width,
           height,
           batchSize,
-          ...(referenceImage ? { referenceImage } : {}),
+          ...(referenceImages.length > 0
+            ? referenceImages.length === 1
+              ? { referenceImage: referenceImages[0] }
+              : { referenceImages }
+            : {}),
         }),
       )
 
@@ -206,6 +228,7 @@ export function useImageEditorPanel(nodeId: string) {
         negativePrompt,
         modelId,
         ratio,
+        batchSize,
         styleId: styleId || undefined,
         recentOutputs,
         isGenerating: false,
@@ -231,7 +254,7 @@ export function useImageEditorPanel(nodeId: string) {
     nodeId,
     nodes,
     edges,
-    referenceEdge,
+    referenceEdges,
     run,
     updateNodeData,
     data.recentOutputs,
@@ -303,7 +326,7 @@ export function useImageEditorPanel(nodeId: string) {
     progress,
     cancel,
     ui,
-    referenceEdge,
+    referenceEdges,
     promptEdge,
     promptSourceNode,
     isPromptSynced,
