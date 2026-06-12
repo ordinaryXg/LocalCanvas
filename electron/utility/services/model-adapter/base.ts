@@ -43,6 +43,8 @@ export interface GenerateVideoParams {
   /** Seedance 2.0：是否生成同步音频 */
   generateAudio?: boolean
   taskId?: string
+  /** 创建任务成功后持久化，用于失败后仅续轮询、避免重复创建扣费 */
+  seedanceArkTaskId?: string
 }
 
 export interface GenerateTextParams {

@@ -28,6 +28,12 @@ export class AdapterError extends Error {
   }
 }
 
+export function isTransientNetworkError(err: unknown): boolean {
+  const code = (err as { code?: string })?.code ?? ''
+  const message = err instanceof Error ? err.message : String(err)
+  return /ETIMEDOUT|ECONNRESET|ECONNABORTED|EAI_AGAIN|ENOTFOUND/i.test(`${code} ${message}`)
+}
+
 export function formatNetworkErrorText(text: string): string {
   const trimmed = text.trim()
   if (!trimmed) return ADAPTER_USER_MESSAGES[AdapterErrorCode.UNKNOWN]

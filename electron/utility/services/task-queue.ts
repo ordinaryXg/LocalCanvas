@@ -214,10 +214,24 @@ export class TaskQueue extends EventEmitter {
           this.updateProgress(task.id, p.percentage, task.nodeId)
         }
       }
+      const checkpointHandler = (data: { seedanceArkTaskId?: string }) => {
+        if (!data.seedanceArkTaskId) return
+        const merged = { ...task.params, seedanceArkTaskId: data.seedanceArkTaskId }
+        task.params = merged
+        this.db
+          .prepare('UPDATE task_queue SET params = ? WHERE id = ?')
+          .run(JSON.stringify(merged), task.id)
+      }
       adapter.on('progress', progressHandler)
+      adapter.on('checkpoint', checkpointHandler)
 
-      const rawResult = await this.executors[task.type](task, adapter)
-      adapter.off('progress', progressHandler)
+      let rawResult: unknown
+      try {
+        rawResult = await this.executors[task.type](task, adapter)
+      } finally {
+        adapter.off('progress', progressHandler)
+        adapter.off('checkpoint', checkpointHandler)
+      }
 
       if (isTaskCancelled(task.id)) {
         clearTaskCancelled(task.id)

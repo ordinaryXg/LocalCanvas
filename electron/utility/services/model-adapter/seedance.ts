@@ -11,7 +11,13 @@ import {
   type GenerateAudioParams,
   type AdapterStatus,
 } from './base'
-import { AdapterError, AdapterErrorCode } from '../../../../src/types/adapter-errors'
+import {
+  AdapterError,
+  AdapterErrorCode,
+  formatNetworkErrorText,
+  isTransientNetworkError,
+} from '../../../../src/types/adapter-errors'
+import { withRetry } from '../retry-manager'
 import {
   SEEDANCE_ENDPOINTS,
   SEEDANCE_CAMERA_PROMPTS,
@@ -126,12 +132,24 @@ export class SeedanceAdapter extends ModelAdapter {
       body.watermark = watermark
     }
 
+    let arkTaskId = params.seedanceArkTaskId
+    if (!arkTaskId) {
+      arkTaskId = await this.createArkTask(body)
+      this.emit('checkpoint', {
+        seedanceArkTaskId: arkTaskId,
+        nodeId: params.nodeId,
+      })
+    }
+
+    return this.pollUntilDone(arkTaskId, params.nodeId, params.taskId)
+  }
+
+  private async createArkTask(body: Record<string, unknown>): Promise<string> {
     try {
       const res = await axios.post(this.createEndpoint, body, {
         headers: this.headers,
-        timeout: 60000,
+        timeout: 120_000,
       })
-
       const taskId = (res.data.id as string) || (res.data.task_id as string)
       if (!taskId) {
         throw new AdapterError(
@@ -142,11 +160,10 @@ export class SeedanceAdapter extends ModelAdapter {
           'Seedance 未返回任务 ID',
         )
       }
-
-      return this.pollUntilDone(taskId, params.nodeId, params.taskId)
+      return taskId
     } catch (err) {
       if (err instanceof AdapterError) throw err
-      throw this.wrapError(err)
+      throw this.wrapError(err, 'create')
     }
   }
 
@@ -259,7 +276,17 @@ export class SeedanceAdapter extends ModelAdapter {
         throw cancelledError()
       }
 
-      const res = await axios.get(pollUrl, { headers: this.headers, timeout: 30000 })
+      let res: Awaited<ReturnType<typeof axios.get>>
+      try {
+        res = await axios.get(pollUrl, { headers: this.headers, timeout: 30_000 })
+      } catch (err) {
+        if (isTransientNetworkError(err) && i < maxAttempts - 1) {
+          await new Promise((r) => setTimeout(r, waitMs))
+          waitMs = Math.min(waitMs * 1.5, 15_000)
+          continue
+        }
+        throw this.wrapError(err, 'poll')
+      }
       const status = (res.data.status as string) || ''
 
       this.emit('progress', {
@@ -326,8 +353,18 @@ export class SeedanceAdapter extends ModelAdapter {
   private async downloadVideo(url: string): Promise<string> {
     await mkdir(this.outputDir, { recursive: true })
     const localPath = join(this.outputDir, `${Date.now()}-seedance.mp4`)
-    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 300000 })
-    await writeFile(localPath, Buffer.from(res.data))
+    try {
+      await withRetry(
+        async () => {
+          const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 300_000 })
+          await writeFile(localPath, Buffer.from(res.data))
+        },
+        { maxRetries: 2, baseDelay: 2000 },
+      )
+    } catch (err) {
+      if (err instanceof AdapterError) throw err
+      throw this.wrapError(err, 'download')
+    }
     return localPath
   }
 
@@ -385,11 +422,29 @@ export class SeedanceAdapter extends ModelAdapter {
     return prefix ? `${prefix}${trimmed}` : trimmed
   }
 
-  private wrapError(err: unknown): AdapterError {
+  private wrapError(
+    err: unknown,
+    phase: 'create' | 'poll' | 'download' = 'poll',
+  ): AdapterError {
     const message = err instanceof Error ? err.message : String(err)
     const status = axios.isAxiosError(err) ? err.response?.status : undefined
     const { code, message: apiMessage } = this.extractVolcengineError(err)
     const detail = apiMessage || message
+
+    if (isTransientNetworkError(err)) {
+      const billingHint =
+        phase === 'create'
+          ? ' 若火山方舟控制台显示本次请求已成功并扣费，请勿重复点击生成，可稍后重试同一节点。'
+          : ''
+      return new AdapterError(
+        detail,
+        'openai',
+        AdapterErrorCode.CONNECTION_TIMEOUT,
+        phase !== 'create',
+        formatNetworkErrorText(detail) + billingHint,
+        err instanceof Error ? err : undefined,
+      )
+    }
 
     if (status === 401 || status === 403) {
       return new AdapterError(
