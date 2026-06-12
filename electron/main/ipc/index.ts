@@ -10,6 +10,7 @@ import {
   getProjectThumbnailPath,
   getProjectAssetsPath,
   saveWorkflowFile,
+  importProjectFromFile,
   type ProjectData,
 } from '../services/project'
 import { join } from 'path'
@@ -30,6 +31,7 @@ import { restoreSession } from '../services/auth-service'
 import { ensureDiskSpace } from '../services/disk-space'
 import { logger } from '../services/logger'
 import { getMainWindow } from '../window'
+import { mt } from '../i18n'
 
 export function registerProjectIpc(): void {
   ipcMain.handle('project:create', (_e, name: string) => {
@@ -109,6 +111,24 @@ export function registerProjectIpc(): void {
       return content.buffer
     } catch (error) {
       logger.error('project:readThumbnail failed', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('project:importFromFile', async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: mt('project.import.title'),
+        filters: [{ name: mt('dialog.filter.json'), extensions: ['json'] }],
+        properties: ['openFile'],
+      })
+      if (result.canceled || !result.filePaths[0]) {
+        return { success: false as const }
+      }
+      const project = importProjectFromFile(result.filePaths[0])
+      return { success: true as const, project: { id: project.id, name: project.name } }
+    } catch (error) {
+      logger.error('project:importFromFile failed', error)
       throw error
     }
   })

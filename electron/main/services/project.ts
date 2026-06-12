@@ -1,6 +1,6 @@
 import { app } from 'electron'
-import { join } from 'path'
-import { existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync } from 'fs'
+import { join, dirname, basename } from 'path'
+import { existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync, cpSync, readFileSync } from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getDatabase } from '../database'
 import { getCurrentUserId, GUEST_USER_ID, isGuestMode } from './auth-service'
@@ -371,4 +371,62 @@ export function saveWorkflowFile(
   writeFileSync(join(dir, fileName), content, 'utf-8')
   logger.info('Workflow saved', projectId, fileName)
   return { fileName }
+}
+
+function parseImportedProjectJson(raw: string, fallbackName: string): Omit<ProjectData, 'id' | 'createdAt' | 'updatedAt'> {
+  const parsed = JSON.parse(raw) as Record<string, unknown>
+  const name =
+    typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim() : fallbackName
+  const viewportRaw = parsed.viewport as Record<string, unknown> | undefined
+  const viewport = {
+    x: typeof viewportRaw?.x === 'number' ? viewportRaw.x : 0,
+    y: typeof viewportRaw?.y === 'number' ? viewportRaw.y : 0,
+    zoom: typeof viewportRaw?.zoom === 'number' ? viewportRaw.zoom : 1,
+  }
+
+  return {
+    name,
+    viewport,
+    nodes: Array.isArray(parsed.nodes) ? (parsed.nodes as ProjectNode[]) : [],
+    edges: Array.isArray(parsed.edges) ? (parsed.edges as ProjectEdge[]) : [],
+    groups: Array.isArray(parsed.groups) ? (parsed.groups as ProjectGroup[]) : [],
+    metadata: normalizeProjectMetadata(parsed.metadata),
+  }
+}
+
+function tryCopyImportAssets(sourceJsonPath: string, projectId: string): void {
+  const baseDir = dirname(sourceJsonPath)
+  const candidates = [
+    join(baseDir, 'assets'),
+    join(baseDir, '..', 'assets'),
+  ]
+  const targetDir = join(projectsDir(), projectId, 'assets')
+  for (const src of candidates) {
+    if (!existsSync(src)) continue
+    cpSync(src, targetDir, { recursive: true, force: true })
+    logger.info('Imported project assets copied', projectId, src)
+    return
+  }
+}
+
+export function importProjectFromFile(filePath: string): ProjectData {
+  const raw = readFileSync(filePath, 'utf-8')
+  const fallbackName = basename(filePath, '.json') || '导入的项目'
+  const imported = parseImportedProjectJson(raw, fallbackName)
+  const created = createProject(imported.name)
+  const data: ProjectData = {
+    id: created.id,
+    name: imported.name,
+    createdAt: created.createdAt,
+    updatedAt: new Date().toISOString(),
+    viewport: imported.viewport,
+    nodes: imported.nodes,
+    edges: imported.edges,
+    groups: imported.groups,
+    metadata: imported.metadata,
+  }
+  saveProject(data)
+  tryCopyImportAssets(filePath, created.id)
+  logger.info('Project imported', created.id, filePath)
+  return loadProject(created.id)
 }

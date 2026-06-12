@@ -90,9 +90,9 @@ export function ImageEditorPanel({ nodeId, hidePreview = false }: ImageEditorPan
 
       <ImageEditorPromptSection
         prompt={panel.prompt}
-        setPrompt={panel.setPrompt}
+        setPrompt={panel.commitPrompt}
         negativePrompt={panel.negativePrompt}
-        setNegativePrompt={panel.setNegativePrompt}
+        setNegativePrompt={panel.commitNegativePrompt}
         negativeOpen={panel.negativeOpen}
         onNegativeToggle={panel.handleNegativeToggle}
         isPromptSynced={panel.isPromptSynced}

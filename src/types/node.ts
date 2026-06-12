@@ -65,6 +65,7 @@ export interface VideoNodeData {
   videoAssetPath?: string
   fileName?: string
   prompt?: string
+  negativePrompt?: string
   modelId?: string
   duration?: number
   firstFrameSrc?: string

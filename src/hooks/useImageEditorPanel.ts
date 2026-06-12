@@ -284,6 +284,22 @@ export function useImageEditorPanel(nodeId: string) {
     updateNodeData(nodeId, { styleId: next || undefined })
   }
 
+  const commitPrompt = useCallback(
+    (next: string) => {
+      setPrompt(next)
+      updateNodeData(nodeId, { prompt: next || undefined })
+    },
+    [nodeId, updateNodeData],
+  )
+
+  const commitNegativePrompt = useCallback(
+    (next: string) => {
+      setNegativePrompt(next)
+      updateNodeData(nodeId, { negativePrompt: next || undefined })
+    },
+    [nodeId, updateNodeData],
+  )
+
   const handleNegativeToggle = () => {
     const next = !negativeOpen
     setNegativeOpen(next)
@@ -311,8 +327,10 @@ export function useImageEditorPanel(nodeId: string) {
     containerMaxWidth,
     prompt,
     setPrompt,
+    commitPrompt,
     negativePrompt,
     setNegativePrompt,
+    commitNegativePrompt,
     negativeOpen,
     modelId,
     setModelId,

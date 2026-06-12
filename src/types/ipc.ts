@@ -334,6 +334,10 @@ export interface LocalCanvasAPI {
     delete: (projectId: string) => Promise<{ success: boolean }>
     reorder: (orderedIds: string[]) => Promise<{ success: boolean }>
     readThumbnail: (projectId: string) => Promise<ArrayBuffer | null>
+    importFromFile: () => Promise<
+      | { success: false }
+      | { success: true; project: { id: string; name: string } }
+    >
   }
   file: {
     readAsset: (projectId: string, relativePath: string) => Promise<ArrayBuffer>

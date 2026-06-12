@@ -127,11 +127,9 @@ export class UtilityClient {
       }
       case 'model:error': {
         const payload = data as { taskId?: string; nodeId?: string; error: string }
-        logger.error('Model generation failed', {
-          taskId: payload.taskId,
-          nodeId: payload.nodeId,
-          error: payload.error,
-        })
+        logger.error(
+          `Model generation failed node=${payload.nodeId ?? '?'} task=${payload.taskId ?? '?'}: ${payload.error}`,
+        )
         if (payload.taskId) {
           trackGenerationError(payload.taskId, payload.error)
           const resolver = this.taskResolvers.get(payload.taskId)

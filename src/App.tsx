@@ -51,10 +51,12 @@ function clearEditorSession(): void {
   }
 }
 
+const TOAST_DURATION_MS = { error: 10_000, info: 5_000 } as const
+
 function Toast({ message, type }: { message: string; type: 'error' | 'info' }) {
   return (
     <div
-      className={`fixed bottom-4 right-4 z-[100] px-4 py-2 rounded-lg text-sm shadow-lg ${
+      className={`fixed bottom-4 right-4 z-[100] max-w-md px-4 py-2.5 rounded-lg text-sm shadow-lg ${
         type === 'error' ? 'bg-danger text-white' : 'bg-bg-secondary text-white border border-border'
       }`}
     >
@@ -80,6 +82,7 @@ export default function App() {
   const locale = useI18nStore((s) => s.locale)
   const manualSave = useManualSave()
   const sessionRestoredRef = useRef(false)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useDirtySync()
 
@@ -89,9 +92,16 @@ export default function App() {
 
   useEffect(() => {
     setToastHandler((message, type) => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
       setToast({ message, type })
-      setTimeout(() => setToast(null), 4000)
+      toastTimerRef.current = setTimeout(() => {
+        setToast(null)
+        toastTimerRef.current = null
+      }, TOAST_DURATION_MS[type])
     })
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {

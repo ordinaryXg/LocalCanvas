@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ProjectCard } from './ProjectCard'
 import type { ProjectSummary } from '../../types/project'
-import { handleError } from '../../utils/ErrorHandler'
+import { handleError, showToast } from '../../utils/ErrorHandler'
 import { useT } from '../../i18n'
 import { AccountMenu } from '../common/AccountMenu'
 import { remapWorkflowToCanvas } from '../../utils/loadWorkflow'
@@ -19,6 +19,7 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [importingProject, setImportingProject] = useState(false)
 
   const loadProjects = useCallback(async () => {
     try {
@@ -42,8 +43,8 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
   ] as const
 
   const handleCreate = async (nameOverride?: string, workflowName?: string | null) => {
-    const name = (nameOverride ?? newName).trim()
-    if (!name || creating) return
+    const name = (nameOverride ?? newName).trim() || t('start.defaultName')
+    if (creating || importingProject) return
     setCreating(true)
     try {
       const project = await window.api.project.create(name)
@@ -101,6 +102,23 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
     }
   }
 
+  const handleOpenFromFile = async () => {
+    if (importingProject || creating) return
+    setImportingProject(true)
+    try {
+      const result = await window.api.project.importFromFile()
+      if (!result.success || !result.project) return
+      await loadProjects()
+      showToast(t('start.importSuccess'), 'success')
+      onOpenProject(result.project.id, result.project.name)
+    } catch (error) {
+      handleError(error, 'importProject')
+      showToast(t('start.importFailed'), 'error')
+    } finally {
+      setImportingProject(false)
+    }
+  }
+
   const reorderProjects = async (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return
     const next = [...projects]
@@ -148,34 +166,44 @@ export function StartPage({ onOpenProject, onOpenSettings }: StartPageProps) {
             <button
               key={tpl.label}
               type="button"
-              disabled={creating}
+              disabled={creating || importingProject}
               onClick={() => {
                 setNewName(tpl.name)
                 void handleCreate(tpl.name, tpl.workflowName)
               }}
-              className="text-xs px-3 py-1.5 rounded-full border border-[var(--studio-border)] text-text-muted hover:text-white hover:border-[var(--studio-accent)] transition"
+              className="text-xs px-3 py-1.5 rounded-full border border-[var(--studio-border)] text-text-muted hover:text-white hover:border-[var(--studio-accent)] transition disabled:opacity-50"
             >
               {tpl.label}
             </button>
           ))}
         </div>
 
-        <div className="flex gap-2 mb-8">
+        <div className="flex flex-wrap gap-2 mb-8">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder={t('start.placeholder')}
-            className="flex-1 bg-bg-secondary text-white px-4 py-2 rounded-lg outline-none border border-border focus:border-accent"
+            className="flex-1 min-w-[220px] bg-bg-secondary text-white px-4 py-2 rounded-lg outline-none border border-border focus:border-accent"
             onKeyDown={(e) => e.key === 'Enter' && void handleCreate()}
           />
-          <button
-            type="button"
-            onClick={() => void handleCreate()}
-            disabled={creating || !newName.trim()}
-            className="bg-accent text-white px-6 py-2 rounded-lg hover:bg-accent-hover transition disabled:opacity-50"
-          >
-            {creating ? t('start.creating') : t('start.create')}
-          </button>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleOpenFromFile()}
+              disabled={creating || importingProject}
+              className="px-5 py-2 rounded-lg border border-border text-text-primary hover:text-white hover:border-accent/50 transition disabled:opacity-50 whitespace-nowrap"
+            >
+              {importingProject ? t('start.openDialog.importing') : t('start.open')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCreate()}
+              disabled={creating || importingProject}
+              className="bg-accent text-white px-6 py-2 rounded-lg hover:bg-accent-hover transition disabled:opacity-50 whitespace-nowrap"
+            >
+              {creating ? t('start.creating') : t('start.create')}
+            </button>
+          </div>
         </div>
 
         <h2 className="text-sm text-text-primary/90 mb-3">{t('start.recent')}</h2>

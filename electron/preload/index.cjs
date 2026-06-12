@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('api', {
     delete: (projectId) => ipcRenderer.invoke('project:delete', projectId),
     reorder: (orderedIds) => ipcRenderer.invoke('project:reorder', orderedIds),
     readThumbnail: (projectId) => ipcRenderer.invoke('project:readThumbnail', projectId),
+    importFromFile: () => ipcRenderer.invoke('project:importFromFile'),
   },
   file: {
     readAsset: (projectId, relativePath) =>

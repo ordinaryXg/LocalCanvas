@@ -1,4 +1,7 @@
+import { ensureUtf8Console } from '../shared/ensureUtf8Console'
 import Database from 'better-sqlite3'
+
+ensureUtf8Console()
 import { readFileSync, existsSync } from 'fs'
 import { parse } from 'yaml'
 import { AdapterRegistry } from './services/model-adapter/factory'

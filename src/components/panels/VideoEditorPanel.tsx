@@ -141,6 +141,14 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
     setGenerateAudio(data.generateAudio !== false)
   }, [nodeId, data.generateAudio])
 
+  useEffect(() => {
+    setPrompt((data.prompt as string) || '')
+  }, [nodeId, data.prompt])
+
+  useEffect(() => {
+    setNegativePrompt((data.negativePrompt as string) || '')
+  }, [nodeId, data.negativePrompt])
+
   const { isGenerating, progress, lastError, run, cancel } = useModelGeneration(nodeId, (pct) => {
     updateNodeData(nodeId, { progress: pct })
   })
@@ -347,6 +355,7 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
         ...(assetPath ? { videoAssetPath: assetPath } : {}),
         fileName,
         prompt,
+        negativePrompt: negativePrompt || undefined,
         modelId,
         duration,
         ratio,
@@ -682,7 +691,11 @@ export function VideoEditorPanel({ nodeId, hidePreview = false }: VideoEditorPan
           <label className="text-[10px] text-text-muted">画面描述（支持运镜自然语言）</label>
           <ResizableTextarea
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value
+              setPrompt(next)
+              updateNodeData(nodeId, { prompt: next || undefined })
+            }}
             placeholder="描述视频画面和运动，例如：金色柴犬在麦田中奔跑，广角跟拍，电影感..."
             minHeight={80}
           />

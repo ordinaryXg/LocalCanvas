@@ -10,15 +10,15 @@ import { getNodeVisualVariant } from '../../utils/nodeVisualVariant'
 import { normalizeTextNodeData, textNodeOutput } from '../../utils/textNodeOutput'
 
 const MIN_WIDTH = 148
-const MIN_HEIGHT = 96
+const MIN_HEIGHT = 84
 const MAX_WIDTH = 320
 /** 便签本体（含内边距）最大高度 */
-const MAX_NOTE_HEIGHT = 280
-const SHELL_PAD = 8
+const MAX_NOTE_HEIGHT = 248
+const SHELL_PAD = 6
 
 function TextNodeComponent({ id, data: rawData, selected }: NodeProps) {
   const shellRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLPreElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const lastMeasuredRef = useRef({ width: 0, height: 0 })
   const [clipped, setClipped] = useState(false)
   const requestFocusDraft = useTextEditorStore((s) => s.requestFocusDraft)
@@ -48,6 +48,10 @@ function TextNodeComponent({ id, data: rawData, selected }: NodeProps) {
   }, [edges, id, modelId])
 
   const displayText = textNodeOutput((rawData ?? {}) as Record<string, unknown>).trim()
+  const paragraphs = useMemo(
+    () => (displayText ? displayText.split(/\n{2,}/) : []),
+    [displayText],
+  )
 
   useLayoutEffect(() => {
     const pre = contentRef.current
@@ -110,9 +114,13 @@ function TextNodeComponent({ id, data: rawData, selected }: NodeProps) {
       >
         {displayText ? (
           <div className="text-note-node__body">
-            <pre ref={contentRef} className="text-note-node__content">
-              {displayText}
-            </pre>
+            <div ref={contentRef} className="text-note-node__content">
+              {paragraphs.map((paragraph, index) => (
+                <p key={index} className="text-note-node__paragraph">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
             {clipped && <div className="text-note-node__fade" aria-hidden />}
           </div>
         ) : (
